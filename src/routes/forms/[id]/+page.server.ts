@@ -2,6 +2,7 @@ import { error, fail } from '@sveltejs/kit';
 import {
 	activeMember,
 	canSubmit,
+	canViewResults,
 	collectAnswerInputs,
 	FormInputError,
 	isClosed,
@@ -10,7 +11,7 @@ import {
 	loadQuestions,
 	submitResponse
 } from '$lib/server/forms';
-import { requireUser } from '$lib/server/guards';
+import { canManageForm, requireUser } from '$lib/server/guards';
 import type { Actions, PageServerLoad } from './$types';
 
 const FAILURES = {
@@ -31,14 +32,16 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (!member) error(403, FAILURES.not_member.message);
 	if (!canSubmit(target, member)) error(403, FAILURES.forbidden.message);
 
-	const [questions, own] = await Promise.all([
+	const [questions, own, manage] = await Promise.all([
 		loadQuestions(params.id),
-		loadOwnResponse(params.id, user.id)
+		loadOwnResponse(params.id, user.id),
+		canManageForm(locals, target)
 	]);
 
 	const closed = isClosed(target);
 
 	return {
+		resultsVisible: canViewResults(target, manage),
 		form: {
 			id: target.id,
 			title: target.title,

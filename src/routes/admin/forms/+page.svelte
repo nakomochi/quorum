@@ -72,7 +72,9 @@
 				<tbody>
 					{#each data.forms as row (row.id)}
 						<tr class="border-t border-slate-800">
-							<td class="px-4 py-3 font-medium">{row.title}</td>
+							<td class="px-4 py-3 font-medium">
+								<a href="/forms/{row.id}/results" class="hover:underline">{row.title}</a>
+							</td>
 							<td class="px-4 py-3 text-slate-300">
 								{row.roleName}
 								{#if row.submitScope === 'everyone'}

@@ -133,5 +133,10 @@
 		</div>
 	{/if}
 
-	<a href="/" class="text-sm text-slate-400 hover:underline">← トップへ</a>
+	<div class="flex gap-4 text-sm text-slate-400">
+		{#if data.resultsVisible}
+			<a href="/forms/{data.form.id}/results" class="hover:underline">回答状況を見る</a>
+		{/if}
+		<a href="/" class="hover:underline">← トップへ</a>
+	</div>
 </main>

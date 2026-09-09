@@ -101,7 +101,10 @@
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each data.created as row (row.id)}
 							<li class="card">
-								<a href="/forms/{row.id}" class="flex items-center justify-between gap-4 px-5 py-4">
+								<a
+									href="/forms/{row.id}/results"
+									class="flex items-center justify-between gap-4 px-5 py-4"
+								>
 									<span class="font-medium">{row.title}</span>
 									<span class="flex shrink-0 items-center gap-3 text-xs text-slate-400">
 										<span>{format(row.deadline)}</span>

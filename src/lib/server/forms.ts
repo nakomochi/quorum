@@ -1,4 +1,4 @@
-import { and, asc, count, desc, eq, inArray, isNull } from 'drizzle-orm';
+import { and, asc, count, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
 import { db } from './db';
 import {
 	answer,
@@ -8,10 +8,13 @@ import {
 	question,
 	response,
 	type Form,
+	type FrozenMember,
+	type GuildMember,
 	type Question,
 	type QuestionOption
 } from './db/schema';
 import { guildId, listGuildRoles, type DiscordRole } from './discord';
+import { syncAllMembers } from './guild-sync';
 import { parseJstLocal } from '../datetime';
 import {
 	hasOptions,
@@ -468,6 +471,243 @@ export type CreatedFormSummary = {
 	closedAt: Date | null;
 	responseCount: number;
 };
+
+export function canViewResults(
+	target: Pick<Form, 'visibility' | 'deadline'>,
+	manage: boolean,
+	now = new Date()
+): boolean {
+	if (manage) return true;
+	switch (target.visibility) {
+		case 'public':
+			return true;
+		case 'admin_only':
+			return false;
+		// A form with no deadline never reaches "after the deadline", so it stays managers-only.
+		case 'after_deadline':
+			return target.deadline !== null && target.deadline.getTime() <= now.getTime();
+	}
+}
+
+type NameParts = Pick<GuildMember, 'username' | 'globalName' | 'nickname'>;
+
+/** `||` rather than `??`: the mirror stores an absent nickname as null, Discord sometimes as ''. */
+export function memberDisplayName(member: NameParts): string {
+	return member.nickname || member.globalName || member.username;
+}
+
+/** Accepts both `db` and a transaction handle. */
+type Executor = Pick<typeof db, 'select'>;
+
+/**
+ * The roster the form is aimed at. Bots cannot answer and departed members are no longer
+ * accountable, so neither may ever surface as a non-submitter.
+ */
+async function targetRoster(exec: Executor, targetRoleId: string) {
+	return exec
+		.select({
+			discordId: guildMember.discordId,
+			username: guildMember.username,
+			globalName: guildMember.globalName,
+			nickname: guildMember.nickname
+		})
+		.from(guildMember)
+		.where(
+			and(
+				isNull(guildMember.leftAt),
+				eq(guildMember.isBot, false),
+				sql`${guildMember.roleIds} @> ${JSON.stringify([targetRoleId])}::jsonb`
+			)
+		);
+}
+
+/** Roster minus everyone who responded, computed from the mirror as it stands right now. */
+export async function computeNonSubmitters(
+	exec: Executor,
+	target: Pick<Form, 'id' | 'targetRoleId'>
+): Promise<FrozenMember[]> {
+	const roster = await targetRoster(exec, target.targetRoleId);
+	const responded = await exec
+		.select({ discordId: response.discordId })
+		.from(response)
+		.where(eq(response.formId, target.id));
+
+	const answered = new Set(responded.map((row) => row.discordId));
+
+	return roster
+		.filter((row) => !answered.has(row.discordId))
+		.map((row) => ({ discordId: row.discordId, displayName: memberDisplayName(row) }))
+		.sort((a, b) => a.displayName.localeCompare(b.displayName, 'ja'));
+}
+
+export type ResultRow = {
+	discordId: string;
+	displayName: string;
+	submittedAt: Date;
+	answers: Record<number, AnswerValue>;
+};
+
+export type FormResults = {
+	/** True when the non-submitter list came from the frozen record instead of the mirror. */
+	frozen: boolean;
+	targetCount: number;
+	submitted: ResultRow[];
+	/** Responses from people without the target role; possible while submit_scope is 'everyone'. */
+	outsiders: ResultRow[];
+	nonSubmitters: FrozenMember[];
+};
+
+export async function loadResults(target: Form): Promise<FormResults> {
+	const rows = await db
+		.select({
+			responseId: response.id,
+			discordId: response.discordId,
+			submittedAt: response.submittedAt,
+			username: guildMember.username,
+			globalName: guildMember.globalName,
+			nickname: guildMember.nickname,
+			roleIds: guildMember.roleIds
+		})
+		.from(response)
+		.leftJoin(guildMember, eq(guildMember.discordId, response.discordId))
+		.where(eq(response.formId, target.id))
+		.orderBy(asc(response.submittedAt), asc(response.id));
+
+	const answers = rows.length
+		? await db
+				.select()
+				.from(answer)
+				.where(
+					inArray(
+						answer.responseId,
+						rows.map((row) => row.responseId)
+					)
+				)
+		: [];
+
+	const byResponse = new Map<number, Record<number, AnswerValue>>();
+	for (const row of answers) {
+		let bucket = byResponse.get(row.responseId);
+		if (!bucket) {
+			bucket = {};
+			byResponse.set(row.responseId, bucket);
+		}
+		bucket[row.questionId] = row.value;
+	}
+
+	const submitted: ResultRow[] = [];
+	const outsiders: ResultRow[] = [];
+
+	for (const row of rows) {
+		const entry: ResultRow = {
+			discordId: row.discordId,
+			// The join misses only if the mirror never saw the author; the snowflake still names them.
+			displayName: row.username
+				? memberDisplayName({
+						username: row.username,
+						globalName: row.globalName,
+						nickname: row.nickname
+					})
+				: row.discordId,
+			submittedAt: row.submittedAt,
+			answers: byResponse.get(row.responseId) ?? {}
+		};
+		if (row.roleIds?.includes(target.targetRoleId)) submitted.push(entry);
+		else outsiders.push(entry);
+	}
+
+	// Closing is what fixes the record: after it the list must not drift with the mirror.
+	const frozen = target.closedAt !== null && target.finalNonSubmitters !== null;
+	const nonSubmitters = frozen
+		? (target.finalNonSubmitters ?? [])
+		: await computeNonSubmitters(db, target);
+
+	return {
+		frozen,
+		targetCount: submitted.length + nonSubmitters.length,
+		submitted,
+		outsiders,
+		nonSubmitters
+	};
+}
+
+export type ChoiceTally = {
+	questionId: number;
+	label: string;
+	type: QuestionType;
+	options: { id: string; label: string; count: number }[];
+};
+
+export function tallyChoices(questions: Question[], rows: ResultRow[]): ChoiceTally[] {
+	return questions
+		.filter((q) => hasOptions(q.type))
+		.map((q) => {
+			const counts = new Map((q.options ?? []).map((option) => [option.id, 0]));
+
+			for (const row of rows) {
+				const value = row.answers[q.id];
+				const ids =
+					value?.type === 'single'
+						? [value.optionId]
+						: value?.type === 'multi'
+							? value.optionIds
+							: [];
+				// Unknown ids are dropped: an option deleted after answers exist has nothing to show.
+				for (const id of ids) {
+					const current = counts.get(id);
+					if (current !== undefined) counts.set(id, current + 1);
+				}
+			}
+
+			return {
+				questionId: q.id,
+				label: q.label,
+				type: q.type,
+				options: (q.options ?? []).map((option) => ({
+					...option,
+					count: counts.get(option.id) ?? 0
+				}))
+			};
+		});
+}
+
+export type CloseResult =
+	| { ok: true; frozen: number }
+	| { ok: false; reason: 'not_found' | 'already_closed' };
+
+/**
+ * Closing writes a permanent record, so the mirror is refreshed from Discord first: freezing a
+ * stale roster would name the wrong people forever. A Discord failure propagates and the form
+ * stays open rather than being frozen on old data.
+ */
+export async function closeForm(formId: string): Promise<CloseResult> {
+	await syncAllMembers();
+
+	return db.transaction(async (tx) => {
+		const [target] = await tx.select().from(form).where(eq(form.id, formId)).limit(1);
+		if (!target) return { ok: false, reason: 'not_found' } as const;
+		if (target.closedAt) return { ok: false, reason: 'already_closed' } as const;
+
+		const frozen = await computeNonSubmitters(tx, target);
+
+		await tx
+			.update(form)
+			.set({ closedAt: new Date(), finalNonSubmitters: frozen })
+			.where(eq(form.id, formId));
+
+		return { ok: true, frozen: frozen.length } as const;
+	});
+}
+
+/** Recovery from a mistaken close. The frozen list is discarded, not archived. */
+export async function reopenForm(formId: string): Promise<boolean> {
+	const rows = await db
+		.update(form)
+		.set({ closedAt: null, finalNonSubmitters: null })
+		.where(and(eq(form.id, formId), isNotNull(form.closedAt)))
+		.returning({ id: form.id });
+	return rows.length > 0;
+}
 
 export async function listFormsCreatedBy(userId: string): Promise<CreatedFormSummary[]> {
 	return db

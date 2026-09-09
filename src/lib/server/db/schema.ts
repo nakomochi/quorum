@@ -266,10 +266,10 @@ export const reminder = pgTable(
 		// Mentions are chunked at 50 users per message, so one send can span several ids.
 		messageIds: jsonb('message_ids').$type<string[]>().notNull().default([]),
 		/**
-		 * The form.deadline the automatic reminder was sent for, captured at send time.
+		 * The form.deadline this reminder was sent for, captured at send time.
 		 * Part of the reminder_auto_once_uq unique index: deadlines can be extended, and
 		 * keying the index on form_id alone would make the reminder unsendable forever
-		 * after the first one. Null for manual reminders.
+		 * after the first one. Null only when the form carries no deadline.
 		 */
 		targetDeadline: timestamp('target_deadline', { withTimezone: true }),
 		sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow()

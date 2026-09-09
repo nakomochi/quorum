@@ -7,6 +7,7 @@ import {
 	selectableRoles
 } from '$lib/server/forms';
 import { requireMember } from '$lib/server/guards';
+import { announceForm } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -46,7 +47,14 @@ export const actions: Actions = {
 			}
 
 			// Not /forms/<id>: a creator without the target role cannot pass that page's canSubmit.
-			await createForm(input, user.id);
+			const id = await createForm(input, user.id);
+
+			// The form is already committed: a Discord outage is reported on the results page, which
+			// offers the post again, rather than being turned into a failed creation.
+			if (input.announcementChannelId && !(await announceForm(id)).ok) {
+				redirect(303, `/forms/${id}/results?announce=failed`);
+			}
+
 			redirect(303, '/');
 		} catch (error) {
 			// redirect() signals by throwing, so only FormInputError may be swallowed here.

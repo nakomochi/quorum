@@ -11,11 +11,29 @@ import {
 	tallyChoices
 } from '$lib/server/forms';
 import { canManageForm, requireUser } from '$lib/server/guards';
+import { announceForm, listReminders, sendReminder } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 const NOT_FOUND = 'フォームが見つかりません';
 
-export const load: PageServerLoad = async ({ locals, params }) => {
+const NO_CHANNEL = '告知チャンネルが設定されていないため、Discord へ投稿できません';
+
+const ANNOUNCE_FAILED = 'Discord への告知の投稿に失敗しました';
+
+const REMINDER_FAILURES = {
+	not_found: { status: 404, message: NOT_FOUND },
+	no_channel: { status: 400, message: NO_CHANNEL },
+	no_targets: { status: 409, message: '未提出者がいないため、リマインドは送信していません' },
+	already_sent: { status: 409, message: 'この締切に対する自動リマインドは送信済みです' },
+	sync_failed: {
+		status: 502,
+		message:
+			'Discord からメンバー一覧を取得できませんでした。古い名簿でメンションしないため、送信していません。'
+	},
+	post_failed: { status: 502, message: 'Discord への投稿に失敗しました。送信記録も残していません。' }
+} as const;
+
+export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const user = requireUser(locals);
 
 	const target = await loadForm(params.id);
@@ -42,6 +60,12 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			closedAt: target.closedAt
 		},
 		manage,
+		// Set by the redirect the creation page takes when the announcement could not be posted.
+		announceFailed: manage && url.searchParams.get('announce') === 'failed',
+		announcement: manage
+			? { channelId: target.announcementChannelId, messageId: target.announcementMessageId }
+			: null,
+		reminders: manage ? await listReminders(params.id) : [],
 		questions: questions.map((q) => ({
 			id: q.id,
 			label: q.label,
@@ -55,13 +79,13 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 /** Actions run before the load, so each repeats the manage check itself. */
 async function requireManager(locals: App.Locals, formId: string) {
-	requireUser(locals);
+	const user = requireUser(locals);
 
 	const target = await loadForm(formId);
 	if (!target) error(404, NOT_FOUND);
 	if (!(await canManageForm(locals, target))) error(403, 'このフォームを操作する権限がありません');
 
-	return target;
+	return { user, target };
 }
 
 export const actions: Actions = {
@@ -98,5 +122,31 @@ export const actions: Actions = {
 		}
 
 		return { reopened: true };
+	},
+
+	announce: async ({ locals, params }) => {
+		await requireManager(locals, params.id);
+
+		const result = await announceForm(params.id);
+		if (!result.ok) {
+			if (result.reason === 'not_found') return fail(404, { message: NOT_FOUND });
+			return result.reason === 'no_channel'
+				? fail(400, { message: NO_CHANNEL })
+				: fail(502, { message: ANNOUNCE_FAILED });
+		}
+
+		return { announced: true };
+	},
+
+	remind: async ({ locals, params }) => {
+		const { user } = await requireManager(locals, params.id);
+
+		const result = await sendReminder(params.id, { kind: 'manual', sentBy: user.id });
+		if (!result.ok) {
+			const failure = REMINDER_FAILURES[result.reason];
+			return fail(failure.status, { message: failure.message });
+		}
+
+		return { reminded: { targets: result.targets, messages: result.messages } };
 	}
 };

@@ -23,6 +23,8 @@
 		}
 	}
 
+	const REMINDER_KIND = { manual: '手動', auto: '自動' };
+
 	const percent = (count: number, total: number) => (total === 0 ? 0 : (count / total) * 100);
 
 	const answerTotal = $derived(data.submitted.length + data.outsiders.length);
@@ -45,8 +47,22 @@
 		</p>
 	</header>
 
+	{#if data.announceFailed}
+		<p class="alert-error">
+			フォームは作成しましたが、Discord への告知の投稿に失敗しました。下の「告知を投稿する」から再投稿できます。
+		</p>
+	{/if}
+
 	{#if form?.message}
 		<p class="alert-error">{form.message}</p>
+	{:else if form?.reminded}
+		<p class="rounded-lg border border-emerald-900 bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200">
+			リマインドを送信しました。未提出者 {form.reminded.targets}名を {form.reminded.messages}通に分けてメンションしました。
+		</p>
+	{:else if form?.announced}
+		<p class="rounded-lg border border-emerald-900 bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200">
+			告知を投稿しました。
+		</p>
 	{:else if form?.closed !== undefined}
 		<p class="rounded-lg border border-emerald-900 bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200">
 			クローズしました。未提出者 {form.closed}名を確定しました。
@@ -95,6 +111,53 @@
 					<button type="submit" class="btn-primary px-4 py-2">クローズして確定する</button>
 				</form>
 			{/if}
+		</section>
+	{/if}
+
+	{#if data.manage && data.announcement}
+		<section class="card flex flex-col gap-4 p-5">
+			<div class="flex flex-wrap items-start justify-between gap-3">
+				<div class="text-sm">
+					<h2 class="font-medium text-slate-300">Discord への告知とリマインド</h2>
+					<p class="mt-1 text-slate-400">
+						{#if !data.announcement.channelId}
+							告知チャンネルが未設定のフォームです。告知の投稿もリマインドの送信もできません。
+						{:else if data.announcement.messageId}
+							リマインドは告知メッセージへの返信として投稿し、未提出者を個別にメンションします。
+						{:else}
+							告知がまだ投稿されていません。リマインドは送信できますが、告知への返信にはなりません。
+						{/if}
+					</p>
+				</div>
+				{#if data.announcement.channelId}
+					<div class="flex gap-2">
+						{#if !data.announcement.messageId}
+							<form method="POST" action="?/announce">
+								<button type="submit" class="chip px-3 py-1.5 text-sm">告知を投稿する</button>
+							</form>
+						{/if}
+						<form method="POST" action="?/remind">
+							<button type="submit" class="btn-primary px-4 py-2">未提出者にリマインド</button>
+						</form>
+					</div>
+				{/if}
+			</div>
+
+			<div class="border-t border-slate-800 pt-3">
+				{#if data.reminders.length === 0}
+					<p class="text-xs text-slate-500">リマインドの送信履歴はありません。</p>
+				{:else}
+					<ul class="flex flex-col gap-1 text-xs text-slate-400">
+						{#each data.reminders as entry (entry.id)}
+							<li class="flex gap-3">
+								<span class="tabular-nums">{formatJst(entry.sentAt)}</span>
+								<span>{REMINDER_KIND[entry.kind]}</span>
+								<span class="tabular-nums">{entry.targetCount}名 / {entry.messageCount}通</span>
+							</li>
+						{/each}
+					</ul>
+				{/if}
+			</div>
 		</section>
 	{/if}
 

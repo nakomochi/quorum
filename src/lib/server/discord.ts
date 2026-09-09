@@ -56,6 +56,33 @@ export type DiscordGuild = {
 	owner_id: string;
 };
 
+export type DiscordMessage = {
+	id: string;
+	channel_id: string;
+};
+
+/**
+ * `parse: []` suppresses @everyone/@here and role pings that happen to appear in the body, so only
+ * the snowflakes listed in `users` are notified.
+ */
+export type AllowedMentions = {
+	parse: never[];
+	users?: string[];
+	replied_user?: boolean;
+};
+
+export type MessageReference = {
+	message_id: string;
+	/** False so a deleted target degrades to a plain message instead of failing the whole post. */
+	fail_if_not_exists: false;
+};
+
+export type CreateMessage = {
+	content: string;
+	allowed_mentions: AllowedMentions;
+	message_reference?: MessageReference;
+};
+
 export class DiscordApiError extends Error {
 	constructor(
 		readonly status: number,
@@ -97,16 +124,20 @@ async function retryAfterMs(res: Response): Promise<number> {
 	return Math.min(Math.max(seconds, 0) * 1000, MAX_RETRY_AFTER_MS);
 }
 
-async function request(path: string): Promise<Response> {
+async function request(path: string, init: { method?: string; json?: unknown } = {}) {
 	const { token } = credentials();
+	const body = init.json === undefined ? undefined : JSON.stringify(init.json);
 
 	for (let attempt = 0; ; attempt++) {
 		const res = await fetch(`${API_BASE}${path}`, {
+			method: init.method ?? 'GET',
 			headers: {
 				Authorization: `Bot ${token}`,
 				'User-Agent': USER_AGENT,
-				Accept: 'application/json'
+				Accept: 'application/json',
+				...(body === undefined ? {} : { 'Content-Type': 'application/json' })
 			},
+			body,
 			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
 		});
 
@@ -197,4 +228,14 @@ export async function listGuildChannels(): Promise<DiscordChannel[]> {
 
 export async function getGuild(): Promise<DiscordGuild> {
 	return getJson<DiscordGuild>(`/guilds/${guildId()}`);
+}
+
+export async function postMessage(
+	channelId: string,
+	message: CreateMessage
+): Promise<DiscordMessage> {
+	const path = `/channels/${channelId}/messages`;
+	const res = await request(path, { method: 'POST', json: message });
+	if (!res.ok) throw await toError(res, path);
+	return (await res.json()) as DiscordMessage;
 }

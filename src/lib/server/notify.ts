@@ -116,7 +116,23 @@ export async function sendReminder(
 	}
 
 	const targets = await computeNonSubmitters(db, target);
-	if (targets.length === 0) return { ok: false, reason: 'no_targets' };
+	if (targets.length === 0) {
+		// An empty row still marks the deadline as handled. Without it the scheduler keeps picking
+		// this form up, and every pass refreshes the whole roster from Discord until the deadline.
+		if (options.kind === 'auto') {
+			await db
+				.insert(reminder)
+				.values({
+					formId,
+					kind: 'auto',
+					sentBy: null,
+					targetDiscordIds: [],
+					targetDeadline: target.deadline
+				})
+				.onConflictDoNothing();
+		}
+		return { ok: false, reason: 'no_targets' };
+	}
 
 	const discordIds = targets.map((member) => member.discordId);
 

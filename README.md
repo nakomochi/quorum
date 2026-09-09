@@ -13,6 +13,12 @@ bunx drizzle-kit migrate
 bun run dev           # http://localhost:5173
 ```
 
+## 自動リマインド / 自動クローズ
+
+`src/lib/server/scheduler.ts` の tick をアプリ内 `setInterval` で 5 分ごとに回す。締切 24 時間前を
+過ぎたフォームに自動リマインドを送り、受付終了時刻を過ぎたフォームを閉じる。
+外部 cron（Coolify Scheduled Tasks 等）に移す場合は `runTick()` をそのまま呼べばよい。
+
 ### Discord Developer Portal
 
 1. アプリを作成 → Client ID / Secret を `.env` へ

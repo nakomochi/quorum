@@ -1,0 +1,17 @@
+node_modules
+.svelte-kit
+build
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+.direnv
+.envrc
+.vscode
+flake.nix
+flake.lock
+docker-compose.yml
+Dockerfile
+.dockerignore
+README.md

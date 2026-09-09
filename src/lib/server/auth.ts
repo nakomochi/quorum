@@ -2,6 +2,7 @@ import { betterAuth } from 'better-auth';
 import { drizzleAdapter } from 'better-auth/adapters/drizzle';
 import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { getRequestEvent } from '$app/server';
+import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
 import { eq } from 'drizzle-orm';
 import { db } from './db';
@@ -9,7 +10,10 @@ import * as schema from './db/schema';
 import { syncOwnMember } from './guild-sync';
 
 export const auth = betterAuth({
-	secret: env.BETTER_AUTH_SECRET,
+	// Same reason as db/index.ts: `vite build` imports this module, and better-auth treats a
+	// missing secret as fatal under NODE_ENV=production. The placeholder only exists while
+	// building, so a real deploy still fails on a missing BETTER_AUTH_SECRET.
+	secret: env.BETTER_AUTH_SECRET ?? (building ? 'build-time-placeholder-secret' : undefined),
 	baseURL: env.BETTER_AUTH_URL,
 	database: drizzleAdapter(db, { provider: 'pg', schema }),
 	user: {

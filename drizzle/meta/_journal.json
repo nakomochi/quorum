@@ -1,0 +1,27 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1788891918265,
+      "tag": "0000_cute_devos",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1788893320202,
+      "tag": "0001_wet_starjammers",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1788893330776,
+      "tag": "0002_deferrable_answer_question_fk",
+      "breakpoints": true
+    }
+  ]
+}

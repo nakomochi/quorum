@@ -1,0 +1,6 @@
+@import 'tailwindcss';
+
+@theme {
+	--color-discord: #5865f2;
+	--color-discord-hover: #4752c4;
+}

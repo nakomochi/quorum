@@ -1,5 +1,3 @@
--- Custom SQL migration file, put your code below! --
-
 -- The Drizzle schema DSL cannot express DEFERRABLE foreign keys, so the constraint
 -- generated from schema.ts (ON DELETE NO ACTION, immediate) is recreated here.
 --

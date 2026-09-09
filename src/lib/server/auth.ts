@@ -47,10 +47,6 @@ export const auth = betterAuth({
 				 * per sign-in (internalAdapter.createSession has no reuse path), whereas
 				 * user.create.after fires once and user.update.after not at all for a repeat social
 				 * login.
-				 *
-				 * Mirroring the caller here is what makes a member who joined the guild after the
-				 * last full sync visible: without a guild_member row the site shows them nothing,
-				 * and they cannot reach the admin-only refresh button either.
 				 */
 				after: async (session) => {
 					try {

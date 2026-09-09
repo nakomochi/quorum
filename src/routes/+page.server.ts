@@ -1,6 +1,26 @@
 import { error, redirect } from '@sveltejs/kit';
 import { auth } from '$lib/server/auth';
-import type { Actions } from './$types';
+import { activeMember, listFormsCreatedBy, listFormsForMember } from '$lib/server/forms';
+import { looksLikeGuildAdmin } from '$lib/server/permissions';
+import type { Actions, PageServerLoad } from './$types';
+
+const ANONYMOUS = { member: false, isAdmin: false, pending: [], submitted: [], created: [] };
+
+export const load: PageServerLoad = async ({ locals }) => {
+	const user = locals.user;
+	if (!user) return ANONYMOUS;
+
+	const member = await activeMember(user.discordId);
+	if (!member) return ANONYMOUS;
+
+	const [forms, created, isAdmin] = await Promise.all([
+		listFormsForMember(member, user.id),
+		listFormsCreatedBy(user.id),
+		looksLikeGuildAdmin(user.discordId, member.roleIds)
+	]);
+
+	return { member: true, isAdmin, created, ...forms };
+};
 
 export const actions: Actions = {
 	login: async ({ request }) => {

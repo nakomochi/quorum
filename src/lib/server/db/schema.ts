@@ -1,7 +1,9 @@
 import { nanoid } from 'nanoid';
 import { sql } from 'drizzle-orm';
+import type { AnswerValue } from '../../forms';
 import {
 	boolean,
+	check,
 	index,
 	integer,
 	jsonb,
@@ -18,12 +20,6 @@ export const submitScope = pgEnum('submit_scope', ['everyone', 'target_role']);
 export const reminderKind = pgEnum('reminder_kind', ['manual', 'auto']);
 
 export type QuestionOption = { id: string; label: string };
-
-export type AnswerValue =
-	| { type: 'single'; optionId: string }
-	| { type: 'multi'; optionIds: string[] }
-	| { type: 'text'; text: string }
-	| { type: 'date'; date: string };
 
 export type FrozenMember = { discordId: string; displayName: string };
 
@@ -129,6 +125,20 @@ export const guildMember = pgTable('guild_member', {
 	syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().defaultNow()
 });
 
+/**
+ * Not derived from guild_member.synced_at: the login-time single-member sync touches that
+ * column too, so MAX over it means "last login" and MIN only works while a full sync happens
+ * to write every row.
+ */
+export const guildSync = pgTable(
+	'guild_sync',
+	{
+		id: integer('id').primaryKey().default(1),
+		lastFullSyncAt: timestamp('last_full_sync_at', { withTimezone: true }).notNull()
+	},
+	(t) => [check('guild_sync_single_row', sql`${t.id} = 1`)]
+);
+
 export const form = pgTable(
 	'form',
 	{
@@ -142,7 +152,7 @@ export const form = pgTable(
 		// Who may submit. Deliberately separate from the mention target.
 		submitScope: submitScope('submit_scope').notNull().default('everyone'),
 		visibility: formVisibility('visibility').notNull().default('public'),
-		// Announced deadline. The automatic reminder fires 24h before this.
+		// Announced deadline (may differ from closes_at).
 		deadline: timestamp('deadline', { withTimezone: true }),
 		// Hard stop: submissions are refused and the form is frozen. Null means never auto-close.
 		closesAt: timestamp('closes_at', { withTimezone: true }),
@@ -164,7 +174,6 @@ export const form = pgTable(
 	},
 	(t) => [
 		index('form_deadline_idx').on(t.deadline),
-		// Scanned by the auto-close scheduler.
 		index('form_closes_at_idx').on(t.closesAt),
 		index('form_target_role_id_idx').on(t.targetRoleId)
 	]
@@ -261,15 +270,10 @@ export const reminder = pgTable(
 		 * Part of the reminder_auto_once_uq unique index: deadlines can be extended, and
 		 * keying the index on form_id alone would make the reminder unsendable forever
 		 * after the first one. Null for manual reminders.
-		 *
-		 * Send order matters: INSERT the row first, then post to Discord, then UPDATE
-		 * message_ids. Inserting after the send would double-notify if the process dies
-		 * in between.
 		 */
 		targetDeadline: timestamp('target_deadline', { withTimezone: true }),
 		sentAt: timestamp('sent_at', { withTimezone: true }).notNull().defaultNow()
 	},
-	// Partial unique index: one automatic reminder per form per deadline.
 	(t) => [
 		uniqueIndex('reminder_auto_once_uq')
 			.on(t.formId, t.targetDeadline)

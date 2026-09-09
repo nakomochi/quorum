@@ -1,6 +1,6 @@
-import { and, isNotNull, isNull, max, notInArray, sql } from 'drizzle-orm';
+import { and, eq, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import { db } from './db';
-import { guildMember } from './db/schema';
+import { guildMember, guildSync } from './db/schema';
 import { getGuildMember, listGuildMembers, type DiscordGuildMember } from './discord';
 
 // Keeps the bind-parameter count of a multi-row INSERT well inside Postgres' 65535 limit.
@@ -34,8 +34,7 @@ function toRow(member: DiscordGuildMember, syncedAt: Date): GuildMemberRow {
 	};
 }
 
-// `excluded` is required rather than literal values because the same clause serves
-// multi-row inserts, where a single literal would be wrong for every row but one.
+// `excluded` rather than literals: the same clause serves multi-row inserts.
 const UPSERT_SET = {
 	username: sql`excluded.username`,
 	globalName: sql`excluded.global_name`,
@@ -54,10 +53,7 @@ function chunk<T>(items: T[], size: number): T[][] {
 	return out;
 }
 
-/**
- * Full refresh of the guild_member mirror: upsert everyone Discord returned and flag
- * everyone it did not as departed. Departed rows are kept so old answers stay attributable.
- */
+/** Departed rows are kept rather than deleted so old answers stay attributable. */
 export async function syncAllMembers(): Promise<SyncAllResult> {
 	const members = await listGuildMembers();
 	const syncedAt = new Date();
@@ -94,6 +90,12 @@ export async function syncAllMembers(): Promise<SyncAllResult> {
 			.set({ syncedAt })
 			.where(and(absent, isNotNull(guildMember.leftAt)));
 
+		// Same transaction as the mirror rewrite: the stamp must never outlive a rollback.
+		await tx
+			.insert(guildSync)
+			.values({ id: 1, lastFullSyncAt: syncedAt })
+			.onConflictDoUpdate({ target: guildSync.id, set: { lastFullSyncAt: syncedAt } });
+
 		return { present: rows.length, markedLeft: departed.length, syncedAt };
 	});
 }
@@ -114,8 +116,11 @@ export async function syncOwnMember(discordId: string): Promise<SyncOwnResult> {
 	return { status: 'synced' };
 }
 
-/** Null before the first sync. */
+/** Null before the first full sync. */
 export async function lastSyncedAt(): Promise<Date | null> {
-	const [row] = await db.select({ value: max(guildMember.syncedAt) }).from(guildMember);
+	const [row] = await db
+		.select({ value: guildSync.lastFullSyncAt })
+		.from(guildSync)
+		.where(eq(guildSync.id, 1));
 	return row?.value ?? null;
 }

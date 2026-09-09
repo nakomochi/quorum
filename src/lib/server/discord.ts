@@ -9,6 +9,10 @@ const MEMBER_PAGE_SIZE = 1000;
 const MAX_RATE_LIMIT_RETRIES = 5;
 const MAX_RETRY_AFTER_MS = 60_000;
 
+// Without this a stalled connection hangs the caller: the login hook's syncOwnMember runs
+// inside the sign-in request, where try/catch cannot rescue a fetch that never settles.
+const REQUEST_TIMEOUT_MS = 10_000;
+
 export const GUILD_TEXT_CHANNEL = 0;
 
 export type DiscordUser = {
@@ -102,7 +106,8 @@ async function request(path: string): Promise<Response> {
 				Authorization: `Bot ${token}`,
 				'User-Agent': USER_AGENT,
 				Accept: 'application/json'
-			}
+			},
+			signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS)
 		});
 
 		if (res.status !== 429) return res;

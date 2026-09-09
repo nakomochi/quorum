@@ -7,6 +7,7 @@ import {
 	loadQuestions,
 	loadResults,
 	reopenForm,
+	RosterRefreshError,
 	tallyChoices
 } from '$lib/server/forms';
 import { canManageForm, requireUser } from '$lib/server/guards';
@@ -70,7 +71,10 @@ export const actions: Actions = {
 		let result;
 		try {
 			result = await closeForm(params.id);
-		} catch {
+		} catch (err) {
+			// Only the roster refresh is reported as a Discord problem; a database fault must not be
+			// disguised as one.
+			if (!(err instanceof RosterRefreshError)) throw err;
 			return fail(502, {
 				message:
 					'Discord からメンバー一覧を取得できませんでした。古い情報で確定させないため、クローズしていません。'

@@ -48,6 +48,14 @@ export class FormInputError extends Error {
 	}
 }
 
+/** Distinguishes a failed Discord refresh from a database fault while closing. */
+export class RosterRefreshError extends Error {
+	constructor(message: string, options?: { cause?: unknown }) {
+		super(message, options);
+		this.name = 'RosterRefreshError';
+	}
+}
+
 export type QuestionDraft = {
 	type: QuestionType;
 	label: string;
@@ -379,6 +387,16 @@ export async function submitResponse(
 		.filter((entry): entry is { questionId: number; value: AnswerValue } => entry.value !== null);
 
 	return db.transaction(async (tx) => {
+		// Re-read under a row lock: the check above raced with closeForm, which takes FOR UPDATE.
+		const [current] = await tx
+			.select({ closedAt: form.closedAt, closesAt: form.closesAt })
+			.from(form)
+			.where(eq(form.id, formId))
+			.for('share')
+			.limit(1);
+		if (!current) return { ok: false, reason: 'not_found' } as const;
+		if (isClosed(current)) return { ok: false, reason: 'closed' } as const;
+
 		const [inserted] = await tx
 			.insert(response)
 			.values({ formId, userId: user.id, discordId: user.discordId })
@@ -491,12 +509,11 @@ export function canViewResults(
 
 type NameParts = Pick<GuildMember, 'username' | 'globalName' | 'nickname'>;
 
-/** `||` rather than `??`: the mirror stores an absent nickname as null, Discord sometimes as ''. */
+/** `||` rather than `??`: an empty nickname must fall through, not win. */
 export function memberDisplayName(member: NameParts): string {
 	return member.nickname || member.globalName || member.username;
 }
 
-/** Accepts both `db` and a transaction handle. */
 type Executor = Pick<typeof db, 'select'>;
 
 /**
@@ -521,7 +538,7 @@ async function targetRoster(exec: Executor, targetRoleId: string) {
 		);
 }
 
-/** Roster minus everyone who responded, computed from the mirror as it stands right now. */
+/** Computed from the mirror as it stands right now, never from a frozen list. */
 export async function computeNonSubmitters(
 	exec: Executor,
 	target: Pick<Form, 'id' | 'targetRoleId'>
@@ -652,7 +669,7 @@ export function tallyChoices(questions: Question[], rows: ResultRow[]): ChoiceTa
 						: value?.type === 'multi'
 							? value.optionIds
 							: [];
-				// Unknown ids are dropped: an option deleted after answers exist has nothing to show.
+				// Unknown ids are dropped rather than shown as a blank row.
 				for (const id of ids) {
 					const current = counts.get(id);
 					if (current !== undefined) counts.set(id, current + 1);
@@ -681,10 +698,21 @@ export type CloseResult =
  * stays open rather than being frozen on old data.
  */
 export async function closeForm(formId: string): Promise<CloseResult> {
-	await syncAllMembers();
+	try {
+		await syncAllMembers();
+	} catch (cause) {
+		throw new RosterRefreshError('roster refresh failed before close', { cause });
+	}
 
 	return db.transaction(async (tx) => {
-		const [target] = await tx.select().from(form).where(eq(form.id, formId)).limit(1);
+		// FOR UPDATE pairs with the FOR SHARE in submitResponse: without it a submission can commit
+		// between computeNonSubmitters and the write, landing the same person in both lists.
+		const [target] = await tx
+			.select()
+			.from(form)
+			.where(eq(form.id, formId))
+			.for('update')
+			.limit(1);
 		if (!target) return { ok: false, reason: 'not_found' } as const;
 		if (target.closedAt) return { ok: false, reason: 'already_closed' } as const;
 
@@ -693,7 +721,7 @@ export async function closeForm(formId: string): Promise<CloseResult> {
 		await tx
 			.update(form)
 			.set({ closedAt: new Date(), finalNonSubmitters: frozen })
-			.where(eq(form.id, formId));
+			.where(and(eq(form.id, formId), isNull(form.closedAt)));
 
 		return { ok: true, frozen: frozen.length } as const;
 	});

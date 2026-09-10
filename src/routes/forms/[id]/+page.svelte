@@ -73,49 +73,53 @@
 	{#if data.editable}
 		<form method="POST" use:enhance class="flex flex-col gap-5">
 			{#each data.questions as q (q.id)}
-				<fieldset class="card p-5">
-					<legend class="px-1 text-sm font-medium">
-						{q.label}
-						{#if q.required}<span class="text-red-400">*</span>{/if}
-					</legend>
-					{#if q.helpText}
-						<p class="mb-3 text-xs text-slate-500">{q.helpText}</p>
-					{/if}
+				<!-- The card is the wrapper, not the fieldset: a bordered fieldset lets the browser cut a
+				     notch for the legend and start its padding below it, which misaligns the heading. -->
+				<div class="card p-5">
+					<fieldset class="m-0 border-0 p-0">
+						<legend class="mb-3 block text-sm font-medium">
+							{q.label}
+							{#if q.required}<span class="text-red-400">*</span>{/if}
+						</legend>
+						{#if q.helpText}
+							<p class="-mt-2 mb-3 text-xs text-slate-500">{q.helpText}</p>
+						{/if}
 
-					{#if q.type === 'single' || q.type === 'multi'}
-						<div class="flex flex-col gap-2">
-							{#each q.options ?? [] as option (option.id)}
-								<label class="flex items-center gap-2 text-sm">
-									<input
-										type={q.type === 'single' ? 'radio' : 'checkbox'}
-										name="q_{q.id}"
-										value={option.id}
-										checked={isChecked(q.id, option.id)}
-										required={q.required && q.type === 'single'}
-										class="size-4"
-									/>
-									{option.label}
-								</label>
-							{/each}
-						</div>
-					{:else if q.type === 'text'}
-						<textarea
-							name="q_{q.id}"
-							rows="3"
-							required={q.required}
-							maxlength={MAX_TEXT_ANSWER}
-							class="field">{textValue(q.id)}</textarea
-						>
-					{:else}
-						<input
-							type="date"
-							name="q_{q.id}"
-							value={textValue(q.id)}
-							required={q.required}
-							class="field"
-						/>
-					{/if}
-				</fieldset>
+						{#if q.type === 'single' || q.type === 'multi'}
+							<div class="flex flex-col gap-2">
+								{#each q.options ?? [] as option (option.id)}
+									<label class="flex items-center gap-2 text-sm">
+										<input
+											type={q.type === 'single' ? 'radio' : 'checkbox'}
+											name="q_{q.id}"
+											value={option.id}
+											checked={isChecked(q.id, option.id)}
+											required={q.required && q.type === 'single'}
+											class="accent-discord size-4"
+										/>
+										{option.label}
+									</label>
+								{/each}
+							</div>
+						{:else if q.type === 'text'}
+							<textarea
+								name="q_{q.id}"
+								rows="3"
+								required={q.required}
+								maxlength={MAX_TEXT_ANSWER}
+								class="field">{textValue(q.id)}</textarea
+							>
+						{:else}
+							<input
+								type="date"
+								name="q_{q.id}"
+								value={textValue(q.id)}
+								required={q.required}
+								class="field"
+							/>
+						{/if}
+					</fieldset>
+				</div>
 			{/each}
 
 			<button type="submit" class="btn-primary self-start px-5 py-2.5">

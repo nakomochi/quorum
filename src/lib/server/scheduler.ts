@@ -10,7 +10,6 @@ import { sendReminder } from './notify';
  */
 const TICK_INTERVAL_MS = 5 * 60_000;
 
-/** How far ahead of the deadline the automatic reminder goes out. */
 const REMINDER_LEAD = sql`interval '24 hours'`;
 
 export type TickResult = {
@@ -66,10 +65,7 @@ async function dueForClose(): Promise<string[]> {
 	return rows.map((row) => row.id);
 }
 
-/**
- * One pass over both schedules. Carries no timer of its own so that an HTTP endpoint or a CLI
- * can drive it exactly as the interval below does.
- */
+/** One pass over both schedules. Throws only if a query itself fails; see tickOnce. */
 export async function runTick(): Promise<TickResult> {
 	const result: TickResult = { reminded: [], closed: [], failed: [] };
 

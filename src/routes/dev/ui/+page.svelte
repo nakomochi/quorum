@@ -15,9 +15,9 @@
 			px-6 py-4 backdrop-blur"
 	>
 		<div>
-			<h1 class="text-2xl font-semibold tracking-tight">UI カタログ</h1>
+			<h1 class="text-2xl font-semibold tracking-tight">UI Catalog</h1>
 			<p class="mt-1 text-sm text-slate-400">
-				開発環境専用。{CASE_IDS.length} ケースを実コンポーネントとフィクスチャで描画しています。
+				for development — {CASE_IDS.length} cases, real components with fixture data
 			</p>
 		</div>
 		<div class="flex items-center gap-4">

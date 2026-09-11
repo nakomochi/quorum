@@ -194,22 +194,22 @@
 			<p class="text-sm text-slate-500">対象者からの回答はまだありません。</p>
 		{:else}
 			<div class="overflow-x-auto rounded-xl border border-slate-800">
-				<table class="w-full text-left text-sm">
+				<table class="w-max min-w-full text-left text-sm">
 					<thead class="bg-slate-900/80 text-xs text-slate-400">
 						<tr>
-							<th class="px-4 py-3 font-medium">回答者</th>
+							<th class="px-4 py-3 font-medium whitespace-nowrap">回答者</th>
 							{#each data.questions as q (q.id)}
 								<th class="px-4 py-3 font-medium">{q.label}</th>
 							{/each}
-							<th class="px-4 py-3 font-medium">提出日時</th>
+							<th class="px-4 py-3 font-medium whitespace-nowrap">提出日時</th>
 						</tr>
 					</thead>
 					<tbody>
 						{#each data.submitted as row (row.discordId)}
 							<tr class="border-t border-slate-800">
-								<td class="px-4 py-3 font-medium">{row.displayName}</td>
+								<td class="px-4 py-3 font-medium whitespace-nowrap">{row.displayName}</td>
 								{#each data.questions as q (q.id)}
-									<td class="px-4 py-3 whitespace-pre-wrap text-slate-300">
+									<td class="max-w-64 px-4 py-3 whitespace-pre-wrap text-slate-300">
 										{readable(row, q.id, q.options)}
 									</td>
 								{/each}
@@ -251,22 +251,22 @@
 			</h2>
 			<p class="text-xs text-slate-500">対象ロールを持たない人の回答です。未提出者には含みません。</p>
 			<div class="overflow-x-auto rounded-xl border border-slate-800">
-				<table class="w-full text-left text-sm">
+				<table class="w-max min-w-full text-left text-sm">
 					<thead class="bg-slate-900/80 text-xs text-slate-400">
 						<tr>
-							<th class="px-4 py-3 font-medium">回答者</th>
+							<th class="px-4 py-3 font-medium whitespace-nowrap">回答者</th>
 							{#each data.questions as q (q.id)}
 								<th class="px-4 py-3 font-medium">{q.label}</th>
 							{/each}
-							<th class="px-4 py-3 font-medium">提出日時</th>
+							<th class="px-4 py-3 font-medium whitespace-nowrap">提出日時</th>
 						</tr>
 					</thead>
 					<tbody>
 						{#each data.outsiders as row (row.discordId)}
 							<tr class="border-t border-slate-800">
-								<td class="px-4 py-3 font-medium">{row.displayName}</td>
+								<td class="px-4 py-3 font-medium whitespace-nowrap">{row.displayName}</td>
 								{#each data.questions as q (q.id)}
-									<td class="px-4 py-3 whitespace-pre-wrap text-slate-300">
+									<td class="max-w-64 px-4 py-3 whitespace-pre-wrap text-slate-300">
 										{readable(row, q.id, q.options)}
 									</td>
 								{/each}

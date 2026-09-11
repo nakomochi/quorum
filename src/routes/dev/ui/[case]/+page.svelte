@@ -20,6 +20,13 @@
 	const results = $derived(RESULTS_CASES.find((entry) => entry.id === data.case));
 	const created = $derived(NEW_CASES.find((entry) => entry.id === data.case));
 	const admin = $derived(ADMIN_CASES.find((entry) => entry.id === data.case));
+
+	// The catalogue's theme picker reaches this document through `?theme=`.
+	$effect(() => {
+		const root = document.documentElement;
+		if (data.theme) root.dataset.theme = data.theme;
+		else delete root.dataset.theme;
+	});
 </script>
 
 <svelte:head><title>{data.case} — UI catalogue</title></svelte:head>

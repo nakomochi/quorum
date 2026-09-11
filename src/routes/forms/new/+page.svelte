@@ -163,7 +163,7 @@
 						oninput={() => (closesAtTouched = true)}
 						class="field mt-1"
 					/>
-					<span class="mt-1 block text-xs text-slate-400">空欄なら自動クローズしません。</span>
+					<span class="mt-1 block text-xs text-text-muted">空欄なら自動クローズしません。</span>
 				</label>
 			</div>
 
@@ -188,7 +188,7 @@
 			{#each questions as q, index (q.key)}
 				<div class="card flex flex-col gap-3 p-5">
 					<div class="flex items-center justify-between gap-2">
-						<span class="text-xs text-slate-400">質問 {index + 1}</span>
+						<span class="text-xs text-text-muted">質問 {index + 1}</span>
 						<div class="flex gap-1">
 							<button
 								type="button"
@@ -256,7 +256,7 @@
 					</label>
 
 					{#if hasOptions(q.type)}
-						<div class="flex flex-col gap-2 border-t border-slate-800 pt-3">
+						<div class="border-border flex flex-col gap-2 border-t pt-3">
 							{#each q.options as option, optionIndex (option.id)}
 								<div class="flex items-center gap-2">
 									<input
@@ -276,7 +276,7 @@
 									>
 										×
 									</button>
-									<span class="w-8 text-right text-xs text-slate-400">{optionIndex + 1}</span>
+									<span class="w-8 text-right text-xs text-text-muted">{optionIndex + 1}</span>
 								</div>
 							{/each}
 							<button
@@ -294,7 +294,7 @@
 
 		<div class="flex items-center gap-3">
 			<button type="submit" class="btn-primary px-5 py-2.5">作成する</button>
-			<a href="/" class="text-sm text-slate-400 hover:underline">キャンセル</a>
+			<a href="/" class="text-sm text-text-muted hover:underline">キャンセル</a>
 		</div>
 	</form>
 </main>

@@ -11,14 +11,14 @@
 	<header class="flex items-center justify-between gap-4">
 		<div>
 			<h1 class="text-xl font-semibold tracking-tight">フォーム管理</h1>
-			<p class="mt-1 text-sm text-slate-400">{data.forms.length} 件</p>
+			<p class="mt-1 text-sm text-text-muted">{data.forms.length} 件</p>
 		</div>
 		<a href="/forms/new" class="btn-primary px-4 py-2">新規作成</a>
 	</header>
 
 	<section class="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
 		<div class="text-sm">
-			<p class="text-slate-300">
+			<p class="text-text-subtle">
 				メンバー情報:
 				{#if data.syncedAt}
 					{formatJst(data.syncedAt)} に更新
@@ -28,9 +28,9 @@
 			</p>
 			{#if form}
 				{#if 'message' in form}
-					<p role="alert" class="mt-1 text-red-300">{form.message}</p>
+					<p role="alert" class="text-danger mt-1">{form.message}</p>
 				{:else}
-					<p role="status" class="mt-1 text-emerald-300">
+					<p role="status" class="text-success mt-1">
 						{form.present}名を同期しました（退会 {form.markedLeft}名）
 					</p>
 				{/if}
@@ -54,13 +54,13 @@
 	</section>
 
 	{#if data.forms.length === 0}
-		<p class="card p-6 text-sm text-slate-400">
+		<p class="card p-6 text-sm text-text-muted">
 			まだフォームがありません。
 		</p>
 	{:else}
-		<div class="overflow-x-auto rounded-xl border border-slate-800">
+		<div class="overflow-x-auto rounded-xl border border-border">
 			<table class="w-max min-w-full text-left text-sm">
-				<thead class="bg-slate-900/80 text-xs text-slate-400">
+				<thead class="bg-surface-alt text-xs text-text-muted">
 					<tr>
 						<th class="px-4 py-3 font-medium">タイトル</th>
 						<th class="px-4 py-3 font-medium whitespace-nowrap">対象ロール</th>
@@ -71,30 +71,30 @@
 				</thead>
 				<tbody>
 					{#each data.forms as row (row.id)}
-						<tr class="border-t border-slate-800">
+						<tr class="border-t border-border">
 							<td class="max-w-64 px-4 py-3 font-medium">
 								<a href="/forms/{row.id}/results" class="hover:underline">{row.title}</a>
 							</td>
-							<td class="px-4 py-3 whitespace-nowrap text-slate-300">
+							<td class="px-4 py-3 whitespace-nowrap text-text-subtle">
 								{row.roleName}
 								{#if row.submitScope === 'everyone'}
-									<span class="ml-1 text-xs text-slate-400">(提出は全員可)</span>
+									<span class="ml-1 text-xs text-text-muted">(提出は全員可)</span>
 								{/if}
 							</td>
-							<td class="px-4 py-3 whitespace-nowrap text-slate-300">{formatJst(row.deadline)}</td>
-							<td class="px-4 py-3 tabular-nums whitespace-nowrap text-slate-300">
+							<td class="px-4 py-3 whitespace-nowrap text-text-subtle">{formatJst(row.deadline)}</td>
+							<td class="px-4 py-3 tabular-nums whitespace-nowrap text-text-subtle">
 								{row.responseCount}
 							</td>
 							<td class="px-4 py-3 whitespace-nowrap">
 								{#if row.closed}
-									<span class="rounded bg-slate-800 px-2 py-1 text-xs text-slate-400">受付終了</span>
+									<span class="bg-surface-raised rounded px-2 py-1 text-xs text-text-muted">受付終了</span>
 								{:else}
-									<span class="rounded bg-emerald-900/60 px-2 py-1 text-xs text-emerald-300">
+									<span class="bg-success-badge text-success rounded px-2 py-1 text-xs">
 										受付中
 									</span>
 								{/if}
 								{#if row.structureLockedAt}
-									<span class="ml-1 text-xs text-slate-400">構造ロック済</span>
+									<span class="ml-1 text-xs text-text-muted">構造ロック済</span>
 								{/if}
 							</td>
 						</tr>
@@ -104,5 +104,5 @@
 		</div>
 	{/if}
 
-	<a href="/" class="text-sm text-slate-400 hover:underline">← トップへ</a>
+	<a href="/" class="text-sm text-text-muted hover:underline">← トップへ</a>
 </main>

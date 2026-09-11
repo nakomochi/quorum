@@ -11,20 +11,20 @@
 <main class="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-16">
 	<header>
 		<h1 class="text-2xl font-semibold tracking-tight">form-discord</h1>
-		<p class="mt-1 text-sm text-slate-400">Discord 認証つきフォーム / 出欠管理</p>
+		<p class="mt-1 text-sm text-text-muted">Discord 認証つきフォーム / 出欠管理</p>
 	</header>
 
 	{#if data.user}
 		<section class="card p-5">
 			<div class="flex items-center gap-4">
 				{#if avatarUrl}
-					<img src={avatarUrl} alt="" class="size-14 rounded-full border border-slate-700" />
+					<img src={avatarUrl} alt="" class="size-14 rounded-full border border-border-strong" />
 				{:else}
-					<div class="size-14 rounded-full border border-slate-700 bg-slate-800"></div>
+					<div class="size-14 rounded-full border border-border-strong bg-surface-raised"></div>
 				{/if}
 				<div class="min-w-0">
 					<p class="truncate font-medium">{data.user.name}</p>
-					<p class="truncate font-mono text-xs text-slate-400">{data.user.discordId}</p>
+					<p class="truncate font-mono text-xs text-text-muted">{data.user.discordId}</p>
 				</div>
 			</div>
 
@@ -35,7 +35,7 @@
 				{#if data.isAdmin}
 					<a
 						href="/admin/forms"
-						class="rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium transition hover:bg-slate-800"
+						class="rounded-lg border border-border-strong px-4 py-2 text-sm font-medium transition hover:bg-surface-raised"
 					>
 						フォーム管理
 					</a>
@@ -43,8 +43,8 @@
 				<form method="POST" action="?/logout" class="flex-1">
 					<button
 						type="submit"
-						class="w-full rounded-lg border border-slate-700 px-4 py-2 text-sm font-medium
-							transition hover:bg-slate-800"
+						class="w-full rounded-lg border border-border-strong px-4 py-2 text-sm font-medium
+							transition hover:bg-surface-raised"
 					>
 						ログアウト
 					</button>
@@ -53,21 +53,21 @@
 		</section>
 
 		{#if !data.member}
-			<p class="card p-5 text-sm text-slate-400">
+			<p class="card p-5 text-sm text-text-muted">
 				対象の Discord サーバーのメンバーではないため、フォームは表示されません。
 			</p>
 		{:else}
 			<section>
-				<h2 class="text-sm font-medium text-slate-300">未提出のフォーム</h2>
+				<h2 class="text-sm font-medium text-text-subtle">未提出のフォーム</h2>
 				{#if data.pending.length === 0}
-					<p class="mt-2 text-sm text-slate-400">未提出のフォームはありません。</p>
+					<p class="mt-2 text-sm text-text-muted">未提出のフォームはありません。</p>
 				{:else}
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each data.pending as row (row.id)}
 							<li class="card">
 								<a href="/forms/{row.id}" class="flex items-center justify-between gap-4 px-5 py-4">
 									<span class="font-medium">{row.title}</span>
-									<span class="shrink-0 text-xs text-slate-400">{format(row.deadline)}</span>
+									<span class="shrink-0 text-xs text-text-muted">{format(row.deadline)}</span>
 								</a>
 							</li>
 						{/each}
@@ -76,16 +76,16 @@
 			</section>
 
 			<section>
-				<h2 class="text-sm font-medium text-slate-300">提出済みのフォーム</h2>
+				<h2 class="text-sm font-medium text-text-subtle">提出済みのフォーム</h2>
 				{#if data.submitted.length === 0}
-					<p class="mt-2 text-sm text-slate-400">提出済みのフォームはありません。</p>
+					<p class="mt-2 text-sm text-text-muted">提出済みのフォームはありません。</p>
 				{:else}
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each data.submitted as row (row.id)}
 							<li class="card">
 								<a href="/forms/{row.id}" class="flex items-center justify-between gap-4 px-5 py-4">
-									<span class="text-slate-300">{row.title}</span>
-									<span class="shrink-0 text-xs text-slate-400">{format(row.deadline)}</span>
+									<span class="text-text-subtle">{row.title}</span>
+									<span class="shrink-0 text-xs text-text-muted">{format(row.deadline)}</span>
 								</a>
 							</li>
 						{/each}
@@ -94,9 +94,9 @@
 			</section>
 
 			<section>
-				<h2 class="text-sm font-medium text-slate-300">自分が作成したフォーム</h2>
+				<h2 class="text-sm font-medium text-text-subtle">自分が作成したフォーム</h2>
 				{#if data.created.length === 0}
-					<p class="mt-2 text-sm text-slate-400">作成したフォームはありません。</p>
+					<p class="mt-2 text-sm text-text-muted">作成したフォームはありません。</p>
 				{:else}
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each data.created as row (row.id)}
@@ -106,7 +106,7 @@
 									class="flex items-center justify-between gap-4 px-5 py-4"
 								>
 									<span class="font-medium">{row.title}</span>
-									<span class="flex shrink-0 items-center gap-3 text-xs text-slate-400">
+									<span class="flex shrink-0 items-center gap-3 text-xs text-text-muted">
 										<span>{format(row.deadline)}</span>
 										<span class="tabular-nums">{row.responseCount} 件の回答</span>
 									</span>

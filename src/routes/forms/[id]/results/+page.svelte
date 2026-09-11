@@ -36,9 +36,9 @@
 </script>
 
 {#snippet answerTable(rows: Row[])}
-	<div class="overflow-x-auto rounded-xl border border-slate-800">
+	<div class="overflow-x-auto rounded-xl border border-border">
 		<table class="w-max min-w-full text-left text-sm">
-			<thead class="bg-slate-900/80 text-xs text-slate-400">
+			<thead class="bg-surface-alt text-xs text-text-muted">
 				<tr>
 					<th class="px-4 py-3 font-medium whitespace-nowrap">回答者</th>
 					{#each data.questions as q (q.id)}
@@ -49,14 +49,14 @@
 			</thead>
 			<tbody>
 				{#each rows as row (row.discordId)}
-					<tr class="border-t border-slate-800">
+					<tr class="border-t border-border">
 						<td class="px-4 py-3 font-medium whitespace-nowrap">{row.displayName}</td>
 						{#each data.questions as q (q.id)}
-							<td class="max-w-64 px-4 py-3 whitespace-pre-wrap text-slate-300">
+							<td class="max-w-64 px-4 py-3 whitespace-pre-wrap text-text-subtle">
 								{readable(row, q.id, q.options)}
 							</td>
 						{/each}
-						<td class="px-4 py-3 text-xs whitespace-nowrap text-slate-400">
+						<td class="px-4 py-3 text-xs whitespace-nowrap text-text-muted">
 							{formatJst(row.submittedAt)}
 						</td>
 					</tr>
@@ -69,8 +69,8 @@
 <main class="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-6 py-12">
 	<header>
 		<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
-		<p class="mt-1 text-sm text-slate-400">回答状況</p>
-		<p class="mt-2 text-xs text-slate-400">
+		<p class="mt-1 text-sm text-text-muted">回答状況</p>
+		<p class="mt-2 text-xs text-text-muted">
 			締切: {formatJst(data.form.deadline)} / 受付終了: {formatJst(data.form.closesAt)}
 			{#if data.manage}
 				/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}
@@ -102,20 +102,20 @@
 		</p>
 	{/if}
 
-	<section class="card grid grid-cols-3 divide-x divide-slate-800">
+	<section class="card divide-border grid grid-cols-3 divide-x">
 		<div class="px-5 py-4">
-			<p class="text-xs text-slate-400">対象者</p>
+			<p class="text-xs text-text-muted">対象者</p>
 			<p class="mt-1 text-2xl font-semibold tabular-nums">{data.targetCount}</p>
 		</div>
 		<div class="px-5 py-4">
-			<p class="text-xs text-slate-400">提出済み</p>
-			<p class="mt-1 text-2xl font-semibold tabular-nums text-emerald-300">
+			<p class="text-xs text-text-muted">提出済み</p>
+			<p class="mt-1 text-2xl font-semibold text-success tabular-nums">
 				{data.submitted.length}
 			</p>
 		</div>
 		<div class="px-5 py-4">
-			<p class="text-xs text-slate-400">未提出</p>
-			<p class="mt-1 text-2xl font-semibold tabular-nums text-amber-300">
+			<p class="text-xs text-text-muted">未提出</p>
+			<p class="mt-1 text-2xl font-semibold text-warning tabular-nums">
 				{data.nonSubmitters.length}
 			</p>
 		</div>
@@ -123,7 +123,7 @@
 
 	{#if data.manage}
 		<section class="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-			<p class="text-sm text-slate-300">
+			<p class="text-sm text-text-subtle">
 				{#if data.form.closedAt}
 					{formatJst(data.form.closedAt)} にクローズしました。未提出者リストは確定済みで、
 					メンバー情報が更新されても変わりません。
@@ -147,8 +147,8 @@
 		<section class="card flex flex-col gap-4 p-5">
 			<div class="flex flex-wrap items-start justify-between gap-3">
 				<div class="text-sm">
-					<h2 class="font-medium text-slate-300">Discord への告知とリマインド</h2>
-					<p class="mt-1 text-slate-400">
+					<h2 class="font-medium text-text-subtle">Discord への告知とリマインド</h2>
+					<p class="mt-1 text-text-muted">
 						{#if !data.announcement.channelId}
 							告知チャンネルが未設定のフォームです。告知の投稿もリマインドの送信もできません。
 						{:else if data.announcement.messageId}
@@ -172,11 +172,11 @@
 				{/if}
 			</div>
 
-			<div class="border-t border-slate-800 pt-3">
+			<div class="border-t border-border pt-3">
 				{#if data.reminders.length === 0}
-					<p class="text-xs text-slate-400">リマインドの送信履歴はありません。</p>
+					<p class="text-xs text-text-muted">リマインドの送信履歴はありません。</p>
 				{:else}
-					<ul class="flex flex-col gap-1 text-xs text-slate-400">
+					<ul class="flex flex-col gap-1 text-xs text-text-muted">
 						{#each data.reminders as entry (entry.id)}
 							<li class="flex gap-3">
 								<span class="tabular-nums">{formatJst(entry.sentAt)}</span>
@@ -192,21 +192,21 @@
 
 	{#if data.tallies.length > 0}
 		<section class="flex flex-col gap-3">
-			<h2 class="text-sm font-medium text-slate-300">集計（回答 {answerTotal}件）</h2>
+			<h2 class="text-sm font-medium text-text-subtle">集計（回答 {answerTotal}件）</h2>
 			{#each data.tallies as tally (tally.questionId)}
 				<div class="card p-5">
 					<p class="text-sm font-medium">{tally.label}</p>
 					<ul class="mt-3 flex flex-col gap-2">
 						{#each tally.options as option (option.id)}
 							<li class="flex items-center gap-3 text-sm">
-								<span class="w-40 shrink-0 truncate text-slate-300">{option.label}</span>
-								<span class="h-2 flex-1 overflow-hidden rounded bg-slate-800">
+								<span class="w-40 shrink-0 truncate text-text-subtle">{option.label}</span>
+								<span class="bg-surface-raised h-2 flex-1 overflow-hidden rounded">
 									<span
-										class="bg-discord block h-full"
+										class="bg-accent block h-full"
 										style="width: {percent(option.count, answerTotal)}%"
 									></span>
 								</span>
-								<span class="w-10 shrink-0 text-right tabular-nums text-slate-400">
+								<span class="w-10 shrink-0 text-right tabular-nums text-text-muted">
 									{option.count}
 								</span>
 							</li>
@@ -218,27 +218,27 @@
 	{/if}
 
 	<section class="flex flex-col gap-2">
-		<h2 class="text-sm font-medium text-slate-300">回答一覧（{data.submitted.length}名）</h2>
+		<h2 class="text-sm font-medium text-text-subtle">回答一覧（{data.submitted.length}名）</h2>
 		{#if data.submitted.length === 0}
-			<p class="text-sm text-slate-400">対象者からの回答はまだありません。</p>
+			<p class="text-sm text-text-muted">対象者からの回答はまだありません。</p>
 		{:else}
 			{@render answerTable(data.submitted)}
 		{/if}
 	</section>
 
 	<section class="flex flex-col gap-2">
-		<h2 class="flex items-center gap-2 text-sm font-medium text-slate-300">
+		<h2 class="flex items-center gap-2 text-sm font-medium text-text-subtle">
 			未提出者（{data.nonSubmitters.length}名）
 			{#if data.frozen}
-				<span class="rounded bg-slate-800 px-2 py-0.5 text-xs text-slate-400">確定済み</span>
+				<span class="bg-surface-raised rounded px-2 py-0.5 text-xs text-text-muted">確定済み</span>
 			{/if}
 		</h2>
 		{#if data.nonSubmitters.length === 0}
-			<p class="text-sm text-slate-400">未提出者はいません。</p>
+			<p class="text-sm text-text-muted">未提出者はいません。</p>
 		{:else}
 			<ul class="card flex flex-wrap gap-2 p-4">
 				{#each data.nonSubmitters as member (member.discordId)}
-					<li class="rounded border border-slate-700 px-2 py-1 text-xs text-slate-300">
+					<li class="border-border-strong rounded border px-2 py-1 text-xs text-text-subtle">
 						{member.displayName}
 					</li>
 				{/each}
@@ -248,15 +248,15 @@
 
 	{#if data.outsiders.length > 0}
 		<section class="flex flex-col gap-2">
-			<h2 class="text-sm font-medium text-slate-300">
+			<h2 class="text-sm font-medium text-text-subtle">
 				対象外からの回答（{data.outsiders.length}名）
 			</h2>
-			<p class="text-xs text-slate-400">対象ロールを持たない人の回答です。未提出者には含みません。</p>
+			<p class="text-xs text-text-muted">対象ロールを持たない人の回答です。未提出者には含みません。</p>
 			{@render answerTable(data.outsiders)}
 		</section>
 	{/if}
 
-	<div class="flex gap-4 text-sm text-slate-400">
+	<div class="flex gap-4 text-sm text-text-muted">
 		<a href="/forms/{data.form.id}" class="hover:underline">回答画面へ</a>
 		<a href="/" class="hover:underline">← トップへ</a>
 	</div>

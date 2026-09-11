@@ -1,8 +1,143 @@
 @import 'tailwindcss';
 
+/* Semantic colour tokens. `@theme` registers the names and carries the light values; the
+   blocks below swap the values per theme, so markup never needs a `dark:` variant. */
 @theme {
-	--color-discord: #5865f2;
-	--color-discord-hover: #4752c4;
+	--color-bg: oklch(98.4% 0.003 247.858);
+	--color-surface: oklch(100% 0 0);
+	--color-surface-alt: oklch(96.8% 0.007 247.896);
+	--color-surface-raised: oklch(92.9% 0.013 255.508);
+	--color-input: oklch(100% 0 0);
+
+	--color-border: oklch(86.9% 0.022 252.894);
+	--color-border-strong: oklch(70.4% 0.04 256.788);
+	--color-border-focus: oklch(55.4% 0.046 257.417);
+	--color-border-active: oklch(44.6% 0.043 257.281);
+
+	--color-text: oklch(20.8% 0.042 265.755);
+	--color-text-subtle: oklch(37.2% 0.044 257.287);
+	--color-text-muted: oklch(44.6% 0.043 257.281);
+
+	--color-accent: #5865f2;
+	--color-accent-hover: #4752c4;
+	--color-accent-fg: #ffffff;
+
+	--color-error-surface: oklch(97.1% 0.013 17.38);
+	--color-error-line: oklch(88.5% 0.062 18.334);
+	--color-error-fg: oklch(50.5% 0.213 27.518);
+	--color-danger: oklch(50.5% 0.213 27.518);
+
+	--color-success-surface: oklch(97.9% 0.021 166.113);
+	--color-success-line: oklch(90.5% 0.093 164.15);
+	--color-success-fg: oklch(43.2% 0.095 166.913);
+	--color-success-badge: oklch(95% 0.052 163.051);
+	--color-success: oklch(50.8% 0.118 165.612);
+
+	--color-warning: oklch(55.5% 0.163 48.998);
+}
+
+/* `color-scheme` is what makes native controls (date picker, select popup, scrollbars)
+   follow the theme, including when `data-theme` disagrees with the OS setting. */
+:root {
+	color-scheme: light;
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		color-scheme: dark;
+
+		--color-bg: oklch(12.9% 0.042 264.695);
+		--color-surface: oklch(20.8% 0.042 265.755 / 0.6);
+		--color-surface-alt: oklch(20.8% 0.042 265.755 / 0.8);
+		--color-surface-raised: oklch(27.9% 0.041 260.031);
+		--color-input: oklch(20.8% 0.042 265.755);
+
+		--color-border: oklch(27.9% 0.041 260.031);
+		--color-border-strong: oklch(37.2% 0.044 257.287);
+		--color-border-focus: oklch(55.4% 0.046 257.417);
+		--color-border-active: oklch(70.4% 0.04 256.788);
+
+		--color-text: oklch(96.8% 0.007 247.896);
+		--color-text-subtle: oklch(86.9% 0.022 252.894);
+		--color-text-muted: oklch(70.4% 0.04 256.788);
+
+		--color-error-surface: oklch(25.8% 0.092 26.042 / 0.6);
+		--color-error-line: oklch(39.6% 0.141 25.723);
+		--color-error-fg: oklch(88.5% 0.062 18.334);
+		--color-danger: oklch(70.4% 0.191 22.216);
+
+		--color-success-surface: oklch(26.2% 0.051 172.552 / 0.6);
+		--color-success-line: oklch(37.8% 0.077 168.94);
+		--color-success-fg: oklch(90.5% 0.093 164.15);
+		--color-success-badge: oklch(37.8% 0.077 168.94 / 0.6);
+		--color-success: oklch(84.5% 0.143 164.978);
+
+		--color-warning: oklch(87.9% 0.169 91.605);
+	}
+}
+
+:root[data-theme='light'] {
+	color-scheme: light;
+
+	--color-bg: oklch(98.4% 0.003 247.858);
+	--color-surface: oklch(100% 0 0);
+	--color-surface-alt: oklch(96.8% 0.007 247.896);
+	--color-surface-raised: oklch(92.9% 0.013 255.508);
+	--color-input: oklch(100% 0 0);
+
+	--color-border: oklch(86.9% 0.022 252.894);
+	--color-border-strong: oklch(70.4% 0.04 256.788);
+	--color-border-focus: oklch(55.4% 0.046 257.417);
+	--color-border-active: oklch(44.6% 0.043 257.281);
+
+	--color-text: oklch(20.8% 0.042 265.755);
+	--color-text-subtle: oklch(37.2% 0.044 257.287);
+	--color-text-muted: oklch(44.6% 0.043 257.281);
+
+	--color-error-surface: oklch(97.1% 0.013 17.38);
+	--color-error-line: oklch(88.5% 0.062 18.334);
+	--color-error-fg: oklch(50.5% 0.213 27.518);
+	--color-danger: oklch(50.5% 0.213 27.518);
+
+	--color-success-surface: oklch(97.9% 0.021 166.113);
+	--color-success-line: oklch(90.5% 0.093 164.15);
+	--color-success-fg: oklch(43.2% 0.095 166.913);
+	--color-success-badge: oklch(95% 0.052 163.051);
+	--color-success: oklch(50.8% 0.118 165.612);
+
+	--color-warning: oklch(55.5% 0.163 48.998);
+}
+
+:root[data-theme='dark'] {
+	color-scheme: dark;
+
+	--color-bg: oklch(12.9% 0.042 264.695);
+	--color-surface: oklch(20.8% 0.042 265.755 / 0.6);
+	--color-surface-alt: oklch(20.8% 0.042 265.755 / 0.8);
+	--color-surface-raised: oklch(27.9% 0.041 260.031);
+	--color-input: oklch(20.8% 0.042 265.755);
+
+	--color-border: oklch(27.9% 0.041 260.031);
+	--color-border-strong: oklch(37.2% 0.044 257.287);
+	--color-border-focus: oklch(55.4% 0.046 257.417);
+	--color-border-active: oklch(70.4% 0.04 256.788);
+
+	--color-text: oklch(96.8% 0.007 247.896);
+	--color-text-subtle: oklch(86.9% 0.022 252.894);
+	--color-text-muted: oklch(70.4% 0.04 256.788);
+
+	--color-error-surface: oklch(25.8% 0.092 26.042 / 0.6);
+	--color-error-line: oklch(39.6% 0.141 25.723);
+	--color-error-fg: oklch(88.5% 0.062 18.334);
+	--color-danger: oklch(70.4% 0.191 22.216);
+
+	--color-success-surface: oklch(26.2% 0.051 172.552 / 0.6);
+	--color-success-line: oklch(37.8% 0.077 168.94);
+	--color-success-fg: oklch(90.5% 0.093 164.15);
+	--color-success-badge: oklch(37.8% 0.077 168.94 / 0.6);
+	--color-success: oklch(84.5% 0.143 164.978);
+
+	--color-warning: oklch(87.9% 0.169 91.605);
 }
 
 /* Titles, descriptions and answers are user-supplied and may hold an unbroken URL or token.
@@ -13,27 +148,27 @@ main {
 }
 
 .card {
-	@apply rounded-xl border border-slate-800 bg-slate-900/60;
+	@apply border-border bg-surface rounded-xl border;
 }
 
 .btn-primary {
-	@apply bg-discord hover:bg-discord-hover rounded-lg text-sm font-semibold text-white transition;
+	@apply bg-accent hover:bg-accent-hover text-accent-fg rounded-lg text-sm font-semibold transition;
 }
 
 .alert-error {
-	@apply rounded-lg border border-red-900 bg-red-950/60 px-4 py-3 text-sm text-red-200;
+	@apply border-error-line bg-error-surface text-error-fg rounded-lg border px-4 py-3 text-sm;
 }
 
 .alert-success {
-	@apply rounded-lg border border-emerald-900 bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200;
+	@apply border-success-line bg-success-surface text-success-fg rounded-lg border px-4 py-3 text-sm;
 }
 
 .field {
-	@apply w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm;
-	@apply outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-500/40;
+	@apply border-border-strong bg-input w-full rounded-lg border px-3 py-2 text-sm;
+	@apply focus:border-border-focus focus:ring-border-focus/40 outline-none focus:ring-2;
 }
 
 .chip {
-	@apply rounded border border-slate-700 px-2 py-1 text-xs text-slate-300 hover:bg-slate-800;
+	@apply border-border-strong text-text-subtle hover:bg-surface-raised rounded border px-2 py-1 text-xs;
 	@apply disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
 }

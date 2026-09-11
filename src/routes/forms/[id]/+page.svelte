@@ -43,9 +43,9 @@
 	<header>
 		<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
 		{#if data.form.description}
-			<p class="mt-2 text-sm whitespace-pre-wrap text-slate-300">{data.form.description}</p>
+			<p class="mt-2 text-sm whitespace-pre-wrap text-text-subtle">{data.form.description}</p>
 		{/if}
-		<p class="mt-2 text-xs text-slate-400">
+		<p class="mt-2 text-xs text-text-muted">
 			締切: {formatJst(data.form.deadline)} / 受付終了: {formatJst(data.form.closesAt)}
 		</p>
 	</header>
@@ -59,11 +59,11 @@
 	{/if}
 
 	{#if data.submittedAt}
-		<p class="text-sm text-slate-400">提出済み（{formatJst(data.submittedAt)}）</p>
+		<p class="text-sm text-text-muted">提出済み（{formatJst(data.submittedAt)}）</p>
 	{/if}
 
 	{#if data.closed}
-		<p class="rounded-lg border border-slate-800 bg-slate-900/60 px-4 py-3 text-sm text-slate-300">
+		<p class="border-border bg-surface rounded-lg border px-4 py-3 text-sm text-text-subtle">
 			このフォームは受付を終了しています。
 		</p>
 	{/if}
@@ -77,10 +77,10 @@
 					<fieldset class="m-0 border-0 p-0">
 						<legend class="mb-3 block text-sm font-medium">
 							{q.label}
-							{#if q.required}<span class="text-red-400">*</span>{/if}
+							{#if q.required}<span class="text-danger">*</span>{/if}
 						</legend>
 						{#if q.helpText}
-							<p class="-mt-2 mb-3 text-xs text-slate-400">{q.helpText}</p>
+							<p class="-mt-2 mb-3 text-xs text-text-muted">{q.helpText}</p>
 						{/if}
 
 						{#if q.type === 'single' || q.type === 'multi'}
@@ -93,7 +93,7 @@
 											value={option.id}
 											checked={isChecked(q.id, option.id)}
 											required={q.required && q.type === 'single'}
-											class="accent-discord size-4"
+											class="accent-accent size-4"
 										/>
 										{option.label}
 									</label>
@@ -131,13 +131,13 @@
 			{#each data.questions as q (q.id)}
 				<div class="card p-5">
 					<p class="text-sm font-medium">{q.label}</p>
-					<p class="mt-2 text-sm text-slate-300">{readable(q.id, q.options)}</p>
+					<p class="mt-2 text-sm text-text-subtle">{readable(q.id, q.options)}</p>
 				</div>
 			{/each}
 		</div>
 	{/if}
 
-	<div class="flex gap-4 text-sm text-slate-400">
+	<div class="flex gap-4 text-sm text-text-muted">
 		{#if data.resultsVisible}
 			<a href="/forms/{data.form.id}/results" class="hover:underline">回答状況を見る</a>
 		{/if}

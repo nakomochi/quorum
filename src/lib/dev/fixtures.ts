@@ -52,12 +52,12 @@ const USER: SessionUser = {
 	emailVerified: true,
 	image: null,
 	discordId: '100000000000000001',
-	createdAt: at('2026-01-05T12:00:00'),
-	updatedAt: at('2026-08-01T12:00:00')
+	createdAt: at('2025-08-05T12:00:00'),
+	updatedAt: at('2026-03-01T12:00:00')
 };
 
 const LONG_TITLE =
-	'2026年度 秋合宿の参加可否および宿泊プラン・交通手段・食事アレルギーに関する事前アンケート（回答期限厳守）';
+	'2026年度 春合宿の参加可否および宿泊プラン・交通手段・食事アレルギーに関する事前アンケート（回答期限厳守）';
 
 const LONG_DESCRIPTION = [
 	'このアンケートは合宿の宿泊手配と貸切バスの座席割当のために使用します。',
@@ -72,7 +72,7 @@ const formRow = (over: Partial<FormRow> & Pick<FormRow, 'id' | 'title'>): FormRo
 	targetRoleId: ROLE_ID,
 	submitScope: 'everyone',
 	visibility: 'public',
-	deadline: at('2026-09-30T23:59:00'),
+	deadline: at('2026-04-30T23:59:00'),
 	closesAt: null,
 	allowEdit: true,
 	structureLockedAt: null,
@@ -81,13 +81,13 @@ const formRow = (over: Partial<FormRow> & Pick<FormRow, 'id' | 'title'>): FormRo
 	createdBy: USER.id,
 	closedAt: null,
 	finalNonSubmitters: null,
-	createdAt: at('2026-08-01T10:00:00'),
-	updatedAt: at('2026-08-01T10:00:00'),
+	createdAt: at('2026-03-01T10:00:00'),
+	updatedAt: at('2026-03-01T10:00:00'),
 	...over
 });
 
 const createdRow = (over: Partial<CreatedRow> & Pick<CreatedRow, 'id' | 'title'>): CreatedRow => ({
-	deadline: at('2026-09-30T23:59:00'),
+	deadline: at('2026-04-30T23:59:00'),
 	closesAt: null,
 	closedAt: null,
 	responseCount: 0,
@@ -122,9 +122,9 @@ const QUESTIONS: QuestionRow[] = [
 		type: 'multi',
 		label: '参加できる日',
 		options: [
-			{ id: 'd1', label: '10/10（土）' },
-			{ id: 'd2', label: '10/11（日）' },
-			{ id: 'd3', label: '10/12（月・祝）' }
+			{ id: 'd1', label: '5/2（土）' },
+			{ id: 'd2', label: '5/3（日）' },
+			{ id: 'd3', label: '5/4（月・祝）' }
 		]
 	}),
 	question({
@@ -139,7 +139,7 @@ const QUESTIONS: QuestionRow[] = [
 
 const MANY_OPTIONS = Array.from({ length: 14 }, (_, i) => ({
 	id: `slot${i + 1}`,
-	label: `${10 + Math.floor(i / 2)}月${(i % 2) * 15 + 1}日 集合 — 現地集合または貸切バス（新宿駅西口 7:30 発）`
+	label: `${4 + Math.floor(i / 7)}月${(i % 7) * 4 + 2}日 集合 — 現地集合または貸切バス（新宿駅西口 7:30 発）`
 }));
 
 const OVERFLOW_QUESTIONS: QuestionRow[] = [
@@ -195,7 +195,7 @@ const SUBMITTED: ResultRow[] = [
 		1: { type: 'single', optionId: 'yes' },
 		2: { type: 'multi', optionIds: ['d1', 'd2'] },
 		3: { type: 'text', text: '甲殻類アレルギーがあります。' },
-		4: { type: 'date', date: '2026-10-10' }
+		4: { type: 'date', date: '2026-05-02' }
 	}),
 	resultRow(1, {
 		1: { type: 'single', optionId: 'maybe' },
@@ -205,7 +205,7 @@ const SUBMITTED: ResultRow[] = [
 	resultRow(2, {
 		1: { type: 'single', optionId: 'no' },
 		3: { type: 'text', text: '今回は見送ります。' },
-		4: { type: 'date', date: '2026-10-11' }
+		4: { type: 'date', date: '2026-05-03' }
 	})
 ];
 
@@ -240,9 +240,9 @@ const TALLIES: Tally[] = [
 		label: '参加できる日',
 		type: 'multi',
 		options: [
-			{ id: 'd1', label: '10/10（土）', count: 2 },
-			{ id: 'd2', label: '10/11（日）', count: 1 },
-			{ id: 'd3', label: '10/12（月・祝）', count: 1 }
+			{ id: 'd1', label: '5/2（土）', count: 2 },
+			{ id: 'd2', label: '5/3（日）', count: 1 },
+			{ id: 'd3', label: '5/4（月・祝）', count: 1 }
 		]
 	}
 ];
@@ -257,17 +257,17 @@ const NON_SUBMITTERS = [3, 4, 5].map(member);
 const MANY_NON_SUBMITTERS = Array.from({ length: 42 }, (_, i) => member(i + 3));
 
 const REMINDERS: ReminderEntry[] = [
-	{ id: 3, kind: 'manual', sentAt: at('2026-09-28T19:00:00'), targetCount: 42, messageCount: 1 },
-	{ id: 2, kind: 'auto', sentAt: at('2026-09-27T09:00:00'), targetCount: 51, messageCount: 2 },
-	{ id: 1, kind: 'manual', sentAt: at('2026-09-20T12:30:00'), targetCount: 60, messageCount: 2 }
+	{ id: 3, kind: 'manual', sentAt: at('2026-04-28T19:00:00'), targetCount: 42, messageCount: 1 },
+	{ id: 2, kind: 'auto', sentAt: at('2026-04-27T09:00:00'), targetCount: 51, messageCount: 2 },
+	{ id: 1, kind: 'manual', sentAt: at('2026-04-20T12:30:00'), targetCount: 60, messageCount: 2 }
 ];
 
 const answerForm = (over: Partial<AnswerData['form']> = {}): AnswerData['form'] => ({
 	id: 'fixtureform1',
-	title: '秋合宿の参加確認',
-	description: '10月の合宿について、参加可否を教えてください。',
-	deadline: at('2026-09-30T23:59:00'),
-	closesAt: at('2026-10-01T00:00:00'),
+	title: '春合宿の参加確認',
+	description: '5月の合宿について、参加可否を教えてください。',
+	deadline: at('2026-04-30T23:59:00'),
+	closesAt: at('2026-05-01T00:00:00'),
 	allowEdit: true,
 	...over
 });
@@ -276,16 +276,16 @@ const FILLED_ANSWERS: AnswerData['answers'] = {
 	1: { type: 'single', optionId: 'yes' },
 	2: { type: 'multi', optionIds: ['d1', 'd3'] },
 	3: { type: 'text', text: '甲殻類アレルギーがあります。\n初日は21時ごろ合流します。' },
-	4: { type: 'date', date: '2026-10-10' }
+	4: { type: 'date', date: '2026-05-02' }
 };
 
 const resultsForm = (over: Partial<ResultsData['form']> = {}): ResultsData['form'] => ({
 	id: 'fixtureform1',
-	title: '秋合宿の参加確認',
-	description: '10月の合宿について、参加可否を教えてください。',
+	title: '春合宿の参加確認',
+	description: '5月の合宿について、参加可否を教えてください。',
 	visibility: 'public',
-	deadline: at('2026-09-30T23:59:00'),
-	closesAt: at('2026-10-01T00:00:00'),
+	deadline: at('2026-04-30T23:59:00'),
+	closesAt: at('2026-05-01T00:00:00'),
 	closedAt: null,
 	...over
 });
@@ -311,20 +311,20 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 			member: true,
 			isAdmin: false,
 			pending: [
-				formRow({ id: 'pending000001', title: '秋合宿の参加確認' }),
+				formRow({ id: 'pending000001', title: '春合宿の参加確認' }),
 				formRow({
 					id: 'pending000002',
 					title: '新歓イベントの担当希望',
-					deadline: at('2026-10-15T18:00:00')
+					deadline: at('2026-05-15T18:00:00')
 				}),
 				formRow({ id: 'pending000003', title: 'Tシャツのサイズ調査', deadline: null })
 			],
 			submitted: [
-				formRow({ id: 'done00000001', title: '夏合宿のふりかえり', deadline: at('2026-08-31T23:59:00') }),
-				formRow({ id: 'done00000002', title: '定例会の出欠（8月）', deadline: at('2026-08-10T20:00:00') })
+				formRow({ id: 'done00000001', title: '夏合宿のふりかえり', deadline: at('2026-03-31T23:59:00') }),
+				formRow({ id: 'done00000002', title: '定例会の出欠（8月）', deadline: at('2026-03-10T20:00:00') })
 			],
 			created: [
-				createdRow({ id: 'mine00000001', title: '秋合宿の参加確認', responseCount: 12 }),
+				createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 }),
 				createdRow({
 					id: 'mine00000002',
 					title: LONG_TITLE,
@@ -346,9 +346,9 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 			user: { ...USER, image: null, name: 'とてもながい表示名のギルド運営アカウント' },
 			member: true,
 			isAdmin: true,
-			pending: [formRow({ id: 'pending000001', title: '秋合宿の参加確認' })],
+			pending: [formRow({ id: 'pending000001', title: '春合宿の参加確認' })],
 			submitted: [],
-			created: [createdRow({ id: 'mine00000001', title: '秋合宿の参加確認', responseCount: 12 })]
+			created: [createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 })]
 		}
 	}
 ];
@@ -378,7 +378,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			questions: QUESTIONS,
 			closed: false,
 			editable: true,
-			submittedAt: at('2026-09-12T21:40:00'),
+			submittedAt: at('2026-04-12T21:40:00'),
 			answers: FILLED_ANSWERS
 		}
 	},
@@ -392,7 +392,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			questions: QUESTIONS,
 			closed: false,
 			editable: false,
-			submittedAt: at('2026-09-12T21:40:00'),
+			submittedAt: at('2026-04-12T21:40:00'),
 			answers: FILLED_ANSWERS
 		}
 	},
@@ -402,7 +402,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			user: USER,
 			resultsVisible: true,
-			form: answerForm({ closesAt: at('2026-09-20T23:59:00') }),
+			form: answerForm({ closesAt: at('2026-04-20T23:59:00') }),
 			questions: QUESTIONS,
 			closed: true,
 			editable: false,
@@ -435,7 +435,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			questions: QUESTIONS,
 			closed: false,
 			editable: true,
-			submittedAt: at('2026-09-12T21:40:00'),
+			submittedAt: at('2026-04-12T21:40:00'),
 			answers: FILLED_ANSWERS
 		},
 		form: { saved: true }
@@ -538,7 +538,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		title: 'クローズ済み（凍結表示）',
 		data: {
 			user: USER,
-			form: resultsForm({ closedAt: at('2026-10-01T00:05:00') }),
+			form: resultsForm({ closedAt: at('2026-05-01T00:05:00') }),
 			manage: true,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
@@ -661,7 +661,7 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 const adminRow = (over: Partial<AdminRow> & Pick<AdminRow, 'id' | 'title'>): AdminRow => ({
 	targetRoleId: ROLE_ID,
 	submitScope: 'target_role',
-	deadline: at('2026-09-30T23:59:00'),
+	deadline: at('2026-04-30T23:59:00'),
 	closesAt: null,
 	closedAt: null,
 	structureLockedAt: null,
@@ -677,13 +677,13 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 		title: 'フォーム数件 / 同期済み',
 		data: {
 			user: USER,
-			syncedAt: at('2026-09-09T08:30:00'),
+			syncedAt: at('2026-04-09T08:30:00'),
 			forms: [
 				adminRow({
 					id: 'pending000001',
-					title: '秋合宿の参加確認',
+					title: '春合宿の参加確認',
 					responseCount: 12,
-					structureLockedAt: at('2026-08-02T10:00:00')
+					structureLockedAt: at('2026-03-02T10:00:00')
 				}),
 				adminRow({
 					id: 'pending000002',
@@ -695,8 +695,8 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 					id: 'done00000001',
 					title: LONG_TITLE,
 					closed: true,
-					closedAt: at('2026-09-01T00:00:00'),
-					structureLockedAt: at('2026-08-10T10:00:00'),
+					closedAt: at('2026-04-01T00:00:00'),
+					structureLockedAt: at('2026-03-10T10:00:00'),
 					responseCount: 60,
 					roleName: '900000000000000099'
 				})
@@ -709,13 +709,13 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 		data: {
 			user: USER,
 			syncedAt: null,
-			forms: [adminRow({ id: 'pending000001', title: '秋合宿の参加確認', responseCount: 12 })]
+			forms: [adminRow({ id: 'pending000001', title: '春合宿の参加確認', responseCount: 12 })]
 		}
 	},
 	{
 		id: 'admin-empty',
 		title: 'フォーム0件',
-		data: { user: USER, syncedAt: at('2026-09-09T08:30:00'), forms: [] }
+		data: { user: USER, syncedAt: at('2026-04-09T08:30:00'), forms: [] }
 	}
 ];
 

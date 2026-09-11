@@ -5,6 +5,13 @@
 	--color-discord-hover: #4752c4;
 }
 
+/* Titles, descriptions and answers are user-supplied and may hold an unbroken URL or token.
+   `anywhere` rather than `break-word`: only the former shrinks the intrinsic width, and the
+   cards are flex items whose min-width would otherwise stretch past the viewport on a phone. */
+main {
+	overflow-wrap: anywhere;
+}
+
 .card {
 	@apply rounded-xl border border-slate-800 bg-slate-900/60;
 }

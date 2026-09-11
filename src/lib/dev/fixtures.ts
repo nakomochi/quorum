@@ -593,13 +593,32 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-no-channel',
-		title: '告知チャンネル未設定 / 告知失敗',
+		title: '告知チャンネル未設定',
 		data: {
 			user: USER,
 			form: resultsForm({ title: LONG_TITLE }),
 			manage: true,
-			announceFailed: true,
+			announceFailed: false,
 			announcement: { channelId: null, messageId: null },
+			reminders: [],
+			questions: RESULT_QUESTIONS,
+			tallies: TALLIES,
+			frozen: false,
+			targetCount: 6,
+			submitted: SUBMITTED,
+			outsiders: [],
+			nonSubmitters: NON_SUBMITTERS
+		}
+	},
+	{
+		id: 'results-announce-failed',
+		title: '告知失敗（未投稿）',
+		data: {
+			user: USER,
+			form: resultsForm(),
+			manage: true,
+			announceFailed: true,
+			announcement: { channelId: CHANNEL_ID, messageId: null },
 			reminders: [],
 			questions: RESULT_QUESTIONS,
 			tallies: TALLIES,

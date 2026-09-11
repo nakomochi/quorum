@@ -28,9 +28,9 @@
 			</p>
 			{#if form}
 				{#if 'message' in form}
-					<p class="mt-1 text-red-300">{form.message}</p>
+					<p role="alert" class="mt-1 text-red-300">{form.message}</p>
 				{:else}
-					<p class="mt-1 text-emerald-300">
+					<p role="status" class="mt-1 text-emerald-300">
 						{form.present}名を同期しました（退会 {form.markedLeft}名）
 					</p>
 				{/if}
@@ -59,31 +59,33 @@
 		</p>
 	{:else}
 		<div class="overflow-x-auto rounded-xl border border-slate-800">
-			<table class="w-full text-left text-sm">
+			<table class="w-max min-w-full text-left text-sm">
 				<thead class="bg-slate-900/80 text-xs text-slate-400">
 					<tr>
 						<th class="px-4 py-3 font-medium">タイトル</th>
-						<th class="px-4 py-3 font-medium">対象ロール</th>
-						<th class="px-4 py-3 font-medium">締切</th>
-						<th class="px-4 py-3 font-medium">回答数</th>
-						<th class="px-4 py-3 font-medium">状態</th>
+						<th class="px-4 py-3 font-medium whitespace-nowrap">対象ロール</th>
+						<th class="px-4 py-3 font-medium whitespace-nowrap">締切</th>
+						<th class="px-4 py-3 font-medium whitespace-nowrap">回答数</th>
+						<th class="px-4 py-3 font-medium whitespace-nowrap">状態</th>
 					</tr>
 				</thead>
 				<tbody>
 					{#each data.forms as row (row.id)}
 						<tr class="border-t border-slate-800">
-							<td class="px-4 py-3 font-medium">
+							<td class="max-w-64 px-4 py-3 font-medium">
 								<a href="/forms/{row.id}/results" class="hover:underline">{row.title}</a>
 							</td>
-							<td class="px-4 py-3 text-slate-300">
+							<td class="px-4 py-3 whitespace-nowrap text-slate-300">
 								{row.roleName}
 								{#if row.submitScope === 'everyone'}
-									<span class="ml-1 text-xs text-slate-500">(提出は全員可)</span>
+									<span class="ml-1 text-xs text-slate-400">(提出は全員可)</span>
 								{/if}
 							</td>
-							<td class="px-4 py-3 text-slate-300">{formatJst(row.deadline)}</td>
-							<td class="px-4 py-3 tabular-nums text-slate-300">{row.responseCount}</td>
-							<td class="px-4 py-3">
+							<td class="px-4 py-3 whitespace-nowrap text-slate-300">{formatJst(row.deadline)}</td>
+							<td class="px-4 py-3 tabular-nums whitespace-nowrap text-slate-300">
+								{row.responseCount}
+							</td>
+							<td class="px-4 py-3 whitespace-nowrap">
 								{#if row.closed}
 									<span class="rounded bg-slate-800 px-2 py-1 text-xs text-slate-400">受付終了</span>
 								{:else}
@@ -92,7 +94,7 @@
 									</span>
 								{/if}
 								{#if row.structureLockedAt}
-									<span class="ml-1 text-xs text-slate-500">構造ロック済</span>
+									<span class="ml-1 text-xs text-slate-400">構造ロック済</span>
 								{/if}
 							</td>
 						</tr>

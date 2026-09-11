@@ -35,11 +35,42 @@
 	}
 </script>
 
+{#snippet answerTable(rows: Row[])}
+	<div class="overflow-x-auto rounded-xl border border-slate-800">
+		<table class="w-max min-w-full text-left text-sm">
+			<thead class="bg-slate-900/80 text-xs text-slate-400">
+				<tr>
+					<th class="px-4 py-3 font-medium whitespace-nowrap">回答者</th>
+					{#each data.questions as q (q.id)}
+						<th class="px-4 py-3 font-medium">{q.label}</th>
+					{/each}
+					<th class="px-4 py-3 font-medium whitespace-nowrap">提出日時</th>
+				</tr>
+			</thead>
+			<tbody>
+				{#each rows as row (row.discordId)}
+					<tr class="border-t border-slate-800">
+						<td class="px-4 py-3 font-medium whitespace-nowrap">{row.displayName}</td>
+						{#each data.questions as q (q.id)}
+							<td class="max-w-64 px-4 py-3 whitespace-pre-wrap text-slate-300">
+								{readable(row, q.id, q.options)}
+							</td>
+						{/each}
+						<td class="px-4 py-3 text-xs whitespace-nowrap text-slate-400">
+							{formatJst(row.submittedAt)}
+						</td>
+					</tr>
+				{/each}
+			</tbody>
+		</table>
+	</div>
+{/snippet}
+
 <main class="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-6 py-12">
 	<header>
 		<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
 		<p class="mt-1 text-sm text-slate-400">回答状況</p>
-		<p class="mt-2 text-xs text-slate-500">
+		<p class="mt-2 text-xs text-slate-400">
 			締切: {formatJst(data.form.deadline)} / 受付終了: {formatJst(data.form.closesAt)}
 			{#if data.manage}
 				/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}
@@ -48,27 +79,25 @@
 	</header>
 
 	{#if data.announceFailed}
-		<p class="alert-error">
+		<p role="alert" class="alert-error">
 			フォームは作成しましたが、Discord への告知の投稿に失敗しました。下の「告知を投稿する」から再投稿できます。
 		</p>
 	{/if}
 
 	{#if form?.message}
-		<p class="alert-error">{form.message}</p>
+		<p role="alert" class="alert-error">{form.message}</p>
 	{:else if form?.reminded}
-		<p class="rounded-lg border border-emerald-900 bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200">
+		<p role="status" class="alert-success">
 			リマインドを送信しました。未提出者 {form.reminded.targets}名を {form.reminded.messages}通に分けてメンションしました。
 		</p>
 	{:else if form?.announced}
-		<p class="rounded-lg border border-emerald-900 bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200">
-			告知を投稿しました。
-		</p>
+		<p role="status" class="alert-success">告知を投稿しました。</p>
 	{:else if form?.closed !== undefined}
-		<p class="rounded-lg border border-emerald-900 bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200">
+		<p role="status" class="alert-success">
 			クローズしました。未提出者 {form.closed}名を確定しました。
 		</p>
 	{:else if form?.reopened}
-		<p class="rounded-lg border border-emerald-900 bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200">
+		<p role="status" class="alert-success">
 			受付を再開しました。確定済みの未提出者リストは破棄されました。
 		</p>
 	{/if}
@@ -130,7 +159,7 @@
 					</p>
 				</div>
 				{#if data.announcement.channelId}
-					<div class="flex gap-2">
+					<div class="flex flex-wrap gap-2">
 						{#if !data.announcement.messageId}
 							<form method="POST" action="?/announce">
 								<button type="submit" class="chip px-3 py-1.5 text-sm">告知を投稿する</button>
@@ -145,7 +174,7 @@
 
 			<div class="border-t border-slate-800 pt-3">
 				{#if data.reminders.length === 0}
-					<p class="text-xs text-slate-500">リマインドの送信履歴はありません。</p>
+					<p class="text-xs text-slate-400">リマインドの送信履歴はありません。</p>
 				{:else}
 					<ul class="flex flex-col gap-1 text-xs text-slate-400">
 						{#each data.reminders as entry (entry.id)}
@@ -191,36 +220,9 @@
 	<section class="flex flex-col gap-2">
 		<h2 class="text-sm font-medium text-slate-300">回答一覧（{data.submitted.length}名）</h2>
 		{#if data.submitted.length === 0}
-			<p class="text-sm text-slate-500">対象者からの回答はまだありません。</p>
+			<p class="text-sm text-slate-400">対象者からの回答はまだありません。</p>
 		{:else}
-			<div class="overflow-x-auto rounded-xl border border-slate-800">
-				<table class="w-max min-w-full text-left text-sm">
-					<thead class="bg-slate-900/80 text-xs text-slate-400">
-						<tr>
-							<th class="px-4 py-3 font-medium whitespace-nowrap">回答者</th>
-							{#each data.questions as q (q.id)}
-								<th class="px-4 py-3 font-medium">{q.label}</th>
-							{/each}
-							<th class="px-4 py-3 font-medium whitespace-nowrap">提出日時</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each data.submitted as row (row.discordId)}
-							<tr class="border-t border-slate-800">
-								<td class="px-4 py-3 font-medium whitespace-nowrap">{row.displayName}</td>
-								{#each data.questions as q (q.id)}
-									<td class="max-w-64 px-4 py-3 whitespace-pre-wrap text-slate-300">
-										{readable(row, q.id, q.options)}
-									</td>
-								{/each}
-								<td class="px-4 py-3 text-xs whitespace-nowrap text-slate-500">
-									{formatJst(row.submittedAt)}
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
+			{@render answerTable(data.submitted)}
 		{/if}
 	</section>
 
@@ -232,7 +234,7 @@
 			{/if}
 		</h2>
 		{#if data.nonSubmitters.length === 0}
-			<p class="text-sm text-slate-500">未提出者はいません。</p>
+			<p class="text-sm text-slate-400">未提出者はいません。</p>
 		{:else}
 			<ul class="card flex flex-wrap gap-2 p-4">
 				{#each data.nonSubmitters as member (member.discordId)}
@@ -249,35 +251,8 @@
 			<h2 class="text-sm font-medium text-slate-300">
 				対象外からの回答（{data.outsiders.length}名）
 			</h2>
-			<p class="text-xs text-slate-500">対象ロールを持たない人の回答です。未提出者には含みません。</p>
-			<div class="overflow-x-auto rounded-xl border border-slate-800">
-				<table class="w-max min-w-full text-left text-sm">
-					<thead class="bg-slate-900/80 text-xs text-slate-400">
-						<tr>
-							<th class="px-4 py-3 font-medium whitespace-nowrap">回答者</th>
-							{#each data.questions as q (q.id)}
-								<th class="px-4 py-3 font-medium">{q.label}</th>
-							{/each}
-							<th class="px-4 py-3 font-medium whitespace-nowrap">提出日時</th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each data.outsiders as row (row.discordId)}
-							<tr class="border-t border-slate-800">
-								<td class="px-4 py-3 font-medium whitespace-nowrap">{row.displayName}</td>
-								{#each data.questions as q (q.id)}
-									<td class="max-w-64 px-4 py-3 whitespace-pre-wrap text-slate-300">
-										{readable(row, q.id, q.options)}
-									</td>
-								{/each}
-								<td class="px-4 py-3 text-xs whitespace-nowrap text-slate-500">
-									{formatJst(row.submittedAt)}
-								</td>
-							</tr>
-						{/each}
-					</tbody>
-				</table>
-			</div>
+			<p class="text-xs text-slate-400">対象ロールを持たない人の回答です。未提出者には含みません。</p>
+			{@render answerTable(data.outsiders)}
 		</section>
 	{/if}
 

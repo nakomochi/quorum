@@ -28,7 +28,7 @@
 				</div>
 			</div>
 
-			<div class="mt-5 flex items-center gap-3">
+			<div class="mt-5 flex flex-wrap items-center gap-3">
 				{#if data.member}
 					<a href="/forms/new" class="btn-primary px-4 py-2">フォームを作る</a>
 				{/if}
@@ -60,7 +60,7 @@
 			<section>
 				<h2 class="text-sm font-medium text-slate-300">未提出のフォーム</h2>
 				{#if data.pending.length === 0}
-					<p class="mt-2 text-sm text-slate-500">未提出のフォームはありません。</p>
+					<p class="mt-2 text-sm text-slate-400">未提出のフォームはありません。</p>
 				{:else}
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each data.pending as row (row.id)}
@@ -78,14 +78,14 @@
 			<section>
 				<h2 class="text-sm font-medium text-slate-300">提出済みのフォーム</h2>
 				{#if data.submitted.length === 0}
-					<p class="mt-2 text-sm text-slate-500">提出済みのフォームはありません。</p>
+					<p class="mt-2 text-sm text-slate-400">提出済みのフォームはありません。</p>
 				{:else}
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each data.submitted as row (row.id)}
 							<li class="card">
 								<a href="/forms/{row.id}" class="flex items-center justify-between gap-4 px-5 py-4">
 									<span class="text-slate-300">{row.title}</span>
-									<span class="shrink-0 text-xs text-slate-500">{format(row.deadline)}</span>
+									<span class="shrink-0 text-xs text-slate-400">{format(row.deadline)}</span>
 								</a>
 							</li>
 						{/each}
@@ -96,7 +96,7 @@
 			<section>
 				<h2 class="text-sm font-medium text-slate-300">自分が作成したフォーム</h2>
 				{#if data.created.length === 0}
-					<p class="mt-2 text-sm text-slate-500">作成したフォームはありません。</p>
+					<p class="mt-2 text-sm text-slate-400">作成したフォームはありません。</p>
 				{:else}
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each data.created as row (row.id)}

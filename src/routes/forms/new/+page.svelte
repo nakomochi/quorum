@@ -68,7 +68,6 @@
 		questions = next;
 	}
 
-	// Option ids are minted once and never reused, so relabeling cannot break stored answers.
 	function onTypeChange(q: Draft, type: QuestionType) {
 		q.type = type;
 		if (hasOptions(type) && q.options.length === 0) q.options = [newOption()];
@@ -81,7 +80,7 @@
 	</header>
 
 	{#if form?.message}
-		<p class="alert-error">
+		<p role="alert" class="alert-error">
 			{form.message}
 		</p>
 	{/if}
@@ -164,7 +163,7 @@
 						oninput={() => (closesAtTouched = true)}
 						class="field mt-1"
 					/>
-					<span class="mt-1 block text-xs text-slate-500">空欄なら自動クローズしません。</span>
+					<span class="mt-1 block text-xs text-slate-400">空欄なら自動クローズしません。</span>
 				</label>
 			</div>
 
@@ -189,7 +188,7 @@
 			{#each questions as q, index (q.key)}
 				<div class="card flex flex-col gap-3 p-5">
 					<div class="flex items-center justify-between gap-2">
-						<span class="text-xs text-slate-500">質問 {index + 1}</span>
+						<span class="text-xs text-slate-400">質問 {index + 1}</span>
 						<div class="flex gap-1">
 							<button
 								type="button"
@@ -277,7 +276,7 @@
 									>
 										×
 									</button>
-									<span class="w-8 text-right text-xs text-slate-600">{optionIndex + 1}</span>
+									<span class="w-8 text-right text-xs text-slate-400">{optionIndex + 1}</span>
 								</div>
 							{/each}
 							<button

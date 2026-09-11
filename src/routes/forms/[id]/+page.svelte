@@ -45,19 +45,17 @@
 		{#if data.form.description}
 			<p class="mt-2 text-sm whitespace-pre-wrap text-slate-300">{data.form.description}</p>
 		{/if}
-		<p class="mt-2 text-xs text-slate-500">
+		<p class="mt-2 text-xs text-slate-400">
 			締切: {formatJst(data.form.deadline)} / 受付終了: {formatJst(data.form.closesAt)}
 		</p>
 	</header>
 
 	{#if form?.message}
-		<p class="alert-error">
+		<p role="alert" class="alert-error">
 			{form.message}
 		</p>
 	{:else if form?.saved}
-		<p class="rounded-lg border border-emerald-900 bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200">
-			回答を保存しました。
-		</p>
+		<p role="status" class="alert-success">回答を保存しました。</p>
 	{/if}
 
 	{#if data.submittedAt}
@@ -82,7 +80,7 @@
 							{#if q.required}<span class="text-red-400">*</span>{/if}
 						</legend>
 						{#if q.helpText}
-							<p class="-mt-2 mb-3 text-xs text-slate-500">{q.helpText}</p>
+							<p class="-mt-2 mb-3 text-xs text-slate-400">{q.helpText}</p>
 						{/if}
 
 						{#if q.type === 'single' || q.type === 'multi'}
@@ -105,6 +103,7 @@
 							<textarea
 								name="q_{q.id}"
 								rows="3"
+								aria-label={q.label}
 								required={q.required}
 								maxlength={MAX_TEXT_ANSWER}
 								class="field">{textValue(q.id)}</textarea
@@ -114,6 +113,7 @@
 								type="date"
 								name="q_{q.id}"
 								value={textValue(q.id)}
+								aria-label={q.label}
 								required={q.required}
 								class="field"
 							/>

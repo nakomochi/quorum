@@ -24,9 +24,13 @@ main {
 	@apply rounded-lg border border-red-900 bg-red-950/60 px-4 py-3 text-sm text-red-200;
 }
 
+.alert-success {
+	@apply rounded-lg border border-emerald-900 bg-emerald-950/60 px-4 py-3 text-sm text-emerald-200;
+}
+
 .field {
 	@apply w-full rounded-lg border border-slate-700 bg-slate-900 px-3 py-2 text-sm;
-	@apply outline-none focus:border-slate-500;
+	@apply outline-none focus:border-slate-500 focus:ring-2 focus:ring-slate-500/40;
 }
 
 .chip {

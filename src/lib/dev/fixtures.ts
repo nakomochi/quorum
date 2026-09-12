@@ -41,6 +41,15 @@ type AdminRow = AdminData['forms'][number];
 
 const at = (jst: string) => new Date(`${jst}+09:00`);
 
+const HOUR_MS = 3_600_000;
+
+/**
+ * The home page derives its urgency chips from the clock, so those rows cannot be fixed dates.
+ * Snapped to the hour: the server and the hydrating client then format the same string.
+ */
+const fromNow = (hours: number) =>
+	new Date(Math.floor(Date.now() / HOUR_MS) * HOUR_MS + hours * HOUR_MS);
+
 const ROLE_ID = '900000000000000001';
 const CHANNEL_ID = '900000000000000002';
 const MESSAGE_ID = '900000000000000003';
@@ -311,13 +320,10 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 			member: true,
 			isAdmin: false,
 			pending: [
-				formRow({ id: 'pending000001', title: '春合宿の参加確認' }),
-				formRow({
-					id: 'pending000002',
-					title: '新歓イベントの担当希望',
-					deadline: at('2026-05-15T18:00:00')
-				}),
-				formRow({ id: 'pending000003', title: 'Tシャツのサイズ調査', deadline: null })
+				formRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(-36) }),
+				formRow({ id: 'pending000002', title: '新歓イベントの担当希望', deadline: fromNow(30) }),
+				formRow({ id: 'pending000003', title: '定例会の出欠（10月）', deadline: fromNow(24 * 21) }),
+				formRow({ id: 'pending000004', title: 'Tシャツのサイズ調査', deadline: null })
 			],
 			submitted: [
 				formRow({ id: 'done00000001', title: '夏合宿のふりかえり', deadline: at('2026-03-31T23:59:00') }),

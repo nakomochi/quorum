@@ -33,9 +33,29 @@
 		: 'justify-center'}"
 >
 	{#if data.user}
-		<header class="flex items-center justify-between gap-3">
+		<header class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 sm:flex-nowrap">
 			<h1 class="shrink-0 text-lg font-semibold">form-discord</h1>
-			<div class="flex min-w-0 items-center gap-2">
+			<!-- Wraps only on phones. Past that it must stay on one line so the display name truncates
+			     instead of shoving the controls onto rows of their own. -->
+			<div class="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
+				{#if data.member}
+					<a
+						href="/forms/new"
+						class="btn-primary inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs"
+					>
+						<Icon name="plus" />
+						フォームを作る
+					</a>
+				{/if}
+				{#if data.isAdmin}
+					<a
+						href="/admin/forms"
+						class="border-border-strong hover:bg-surface-raised shrink-0 rounded-lg border px-3
+							py-1.5 text-xs font-medium transition"
+					>
+						フォーム管理
+					</a>
+				{/if}
 				{#if avatarUrl}
 					<img
 						src={avatarUrl}
@@ -45,7 +65,9 @@
 				{:else}
 					<div class="border-border-strong bg-surface-raised size-8 shrink-0 rounded-full border"></div>
 				{/if}
-				<span class="truncate text-sm">{data.user.name}</span>
+				<!-- Dropped on phones: the avatar already identifies the viewer, and keeping the name
+				     pushes the controls past the viewport. -->
+				<span class="hidden truncate text-sm sm:inline">{data.user.name}</span>
 				<form method="POST" action="?/logout" class="shrink-0">
 					<button
 						type="submit"
@@ -57,25 +79,6 @@
 				</form>
 			</div>
 		</header>
-
-		{#if data.member || data.isAdmin}
-			<div class="flex flex-wrap gap-3">
-				{#if data.member}
-					<a href="/forms/new" class="btn-primary inline-flex items-center gap-1.5 px-4 py-2">
-						<Icon name="plus" />
-						フォームを作る
-					</a>
-				{/if}
-				{#if data.isAdmin}
-					<a
-						href="/admin/forms"
-						class="border-border-strong hover:bg-surface-raised rounded-lg border px-4 py-2 text-sm font-medium transition"
-					>
-						フォーム管理
-					</a>
-				{/if}
-			</div>
-		{/if}
 
 		{#if !data.member}
 			<p class="card text-text-muted p-5 text-sm">
@@ -116,8 +119,16 @@
 			</section>
 
 			{#if data.submitted.length > 0}
-				<section>
-					<h2 class="text-text-subtle text-sm font-medium">提出済みのフォーム</h2>
+				<!-- `details` rather than a store: these lists only grow, and the browser gives us the
+				     toggle, the keyboard handling and a working no-JS fallback for free. -->
+				<details class="group">
+					<summary
+						class="text-text-subtle flex cursor-pointer list-none items-center gap-2 text-sm
+							font-medium [&::-webkit-details-marker]:hidden"
+					>
+						<Icon name="chevron-down" class="size-4 transition-transform group-open:rotate-180" />
+						提出済み {data.submitted.length} 件
+					</summary>
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each data.submitted as row (row.id)}
 							<li class="card">
@@ -131,12 +142,18 @@
 							</li>
 						{/each}
 					</ul>
-				</section>
+				</details>
 			{/if}
 
 			{#if data.created.length > 0}
-				<section>
-					<h2 class="text-text-subtle text-sm font-medium">自分が作成したフォーム</h2>
+				<details class="group">
+					<summary
+						class="text-text-subtle flex cursor-pointer list-none items-center gap-2 text-sm
+							font-medium [&::-webkit-details-marker]:hidden"
+					>
+						<Icon name="chevron-down" class="size-4 transition-transform group-open:rotate-180" />
+						自分が作成したフォーム {data.created.length} 件
+					</summary>
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each data.created as row (row.id)}
 							<li class="card">
@@ -153,7 +170,7 @@
 							</li>
 						{/each}
 					</ul>
-				</section>
+				</details>
 			{/if}
 		{/if}
 	{:else}

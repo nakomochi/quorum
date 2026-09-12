@@ -341,6 +341,31 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 		}
 	},
 	{
+		id: 'home-long-lists',
+		title: 'メンバー / 提出済みと作成済みが多い',
+		data: {
+			user: USER,
+			member: true,
+			isAdmin: false,
+			pending: [formRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })],
+			submitted: Array.from({ length: 9 }, (_, i) =>
+				formRow({
+					id: `done0000000${i + 1}`,
+					title: `定例会の出欠（第 ${i + 1} 回）`,
+					deadline: fromNow(-24 * 7 * (i + 1))
+				})
+			),
+			created: Array.from({ length: 6 }, (_, i) =>
+				createdRow({
+					id: `mine0000000${i + 1}`,
+					title: `イベントの出欠確認 ${i + 1}`,
+					responseCount: 20 - i * 3,
+					deadline: fromNow(-24 * 10 * (i + 1))
+				})
+			)
+		}
+	},
+	{
 		id: 'home-outsider',
 		title: '非メンバー',
 		data: { user: USER, member: false, isAdmin: false, pending: [], submitted: [], created: [] }

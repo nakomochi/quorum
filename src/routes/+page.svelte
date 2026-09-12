@@ -25,6 +25,15 @@
 		if (remaining < 0) return 'overdue';
 		return remaining <= SOON_MS ? 'soon' : null;
 	};
+
+	// These two only ever grow; show a window of them until asked for the rest.
+	const PREVIEW = 3;
+
+	let allSubmitted = $state(false);
+	let allCreated = $state(false);
+
+	const submitted = $derived(allSubmitted ? data.submitted : data.submitted.slice(0, PREVIEW));
+	const created = $derived(allCreated ? data.created : data.created.slice(0, PREVIEW));
 </script>
 
 <main
@@ -119,18 +128,12 @@
 			</section>
 
 			{#if data.submitted.length > 0}
-				<!-- `details` rather than a store: these lists only grow, and the browser gives us the
-				     toggle, the keyboard handling and a working no-JS fallback for free. -->
-				<details class="group">
-					<summary
-						class="text-text-subtle flex cursor-pointer list-none items-center gap-2 text-sm
-							font-medium [&::-webkit-details-marker]:hidden"
-					>
-						<Icon name="chevron-down" class="size-4 transition-transform group-open:rotate-180" />
-						提出済み {data.submitted.length} 件
-					</summary>
+				<section>
+					<h2 class="text-text-subtle text-sm font-medium">
+						提出済みのフォーム {data.submitted.length} 件
+					</h2>
 					<ul class="mt-2 flex flex-col gap-2">
-						{#each data.submitted as row (row.id)}
+						{#each submitted as row (row.id)}
 							<li class="card">
 								<a href="/forms/{row.id}" class="flex items-center justify-between gap-4 px-5 py-4">
 									<span class="text-text-subtle flex min-w-0 items-center gap-2">
@@ -142,20 +145,25 @@
 							</li>
 						{/each}
 					</ul>
-				</details>
+					{#if data.submitted.length > PREVIEW}
+						<button
+							type="button"
+							class="text-text-muted hover:text-text-subtle mt-2 text-xs hover:underline"
+							onclick={() => (allSubmitted = !allSubmitted)}
+						>
+							{allSubmitted ? '一部だけ表示' : `すべて表示（${data.submitted.length} 件）`}
+						</button>
+					{/if}
+				</section>
 			{/if}
 
 			{#if data.created.length > 0}
-				<details class="group">
-					<summary
-						class="text-text-subtle flex cursor-pointer list-none items-center gap-2 text-sm
-							font-medium [&::-webkit-details-marker]:hidden"
-					>
-						<Icon name="chevron-down" class="size-4 transition-transform group-open:rotate-180" />
+				<section>
+					<h2 class="text-text-subtle text-sm font-medium">
 						自分が作成したフォーム {data.created.length} 件
-					</summary>
+					</h2>
 					<ul class="mt-2 flex flex-col gap-2">
-						{#each data.created as row (row.id)}
+						{#each created as row (row.id)}
 							<li class="card">
 								<a
 									href="/forms/{row.id}/results"
@@ -170,7 +178,16 @@
 							</li>
 						{/each}
 					</ul>
-				</details>
+					{#if data.created.length > PREVIEW}
+						<button
+							type="button"
+							class="text-text-muted hover:text-text-subtle mt-2 text-xs hover:underline"
+							onclick={() => (allCreated = !allCreated)}
+						>
+							{allCreated ? '一部だけ表示' : `すべて表示（${data.created.length} 件）`}
+						</button>
+					{/if}
+				</section>
 			{/if}
 		{/if}
 	{:else}

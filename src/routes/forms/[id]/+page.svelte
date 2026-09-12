@@ -41,14 +41,28 @@
 </script>
 
 <main class="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-12">
-	<header>
-		<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
-		{#if data.form.description}
-			<p class="mt-2 text-sm whitespace-pre-wrap text-text-subtle">{data.form.description}</p>
-		{/if}
-		<p class="mt-2 text-xs text-text-muted">
-			締切: {formatJst(data.form.deadline)} / 受付終了: {formatJst(data.form.closesAt)}
-		</p>
+	<!-- The accent bar is a clipped child, not a `border-t-4`: the rounded top corners would
+	     otherwise render the border as a thickening wedge. -->
+	<header class="card overflow-hidden">
+		<div class="bg-accent h-1.5"></div>
+		<div class="p-6">
+			<h1 class="text-2xl font-semibold tracking-tight">{data.form.title}</h1>
+			{#if data.form.description}
+				<p class="mt-2 text-sm whitespace-pre-wrap text-text-subtle">{data.form.description}</p>
+			{/if}
+			<div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-text-muted">
+				{#if data.closed}
+					<span class="bg-surface-alt rounded px-2 py-1 text-text-subtle">受付終了</span>
+				{/if}
+				{#if data.submittedAt}
+					<span class="bg-success-badge text-success rounded px-2 py-1">提出済み</span>
+					<span>{formatJst(data.submittedAt)}</span>
+				{/if}
+				<span>
+					締切: {formatJst(data.form.deadline)} / 受付終了: {formatJst(data.form.closesAt)}
+				</span>
+			</div>
+		</div>
 	</header>
 
 	{#if form?.message}
@@ -57,16 +71,6 @@
 		</p>
 	{:else if form?.saved}
 		<p role="status" class="alert-success">回答を保存しました。</p>
-	{/if}
-
-	{#if data.submittedAt}
-		<p class="text-sm text-text-muted">提出済み（{formatJst(data.submittedAt)}）</p>
-	{/if}
-
-	{#if data.closed}
-		<p class="border-border bg-surface rounded-lg border px-4 py-3 text-sm text-text-subtle">
-			このフォームは受付を終了しています。
-		</p>
 	{/if}
 
 	{#if data.editable}

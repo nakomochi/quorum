@@ -13,6 +13,9 @@
 	--color-border-strong: oklch(70.4% 0.04 256.788);
 	--color-border-focus: oklch(55.4% 0.046 257.417);
 	--color-border-active: oklch(44.6% 0.043 257.281);
+	/* Inputs carry no fill of their own against the card, so the border is the only affordance
+	   and has to clear the 3:1 of WCAG 1.4.11 in both themes. */
+	--color-input-border: oklch(55.4% 0.046 257.417);
 
 	--color-text: oklch(20.8% 0.042 265.755);
 	--color-text-subtle: oklch(37.2% 0.044 257.287);
@@ -56,6 +59,7 @@
 		--color-border-strong: oklch(37.2% 0.044 257.287);
 		--color-border-focus: oklch(55.4% 0.046 257.417);
 		--color-border-active: oklch(70.4% 0.04 256.788);
+		--color-input-border: oklch(55.4% 0.046 257.417);
 
 		--color-text: oklch(96.8% 0.007 247.896);
 		--color-text-subtle: oklch(86.9% 0.022 252.894);
@@ -89,6 +93,7 @@
 	--color-border-strong: oklch(70.4% 0.04 256.788);
 	--color-border-focus: oklch(55.4% 0.046 257.417);
 	--color-border-active: oklch(44.6% 0.043 257.281);
+	--color-input-border: oklch(55.4% 0.046 257.417);
 
 	--color-text: oklch(20.8% 0.042 265.755);
 	--color-text-subtle: oklch(37.2% 0.044 257.287);
@@ -121,6 +126,7 @@
 	--color-border-strong: oklch(37.2% 0.044 257.287);
 	--color-border-focus: oklch(55.4% 0.046 257.417);
 	--color-border-active: oklch(70.4% 0.04 256.788);
+	--color-input-border: oklch(55.4% 0.046 257.417);
 
 	--color-text: oklch(96.8% 0.007 247.896);
 	--color-text-subtle: oklch(86.9% 0.022 252.894);
@@ -147,28 +153,32 @@ main {
 	overflow-wrap: anywhere;
 }
 
-.card {
-	@apply border-border bg-surface rounded-xl border;
-}
+/* Layered on purpose: unlayered rules outrank `@layer utilities`, so `class="chip p-1.5"`
+   would be silently dropped. Inside the layer a utility on the element wins, as expected. */
+@layer components {
+	.card {
+		@apply border-border bg-surface rounded-xl border;
+	}
 
-.btn-primary {
-	@apply bg-accent hover:bg-accent-hover text-accent-fg rounded-lg text-sm font-semibold transition;
-}
+	.btn-primary {
+		@apply bg-accent hover:bg-accent-hover text-accent-fg rounded-lg text-sm font-semibold transition;
+	}
 
-.alert-error {
-	@apply border-error-line bg-error-surface text-error-fg rounded-lg border px-4 py-3 text-sm;
-}
+	.alert-error {
+		@apply border-error-line bg-error-surface text-error-fg rounded-lg border px-4 py-3 text-sm;
+	}
 
-.alert-success {
-	@apply border-success-line bg-success-surface text-success-fg rounded-lg border px-4 py-3 text-sm;
-}
+	.alert-success {
+		@apply border-success-line bg-success-surface text-success-fg rounded-lg border px-4 py-3 text-sm;
+	}
 
-.field {
-	@apply border-border-strong bg-input w-full rounded-lg border px-3 py-2 text-sm;
-	@apply focus:border-border-focus focus:ring-border-focus/40 outline-none focus:ring-2;
-}
+	.field {
+		@apply border-input-border bg-input w-full rounded-lg border px-3 py-2 text-sm;
+		@apply focus:border-accent focus:ring-accent/40 outline-none focus:ring-2;
+	}
 
-.chip {
-	@apply border-border-strong text-text-subtle hover:bg-surface-raised rounded border px-2 py-1 text-xs;
-	@apply disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
+	.chip {
+		@apply border-border-strong text-text-subtle hover:bg-surface-raised rounded border px-2 py-1 text-xs;
+		@apply disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
+	}
 }

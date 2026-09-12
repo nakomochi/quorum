@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { formatJst } from '$lib/datetime';
 	import { VISIBILITY_LABELS, type AnswerValue } from '$lib/forms';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	let { data, form } = $props();
 
@@ -258,6 +259,9 @@
 
 	<div class="flex gap-4 text-sm text-text-muted">
 		<a href="/forms/{data.form.id}" class="hover:underline">回答画面へ</a>
-		<a href="/" class="hover:underline">← トップへ</a>
+		<a href="/" class="inline-flex items-center gap-1.5 hover:underline">
+			<Icon name="arrow-left" />
+			トップへ
+		</a>
 	</div>
 </main>

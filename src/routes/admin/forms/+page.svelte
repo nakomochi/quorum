@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { formatJst } from '$lib/datetime';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	let { data, form } = $props();
 
@@ -104,5 +105,8 @@
 		</div>
 	{/if}
 
-	<a href="/" class="text-sm text-text-muted hover:underline">← トップへ</a>
+	<a href="/" class="inline-flex items-center gap-1.5 self-start text-sm text-text-muted hover:underline">
+		<Icon name="arrow-left" />
+		トップへ
+	</a>
 </main>

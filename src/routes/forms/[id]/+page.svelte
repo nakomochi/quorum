@@ -2,6 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { formatJst } from '$lib/datetime';
 	import { MAX_TEXT_ANSWER, type AnswerValue } from '$lib/forms';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	let { data, form } = $props();
 
@@ -141,6 +142,9 @@
 		{#if data.resultsVisible}
 			<a href="/forms/{data.form.id}/results" class="hover:underline">回答状況を見る</a>
 		{/if}
-		<a href="/" class="hover:underline">← トップへ</a>
+		<a href="/" class="inline-flex items-center gap-1.5 hover:underline">
+			<Icon name="arrow-left" />
+			トップへ
+		</a>
 	</div>
 </main>

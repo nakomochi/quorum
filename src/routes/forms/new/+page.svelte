@@ -12,6 +12,7 @@
 		QUESTION_TYPES,
 		type QuestionType
 	} from '$lib/forms';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	type Draft = {
 		key: string;
@@ -192,21 +193,21 @@
 						<div class="flex gap-1">
 							<button
 								type="button"
-								class="chip"
+								class="chip p-1.5"
 								aria-label="質問 {index + 1} を上へ移動"
 								disabled={index === 0}
 								onclick={() => move(index, -1)}
 							>
-								↑
+								<Icon name="chevron-up" />
 							</button>
 							<button
 								type="button"
-								class="chip"
+								class="chip p-1.5"
 								aria-label="質問 {index + 1} を下へ移動"
 								disabled={index === questions.length - 1}
 								onclick={() => move(index, 1)}
 							>
-								↓
+								<Icon name="chevron-down" />
 							</button>
 							<!-- The server rejects an empty question set, so the last one must stay. -->
 							<button
@@ -269,12 +270,12 @@
 									/>
 									<button
 										type="button"
-										class="chip"
+										class="chip p-1.5"
 										aria-label="質問 {index + 1} の選択肢 {optionIndex + 1} を削除"
 										disabled={q.options.length === 1}
 										onclick={() => (q.options = q.options.filter((item) => item.id !== option.id))}
 									>
-										×
+										<Icon name="x" />
 									</button>
 									<span class="w-8 text-right text-xs text-text-muted">{optionIndex + 1}</span>
 								</div>

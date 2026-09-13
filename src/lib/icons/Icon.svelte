@@ -6,10 +6,23 @@
 		'chevron-down': ['m6 9 6 6 6-6'],
 		x: ['M18 6 6 18', 'm6 6 12 12'],
 		plus: ['M5 12h14', 'M12 5v14'],
-		check: ['M20 6 9 17l-5-5']
+		check: ['M20 6 9 17l-5-5'],
+		'grip-vertical': []
 	} as const;
 
 	export type IconName = keyof typeof paths;
+
+	// Lucide draws grip-vertical out of circles instead of paths: `[cx, cy]` pairs, all r=1.
+	const circles: Partial<Record<IconName, [number, number][]>> = {
+		'grip-vertical': [
+			[9, 5],
+			[9, 12],
+			[9, 19],
+			[15, 5],
+			[15, 12],
+			[15, 19]
+		]
+	};
 </script>
 
 <script lang="ts">
@@ -29,5 +42,8 @@
 >
 	{#each paths[name] as d (d)}
 		<path {d} />
+	{/each}
+	{#each circles[name] ?? [] as [cx, cy] (`${cx},${cy}`)}
+		<circle {cx} {cy} r="1" />
 	{/each}
 </svg>

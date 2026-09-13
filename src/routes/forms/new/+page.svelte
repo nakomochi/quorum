@@ -1,5 +1,7 @@
 <script lang="ts">
 	import { nanoid } from 'nanoid';
+	import { flip } from 'svelte/animate';
+	import { dragHandle, dragHandleZone, type DndEvent } from 'svelte-dnd-action';
 	import { enhance } from '$app/forms';
 	import {
 		hasOptions,
@@ -14,8 +16,9 @@
 	} from '$lib/forms';
 	import Icon from '$lib/icons/Icon.svelte';
 
+	// svelte-dnd-action identifies items by an `id` property, so the draft key is named for it.
 	type Draft = {
-		key: string;
+		id: string;
 		type: QuestionType;
 		label: string;
 		helpText: string;
@@ -23,13 +26,16 @@
 		options: { id: string; label: string }[];
 	};
 
+	// Shared by the zone and the items so the gap and the cards move together.
+	const FLIP_MS = 150;
+
 	let { data, form } = $props();
 
 	const newOption = () => ({ id: nanoid(10), label: '' });
 
 	function newQuestion(): Draft {
 		return {
-			key: nanoid(8),
+			id: nanoid(8),
 			type: 'single',
 			label: '',
 			helpText: '',
@@ -67,6 +73,11 @@
 		const next = [...questions];
 		[next[index], next[to]] = [next[to], next[index]];
 		questions = next;
+	}
+
+	// Both events must be handled: `consider` opens the gap, `finalize` commits the drop.
+	function onDnd(event: CustomEvent<DndEvent<Draft>>) {
+		questions = event.detail.items;
 	}
 
 	function onTypeChange(q: Draft, type: QuestionType) {
@@ -186,111 +197,128 @@
 				</button>
 			</div>
 
-			{#each questions as q, index (q.key)}
-				<div class="card flex flex-col gap-3 p-5">
-					<div class="flex items-center justify-between gap-2">
-						<span class="text-xs text-text-muted">質問 {index + 1}</span>
-						<div class="flex gap-1">
-							<button
-								type="button"
-								class="chip p-1.5"
-								aria-label="質問 {index + 1} を上へ移動"
-								disabled={index === 0}
-								onclick={() => move(index, -1)}
-							>
-								<Icon name="chevron-up" />
-							</button>
-							<button
-								type="button"
-								class="chip p-1.5"
-								aria-label="質問 {index + 1} を下へ移動"
-								disabled={index === questions.length - 1}
-								onclick={() => move(index, 1)}
-							>
-								<Icon name="chevron-down" />
-							</button>
-							<!-- The server rejects an empty question set, so the last one must stay. -->
-							<button
-								type="button"
-								class="chip"
-								aria-label="質問 {index + 1} を削除"
-								disabled={questions.length === 1}
-								onclick={() => (questions = questions.filter((item) => item.key !== q.key))}
-							>
-								削除
-							</button>
+			<!-- The zone's children must be the questions and nothing else, hence the extra wrapper. -->
+			<div
+				class="flex flex-col gap-4"
+				use:dragHandleZone={{ items: questions, flipDurationMs: FLIP_MS, dropTargetStyle: {} }}
+				onconsider={onDnd}
+				onfinalize={onDnd}
+			>
+				{#each questions as q, index (q.id)}
+					<div class="card flex flex-col gap-3 p-5" animate:flip={{ duration: FLIP_MS }}>
+						<div
+							use:dragHandle
+							aria-label="質問 {index + 1} をドラッグして並び替え"
+							class="outline-accent -mx-5 -mt-5 flex touch-none justify-center rounded-t-xl py-2 text-text-muted hover:text-text-subtle focus-visible:-outline-offset-2 focus-visible:outline-2"
+						>
+							<Icon name="grip-vertical" />
 						</div>
-					</div>
 
-					<div class="grid gap-3 sm:grid-cols-[1fr_10rem]">
+						<div class="flex items-center justify-between gap-2">
+							<span class="text-xs text-text-muted">質問 {index + 1}</span>
+							<div class="flex gap-1">
+								<button
+									type="button"
+									class="chip p-1.5"
+									aria-label="質問 {index + 1} を上へ移動"
+									disabled={index === 0}
+									onclick={() => move(index, -1)}
+								>
+									<Icon name="chevron-up" />
+								</button>
+								<button
+									type="button"
+									class="chip p-1.5"
+									aria-label="質問 {index + 1} を下へ移動"
+									disabled={index === questions.length - 1}
+									onclick={() => move(index, 1)}
+								>
+									<Icon name="chevron-down" />
+								</button>
+								<!-- The server rejects an empty question set, so the last one must stay. -->
+								<button
+									type="button"
+									class="chip"
+									aria-label="質問 {index + 1} を削除"
+									disabled={questions.length === 1}
+									onclick={() => (questions = questions.filter((item) => item.id !== q.id))}
+								>
+									削除
+								</button>
+							</div>
+						</div>
+
+						<div class="grid gap-3 sm:grid-cols-[1fr_10rem]">
+							<input
+								bind:value={q.label}
+								aria-label="質問 {index + 1} の質問文"
+								placeholder="質問文"
+								required
+								maxlength={MAX_LABEL}
+								class="field"
+							/>
+							<select
+								value={q.type}
+								aria-label="質問 {index + 1} の種類"
+								onchange={(event) => onTypeChange(q, event.currentTarget.value as QuestionType)}
+								class="field"
+							>
+								{#each QUESTION_TYPES as type (type)}
+									<option value={type}>{QUESTION_TYPE_LABELS[type]}</option>
+								{/each}
+							</select>
+						</div>
+
 						<input
-							bind:value={q.label}
-							aria-label="質問 {index + 1} の質問文"
-							placeholder="質問文"
-							required
-							maxlength={MAX_LABEL}
+							bind:value={q.helpText}
+							aria-label="質問 {index + 1} の補足"
+							placeholder="補足（任意）"
+							maxlength={MAX_HELP_TEXT}
 							class="field"
 						/>
-						<select
-							value={q.type}
-							aria-label="質問 {index + 1} の種類"
-							onchange={(event) => onTypeChange(q, event.currentTarget.value as QuestionType)}
-							class="field"
-						>
-							{#each QUESTION_TYPES as type (type)}
-								<option value={type}>{QUESTION_TYPE_LABELS[type]}</option>
-							{/each}
-						</select>
+
+						<label class="flex items-center gap-2 text-sm">
+							<input type="checkbox" bind:checked={q.required} class="size-4" />
+							必須
+						</label>
+
+						{#if hasOptions(q.type)}
+							<div class="border-border flex flex-col gap-2 border-t pt-3">
+								{#each q.options as option, optionIndex (option.id)}
+									<div class="flex items-center gap-2">
+										<input
+											bind:value={option.label}
+											aria-label="質問 {index + 1} の選択肢 {optionIndex + 1}"
+											placeholder="選択肢"
+											required
+											maxlength={MAX_OPTION_LABEL}
+											class="field"
+										/>
+										<button
+											type="button"
+											class="chip p-1.5"
+											aria-label="質問 {index + 1} の選択肢 {optionIndex + 1} を削除"
+											disabled={q.options.length === 1}
+											onclick={() =>
+												(q.options = q.options.filter((item) => item.id !== option.id))}
+										>
+											<Icon name="x" />
+										</button>
+										<span class="w-8 text-right text-xs text-text-muted">{optionIndex + 1}</span>
+									</div>
+								{/each}
+								<button
+									type="button"
+									class="chip self-start"
+									onclick={() => (q.options = [...q.options, newOption()])}
+								>
+									選択肢を追加
+								</button>
+							</div>
+						{/if}
 					</div>
-
-					<input
-						bind:value={q.helpText}
-						aria-label="質問 {index + 1} の補足"
-						placeholder="補足（任意）"
-						maxlength={MAX_HELP_TEXT}
-						class="field"
-					/>
-
-					<label class="flex items-center gap-2 text-sm">
-						<input type="checkbox" bind:checked={q.required} class="size-4" />
-						必須
-					</label>
-
-					{#if hasOptions(q.type)}
-						<div class="border-border flex flex-col gap-2 border-t pt-3">
-							{#each q.options as option, optionIndex (option.id)}
-								<div class="flex items-center gap-2">
-									<input
-										bind:value={option.label}
-										aria-label="質問 {index + 1} の選択肢 {optionIndex + 1}"
-										placeholder="選択肢"
-										required
-										maxlength={MAX_OPTION_LABEL}
-										class="field"
-									/>
-									<button
-										type="button"
-										class="chip p-1.5"
-										aria-label="質問 {index + 1} の選択肢 {optionIndex + 1} を削除"
-										disabled={q.options.length === 1}
-										onclick={() => (q.options = q.options.filter((item) => item.id !== option.id))}
-									>
-										<Icon name="x" />
-									</button>
-									<span class="w-8 text-right text-xs text-text-muted">{optionIndex + 1}</span>
-								</div>
-							{/each}
-							<button
-								type="button"
-								class="chip self-start"
-								onclick={() => (q.options = [...q.options, newOption()])}
-							>
-								選択肢を追加
-							</button>
-						</div>
-					{/if}
-				</div>
-			{/each}
+				{/each}
+			</div>
 		</section>
 
 		<div class="flex items-center gap-3">

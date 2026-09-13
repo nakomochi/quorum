@@ -157,6 +157,26 @@ main {
 	overflow-wrap: anywhere;
 }
 
+/* svelte-dnd-action moves the dragged clone to <body> and marks the drop placeholder with its
+   own attribute, so neither can be reached from a component's scoped styles. */
+#dnd-action-dragged-el {
+	box-shadow:
+		0 0 0 1px var(--color-border-active),
+		0 12px 24px oklch(0% 0 0 / 0.25);
+}
+
+/* The library hides the placeholder inline; show the outline but keep the copied card blank. */
+[data-is-dnd-shadow-item-internal] {
+	visibility: visible !important;
+	border-style: dashed;
+	border-color: var(--color-border-active);
+	background: transparent;
+}
+
+[data-is-dnd-shadow-item-internal] > * {
+	visibility: hidden;
+}
+
 /* Layered on purpose: unlayered rules outrank `@layer utilities`, so `class="chip p-1.5"`
    would be silently dropped. Inside the layer a utility on the element wins, as expected. */
 @layer components {

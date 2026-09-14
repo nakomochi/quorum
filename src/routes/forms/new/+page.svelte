@@ -17,13 +17,16 @@
 	import Icon from '$lib/icons/Icon.svelte';
 
 	// svelte-dnd-action identifies items by an `id` property, so the draft key is named for it.
+	// Answers point at these option ids, so reordering must never mint new ones.
+	type Option = { id: string; label: string };
+
 	type Draft = {
 		id: string;
 		type: QuestionType;
 		label: string;
 		helpText: string;
 		required: boolean;
-		options: { id: string; label: string }[];
+		options: Option[];
 	};
 
 	// Shared by the zone and the items so the gap and the cards move together.
@@ -79,6 +82,13 @@
 	function onDnd(event: CustomEvent<DndEvent<Draft>>) {
 		questions = event.detail.items;
 	}
+
+	function onOptionDnd(q: Draft, event: CustomEvent<DndEvent<Option>>) {
+		q.options = event.detail.items;
+	}
+
+	// A type of its own per question keeps options inside their card and out of the question list.
+	const optionZoneType = (q: Draft) => `option:${q.id}`;
 
 	function onTypeChange(q: Draft, type: QuestionType) {
 		q.type = type;
@@ -211,7 +221,7 @@
 							aria-label="質問 {index + 1} をドラッグして並び替え"
 							class="outline-accent -mx-5 -mt-5 flex touch-none justify-center rounded-t-xl py-2 text-text-muted hover:text-text-subtle focus-visible:-outline-offset-2 focus-visible:outline-2"
 						>
-							<Icon name="grip-vertical" />
+							<Icon name="grip-horizontal" />
 						</div>
 
 						<div class="flex items-center justify-between gap-2">
@@ -284,29 +294,50 @@
 
 						{#if hasOptions(q.type)}
 							<div class="border-border flex flex-col gap-2 border-t pt-3">
-								{#each q.options as option, optionIndex (option.id)}
-									<div class="flex items-center gap-2">
-										<input
-											bind:value={option.label}
-											aria-label="質問 {index + 1} の選択肢 {optionIndex + 1}"
-											placeholder="選択肢"
-											required
-											maxlength={MAX_OPTION_LABEL}
-											class="field"
-										/>
-										<button
-											type="button"
-											class="chip p-1.5"
-											aria-label="質問 {index + 1} の選択肢 {optionIndex + 1} を削除"
-											disabled={q.options.length === 1}
-											onclick={() =>
-												(q.options = q.options.filter((item) => item.id !== option.id))}
-										>
-											<Icon name="x" />
-										</button>
-										<span class="w-8 text-right text-xs text-text-muted">{optionIndex + 1}</span>
-									</div>
-								{/each}
+								<!-- Nested zone: its own type, so an option can never land in the question list. -->
+								<div
+									class="flex flex-col gap-2"
+									use:dragHandleZone={{
+										items: q.options,
+										type: optionZoneType(q),
+										flipDurationMs: FLIP_MS,
+										dropTargetStyle: {}
+									}}
+									onconsider={(event) => onOptionDnd(q, event)}
+									onfinalize={(event) => onOptionDnd(q, event)}
+								>
+									{#each q.options as option, optionIndex (option.id)}
+										<div class="flex items-center gap-2" animate:flip={{ duration: FLIP_MS }}>
+											<div
+												use:dragHandle
+												aria-label="質問 {index + 1} の選択肢 {optionIndex +
+													1} をドラッグして並び替え"
+												class="outline-accent shrink-0 touch-none rounded p-1 text-text-muted hover:text-text-subtle focus-visible:-outline-offset-2 focus-visible:outline-2"
+											>
+												<Icon name="grip-vertical" />
+											</div>
+											<input
+												bind:value={option.label}
+												aria-label="質問 {index + 1} の選択肢 {optionIndex + 1}"
+												placeholder="選択肢"
+												required
+												maxlength={MAX_OPTION_LABEL}
+												class="field min-w-0"
+											/>
+											<button
+												type="button"
+												class="chip p-1.5"
+												aria-label="質問 {index + 1} の選択肢 {optionIndex + 1} を削除"
+												disabled={q.options.length === 1}
+												onclick={() =>
+													(q.options = q.options.filter((item) => item.id !== option.id))}
+											>
+												<Icon name="x" />
+											</button>
+											<span class="w-8 text-right text-xs text-text-muted">{optionIndex + 1}</span>
+										</div>
+									{/each}
+								</div>
 								<button
 									type="button"
 									class="chip self-start"

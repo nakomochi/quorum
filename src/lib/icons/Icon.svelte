@@ -7,12 +7,13 @@
 		x: ['M18 6 6 18', 'm6 6 12 12'],
 		plus: ['M5 12h14', 'M12 5v14'],
 		check: ['M20 6 9 17l-5-5'],
-		'grip-vertical': []
+		'grip-vertical': [],
+		'grip-horizontal': []
 	} as const;
 
 	export type IconName = keyof typeof paths;
 
-	// Lucide draws grip-vertical out of circles instead of paths: `[cx, cy]` pairs, all r=1.
+	// Lucide draws the grips out of circles instead of paths: `[cx, cy]` pairs, all r=1.
 	const circles: Partial<Record<IconName, [number, number][]>> = {
 		'grip-vertical': [
 			[9, 5],
@@ -21,6 +22,14 @@
 			[15, 5],
 			[15, 12],
 			[15, 19]
+		],
+		'grip-horizontal': [
+			[5, 9],
+			[12, 9],
+			[19, 9],
+			[5, 15],
+			[12, 15],
+			[19, 15]
 		]
 	};
 </script>

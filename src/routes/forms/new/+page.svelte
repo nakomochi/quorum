@@ -1,7 +1,13 @@
 <script lang="ts">
 	import { nanoid } from 'nanoid';
+	import { tick } from 'svelte';
 	import { flip } from 'svelte/animate';
-	import { dragHandle, dragHandleZone, type DndEvent } from 'svelte-dnd-action';
+	import {
+		dragHandle,
+		dragHandleZone,
+		SHADOW_ITEM_MARKER_PROPERTY_NAME,
+		type DndEvent
+	} from 'svelte-dnd-action';
 	import { enhance } from '$app/forms';
 	import {
 		hasOptions,
@@ -29,8 +35,24 @@
 		options: Option[];
 	};
 
+	// Everything the editor owns, deep-copied so a history entry can never alias live state.
+	type Snapshot = {
+		questions: Draft[];
+		deadline: string;
+		closesAt: string;
+		closesAtTouched: boolean;
+	};
+
 	// Shared by the zone and the items so the gap and the cards move together.
 	const FLIP_MS = 150;
+
+	// Long enough that a typed word is one step, short enough to feel like the last thing done.
+	const SETTLE_MS = 400;
+	const HISTORY_LIMIT = 50;
+
+	// The title and description are uncontrolled and stay out of the snapshot, so their own
+	// Ctrl+Z has to keep working.
+	const NATIVE_UNDO = ['title', 'description'];
 
 	let { data, form } = $props();
 
@@ -53,6 +75,81 @@
 	// closesAt defaults to the announced deadline until the admin types their own value.
 	let closesAtTouched = $state(false);
 
+	const cloneQuestions = (items: Draft[]): Draft[] =>
+		items.map((q) => ({ ...q, options: q.options.map((option) => ({ ...option })) }));
+
+	const snapshot = (): Snapshot => ({
+		questions: cloneQuestions(questions),
+		deadline,
+		closesAt,
+		closesAtTouched
+	});
+
+	// Comparing serialised state is what keeps a no-op edit (a cancelled drag, retyping the same
+	// character) from becoming a history step nobody asked for.
+	const serialise = () => JSON.stringify([questions, deadline, closesAt, closesAtTouched]);
+
+	let past = $state.raw<Snapshot[]>([]);
+	let future = $state.raw<Snapshot[]>([]);
+	let baseline = snapshot();
+	let baselineKey = $state(serialise());
+
+	const stateKey = $derived(serialise());
+	const pending = $derived(stateKey !== baselineKey);
+
+	const canUndo = $derived(past.length > 0 || pending);
+	// Any unbanked edit invalidates the redo stack, so the button must go dead with it.
+	const canRedo = $derived(future.length > 0 && !pending);
+
+	// A drag swaps a placeholder into the list until it is dropped, and a snapshot taken then would
+	// bake that placeholder into history. Looking for the marker beats tracking a flag: a keyboard
+	// drop ends with a `consider`, so a flag cleared on `finalize` would never come back down.
+	const marked = (item: object) => SHADOW_ITEM_MARKER_PROPERTY_NAME in item;
+	const midDrag = () => questions.some((q) => marked(q) || q.options.some(marked));
+
+	function checkpoint() {
+		if (midDrag() || !pending) return;
+		past = [...past, baseline].slice(-HISTORY_LIMIT);
+		future = [];
+		baseline = snapshot();
+		baselineKey = stateKey;
+	}
+
+	// Two checkpoints: the first banks whatever was half-typed, the second the structural change.
+	function step(change: () => void) {
+		checkpoint();
+		change();
+		checkpoint();
+	}
+
+	function apply(entry: Snapshot) {
+		questions = cloneQuestions(entry.questions);
+		deadline = entry.deadline;
+		closesAt = entry.closesAt;
+		closesAtTouched = entry.closesAtTouched;
+		baseline = entry;
+		baselineKey = serialise();
+		restoreFocus();
+	}
+
+	function undo() {
+		checkpoint();
+		const previous = past.at(-1);
+		if (!previous) return;
+		past = past.slice(0, -1);
+		future = [...future, baseline];
+		apply(previous);
+	}
+
+	function redo() {
+		checkpoint();
+		const next = future.at(-1);
+		if (!next) return;
+		future = future.slice(0, -1);
+		past = [...past, baseline];
+		apply(next);
+	}
+
 	const payload = $derived(
 		JSON.stringify(
 			questions.map((q) => ({
@@ -73,27 +170,77 @@
 	function move(index: number, delta: number) {
 		const to = index + delta;
 		if (to < 0 || to >= questions.length) return;
-		const next = [...questions];
-		[next[index], next[to]] = [next[to], next[index]];
-		questions = next;
+		step(() => {
+			const next = [...questions];
+			[next[index], next[to]] = [next[to], next[index]];
+			questions = next;
+		});
 	}
 
 	// Both events must be handled: `consider` opens the gap, `finalize` commits the drop.
 	function onDnd(event: CustomEvent<DndEvent<Draft>>) {
 		questions = event.detail.items;
+		checkpoint();
 	}
 
 	function onOptionDnd(q: Draft, event: CustomEvent<DndEvent<Option>>) {
 		q.options = event.detail.items;
+		checkpoint();
 	}
 
 	// A type of its own per question keeps options inside their card and out of the question list.
 	const optionZoneType = (q: Draft) => `option:${q.id}`;
 
 	function onTypeChange(q: Draft, type: QuestionType) {
-		q.type = type;
-		if (hasOptions(type) && q.options.length === 0) q.options = [newOption()];
+		step(() => {
+			q.type = type;
+			if (hasOptions(type) && q.options.length === 0) q.options = [newOption()];
+		});
 	}
+
+	// Undo swaps the whole list in, so the caret has to be put back by hand.
+	let lastField: HTMLInputElement | null = null;
+
+	function rememberField(event: FocusEvent) {
+		const el = event.target;
+		lastField = el instanceof HTMLInputElement && el.type === 'text' ? el : null;
+	}
+
+	async function restoreFocus() {
+		const field = lastField;
+		await tick();
+		// A field that belonged to a question the undo removed is no longer in the document.
+		if (!field?.isConnected) return;
+		field.focus();
+		field.setSelectionRange(field.value.length, field.value.length);
+	}
+
+	// Typing settles into one step instead of one per character. Compare the keys here rather than
+	// reading `pending`: the effect has to depend on the text itself, or it never re-runs while a
+	// change is outstanding and the wait turns into a fixed interval.
+	$effect(() => {
+		if (stateKey === baselineKey) return;
+		const timer = setTimeout(checkpoint, SETTLE_MS);
+		return () => clearTimeout(timer);
+	});
+
+	$effect(() => {
+		const onKeydown = (event: KeyboardEvent) => {
+			if (!(event.ctrlKey || event.metaKey) || event.altKey) return;
+			const target = event.target;
+			if (target instanceof HTMLElement && NATIVE_UNDO.includes(target.getAttribute('name') ?? ''))
+				return;
+
+			const key = event.key.toLowerCase();
+			if (key !== 'z' && key !== 'y') return;
+			event.preventDefault();
+			if (key === 'y' || event.shiftKey) redo();
+			else undo();
+		};
+
+		window.addEventListener('keydown', onKeydown);
+		return () => window.removeEventListener('keydown', onKeydown);
+	});
 </script>
 
 <main class="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-6 py-12">
@@ -108,7 +255,7 @@
 	{/if}
 
 	<!-- use:enhance keeps the question editor's state when the server answers with fail(). -->
-	<form method="POST" use:enhance class="flex flex-col gap-6">
+	<form method="POST" use:enhance onfocusin={rememberField} class="flex flex-col gap-6">
 		<input type="hidden" name="questions" value={payload} />
 
 		<section class="card flex flex-col gap-4 p-5">
@@ -196,15 +343,38 @@
 		</section>
 
 		<section class="flex flex-col gap-4">
-			<div class="flex items-center justify-between">
+			<div class="flex items-center justify-between gap-2">
 				<h2 class="text-sm font-medium">質問</h2>
-				<button
-					type="button"
-					class="chip"
-					onclick={() => (questions = [...questions, newQuestion()])}
-				>
-					質問を追加
-				</button>
+				<div class="flex gap-1">
+					<!-- Ctrl+Z does the same, but a phone has no Ctrl and a shortcut is invisible. -->
+					<button
+						type="button"
+						class="chip p-1.5"
+						aria-label="元に戻す"
+						title="元に戻す"
+						disabled={!canUndo}
+						onclick={undo}
+					>
+						<Icon name="undo-2" />
+					</button>
+					<button
+						type="button"
+						class="chip p-1.5"
+						aria-label="やり直す"
+						title="やり直す"
+						disabled={!canRedo}
+						onclick={redo}
+					>
+						<Icon name="redo-2" />
+					</button>
+					<button
+						type="button"
+						class="chip"
+						onclick={() => step(() => (questions = [...questions, newQuestion()]))}
+					>
+						質問を追加
+					</button>
+				</div>
 			</div>
 
 			<!-- The zone's children must be the questions and nothing else, hence the extra wrapper. -->
@@ -251,7 +421,8 @@
 									class="chip"
 									aria-label="質問 {index + 1} を削除"
 									disabled={questions.length === 1}
-									onclick={() => (questions = questions.filter((item) => item.id !== q.id))}
+									onclick={() =>
+										step(() => (questions = questions.filter((item) => item.id !== q.id)))}
 								>
 									削除
 								</button>
@@ -330,7 +501,9 @@
 												aria-label="質問 {index + 1} の選択肢 {optionIndex + 1} を削除"
 												disabled={q.options.length === 1}
 												onclick={() =>
-													(q.options = q.options.filter((item) => item.id !== option.id))}
+													step(
+														() => (q.options = q.options.filter((item) => item.id !== option.id))
+													)}
 											>
 												<Icon name="x" />
 											</button>
@@ -341,7 +514,7 @@
 								<button
 									type="button"
 									class="chip self-start"
-									onclick={() => (q.options = [...q.options, newOption()])}
+									onclick={() => step(() => (q.options = [...q.options, newOption()]))}
 								>
 									選択肢を追加
 								</button>

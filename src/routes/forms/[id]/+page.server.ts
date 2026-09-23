@@ -11,7 +11,8 @@ import {
 	loadQuestions,
 	submitResponse
 } from '$lib/server/forms';
-import { canManageForm, requireUser } from '$lib/server/guards';
+import { requireUser } from '$lib/server/guards';
+import { looksLikeGuildAdmin } from '$lib/server/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
 const FAILURES = {
@@ -32,10 +33,14 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	if (!member) error(403, FAILURES.not_member.message);
 	if (!canSubmit(target, member)) error(403, FAILURES.forbidden.message);
 
+	// Display-only, and only to decide whether the results link is drawn. A reminder puts the whole
+	// target roster on this page at once, so the live admin check (three calls, one of them the
+	// 5/s getGuildMember) cannot go here. The results page re-authorizes live, so a link left over
+	// from a revoked role fails when it is followed.
 	const [questions, own, manage] = await Promise.all([
 		loadQuestions(params.id),
 		loadOwnResponse(params.id, user.id),
-		canManageForm(locals, target)
+		target.createdBy === user.id || looksLikeGuildAdmin(user.discordId, member.roleIds)
 	]);
 
 	const closed = isClosed(target);

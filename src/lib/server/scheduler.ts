@@ -2,6 +2,7 @@ import { and, eq, gt, isNotNull, isNull, lte, notExists, sql } from 'drizzle-orm
 import { db } from './db';
 import { form, reminder } from './db/schema';
 import { closeForm } from './forms';
+import { lastSyncedAt, syncAllMembers } from './guild-sync';
 import { sendReminder } from './notify';
 
 /**
@@ -11,6 +12,8 @@ import { sendReminder } from './notify';
 const TICK_INTERVAL_MS = 5 * 60_000;
 
 const REMINDER_LEAD = sql`interval '24 hours'`;
+
+const FULL_SYNC_INTERVAL_MS = 24 * 60 * 60_000;
 
 export type TickResult = {
 	reminded: string[];
@@ -65,9 +68,26 @@ async function dueForClose(): Promise<string[]> {
 	return rows.map((row) => row.id);
 }
 
+/**
+ * The login sync swallows its failures, and a member missing from the mirror is refused as a
+ * non-member until something resyncs. Not a hidden TTL: the interval is measured from the last
+ * successful sync, and guild_sync records it for the management page to show.
+ */
+async function repairMirror(): Promise<void> {
+	try {
+		const last = await lastSyncedAt();
+		if (last && Date.now() - last.getTime() < FULL_SYNC_INTERVAL_MS) return;
+		await syncAllMembers();
+	} catch (cause) {
+		console.error('daily member sync failed', cause);
+	}
+}
+
 /** One pass over both schedules. Throws only if a query itself fails; see tickOnce. */
 export async function runTick(): Promise<TickResult> {
 	const result: TickResult = { reminded: [], closed: [], failed: [] };
+
+	await repairMirror();
 
 	// Per-form try/catch throughout: one form that Discord rejects must not hold up the rest.
 	for (const id of await dueForReminder()) {

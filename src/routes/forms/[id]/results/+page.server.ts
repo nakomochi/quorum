@@ -11,6 +11,7 @@ import {
 	tallyChoices
 } from '$lib/server/forms';
 import { canManageForm, requireUser } from '$lib/server/guards';
+import { syncAllMembers } from '$lib/server/guild-sync';
 import { announceForm, listReminders, sendReminder } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -45,6 +46,18 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		error(403, 'このサーバーのメンバーではありません');
 	}
 	if (!canViewResults(target, manage)) error(403, 'この結果はまだ公開されていません');
+
+	// The non-submitter list drives the decision to remind, so refresh the mirror before reading it
+	// instead of reading Discord here: one more sync trigger, not a second read path. Gated on
+	// manage because canViewResults can let the whole guild onto this page, and listGuildMembers is
+	// 10/10s. A failure leaves the last sync time behind in guild_sync rather than going unnoticed.
+	if (manage) {
+		try {
+			await syncAllMembers();
+		} catch (cause) {
+			console.error('[guild-sync] results refresh failed', cause);
+		}
+	}
 
 	const questions = await loadQuestions(params.id);
 	const results = await loadResults(target);

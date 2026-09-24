@@ -30,7 +30,7 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY --from=build /app/build ./build
 # drizzle/ は起動時マイグレーションの入力。SQL と meta/_journal.json の両方が要る。
 COPY drizzle ./drizzle
-COPY scripts/migrate.js ./scripts/migrate.js
+COPY scripts ./scripts
 COPY package.json ./
 COPY --chmod=755 docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
 

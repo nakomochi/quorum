@@ -2,18 +2,10 @@ import { and, eq, gt, isNotNull, isNull, lte, notExists, sql } from 'drizzle-orm
 import { db } from './db';
 import { form, reminder } from './db/schema';
 import { closeForm } from './forms';
-import { lastSyncedAt, syncAllMembers } from './guild-sync';
+import { syncAllMembers, type SyncAllResult } from './guild-sync';
 import { sendReminder } from './notify';
 
-/**
- * Both schedules are keyed on a deadline and a closing time, neither of which is meaningful to
- * the minute, so a coarse interval costs nothing.
- */
-const TICK_INTERVAL_MS = 5 * 60_000;
-
 const REMINDER_LEAD = sql`interval '24 hours'`;
-
-const FULL_SYNC_INTERVAL_MS = 24 * 60 * 60_000;
 
 export type TickResult = {
 	reminded: string[];
@@ -68,26 +60,9 @@ async function dueForClose(): Promise<string[]> {
 	return rows.map((row) => row.id);
 }
 
-/**
- * The login sync swallows its failures, and a member missing from the mirror is refused as a
- * non-member until something resyncs. Not a hidden TTL: the interval is measured from the last
- * successful sync, and guild_sync records it for the management page to show.
- */
-async function repairMirror(): Promise<void> {
-	try {
-		const last = await lastSyncedAt();
-		if (last && Date.now() - last.getTime() < FULL_SYNC_INTERVAL_MS) return;
-		await syncAllMembers();
-	} catch (cause) {
-		console.error('daily member sync failed', cause);
-	}
-}
-
-/** One pass over both schedules. Throws only if a query itself fails; see tickOnce. */
+/** One pass over both schedules. Throws only if a query itself fails. */
 export async function runTick(): Promise<TickResult> {
 	const result: TickResult = { reminded: [], closed: [], failed: [] };
-
-	await repairMirror();
 
 	// Per-form try/catch throughout: one form that Discord rejects must not hold up the rest.
 	for (const id of await dueForReminder()) {
@@ -95,7 +70,9 @@ export async function runTick(): Promise<TickResult> {
 			const sent = await sendReminder(id, { kind: 'auto', sentBy: null });
 			if (sent.ok) {
 				result.reminded.push(id);
-			} else {
+			} else if (sent.reason !== 'no_targets') {
+				// no_targets is not a failure: everyone has answered, and sendReminder has already
+				// recorded the deadline as handled.
 				result.failed.push(id);
 				// sendReminder drops its reservation when a post fails, so the next tick retries on its
 				// own. Logging is the only thing that keeps a Discord outage from failing in silence.
@@ -125,37 +102,36 @@ export async function runTick(): Promise<TickResult> {
 	return result;
 }
 
-let running = false;
+const CRON_JOBS = {
+	tick: runTick,
+	'sync-members': syncAllMembers
+} satisfies Record<string, () => Promise<TickResult | SyncAllResult>>;
 
-/**
- * Serialized entry point. A pass can outlast the interval because closing refreshes the whole
- * roster from Discord, and two overlapping passes would work the same forms twice.
- * Null means no pass completed: one was already in flight, or the pass itself threw.
- */
-export async function tickOnce(): Promise<TickResult | null> {
-	if (running) {
-		console.warn('scheduler tick skipped: the previous one is still running');
-		return null;
-	}
+export type CronJob = keyof typeof CRON_JOBS;
 
-	running = true;
-	try {
-		return await runTick();
-	} catch (cause) {
-		// The two queries above are outside every per-form catch, and an unhandled rejection raised
-		// from a setInterval callback takes the process down.
-		console.error('scheduler tick failed', cause);
-		return null;
-	} finally {
-		running = false;
-	}
+export function isCronJob(name: string): name is CronJob {
+	return Object.hasOwn(CRON_JOBS, name);
 }
 
-let timer: ReturnType<typeof setInterval> | null = null;
+/**
+ * Per job rather than one flag: the daily sync's schedule always coincides with a tick, so a
+ * shared flag would refuse one of them every day. Running them side by side is already the norm,
+ * since every close and reminder inside a tick runs the same sync.
+ */
+const running = new Set<CronJob>();
 
-export function startScheduler(): void {
-	if (timer) return;
-	// Deliberately no pass on boot: the process restarts on every deploy, and a crash loop would
-	// turn that into a burst of Discord calls.
-	timer = setInterval(tickOnce, TICK_INTERVAL_MS);
+/**
+ * Null when the previous run of the same job is still in flight. A tick can outlast the cron
+ * interval because closing refreshes the whole roster from Discord, and two overlapping passes
+ * would work the same forms twice. Errors propagate to the caller.
+ */
+export async function runCronJob(job: CronJob): Promise<TickResult | SyncAllResult | null> {
+	if (running.has(job)) return null;
+
+	running.add(job);
+	try {
+		return await CRON_JOBS[job]();
+	} finally {
+		running.delete(job);
+	}
 }

@@ -8,6 +8,7 @@
 		"build": "vite build",
 		"preview": "vite preview",
 		"start": "node build",
+		"cron": "CRON_HOST=localhost PORT=5173 bun scripts/cron.js",
 		"prepare": "svelte-kit sync || echo ''",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",

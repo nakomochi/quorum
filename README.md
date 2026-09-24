@@ -17,9 +17,16 @@ bun run dev           # http://localhost:5173
 
 ## 自動リマインド / 自動クローズ
 
-`src/lib/server/scheduler.ts` の tick をアプリ内 `setInterval` で 5 分ごとに回す。締切 24 時間前を
-過ぎたフォームに自動リマインドを送り、受付終了時刻を過ぎたフォームを閉じる。
-外部 cron（Coolify Scheduled Tasks 等）に移す場合は `runTick()` をそのまま呼べばよい。
+アプリ内にタイマーは持たない。外部 cron（本番は Coolify Scheduled Tasks）が
+`scripts/cron.js` 経由で `POST /internal/cron/<job>` を叩く（`Authorization: Bearer $CRON_SECRET`）。
+
+| job | 間隔 | 内容 |
+| --- | --- | --- |
+| `tick` | 5 分 | 締切 24 時間前を過ぎたフォームに自動リマインドを送り、受付終了時刻を過ぎたフォームを閉じる |
+| `sync-members` | 1 日 | サーバーメンバーのミラーを全件同期する（ログイン時の同期漏れの修復） |
+
+同じ job が実行中なら 409 を返して何もしない。開発環境では自動で動かないので、
+`.env` に `CRON_SECRET` を入れて dev サーバーを起動し、`bun run cron tick` で手動実行する。
 
 ### Discord Developer Portal
 
@@ -38,12 +45,22 @@ https://discord.com/oauth2/authorize?client_id=<CLIENT_ID>&scope=bot&permissions
 
 1. **Postgres** を Coolify のデータベースとして別サービスで作る。内部接続文字列を控える。
 2. **アプリ**をこのリポジトリから作成し、Build Pack に **Dockerfile** を選ぶ。ポートは `3000`。
-3. 環境変数を8つ入れる（`POSTGRES_PASSWORD` は開発用 compose 専用なので不要）。
+3. 環境変数を9つ入れる（`POSTGRES_PASSWORD` は開発用 compose 専用なので不要）。
    `DATABASE_URL` / `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL` / `ORIGIN` /
-   `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` / `DISCORD_BOT_TOKEN` / `DISCORD_GUILD_ID`
+   `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` / `DISCORD_BOT_TOKEN` / `DISCORD_GUILD_ID` /
+   `CRON_SECRET`
 4. Discord Developer Portal の `OAuth2` → `Redirects` に
    `https://<公開ドメイン>/api/auth/callback/discord` を追加する。
-5. **レプリカ数は 1 のまま**にする。
+5. **レプリカ数は 1 のまま**にする（起動時マイグレーションが単一インスタンス前提。下記）。
+6. アプリの `Scheduled Tasks` に2件登録する。Container はアプリのコンテナのまま。
+
+   | Command | Frequency |
+   | --- | --- |
+   | `node scripts/cron.js tick` | `*/5 * * * *` |
+   | `node scripts/cron.js sync-members` | `0 19 * * *` |
+
+   cron 式はサーバー設定の Server Timezone で解釈される。UTC なら `0 19 * * *` が JST 4:00。
+   アプリコンテナが止まっている間のタスクはスキップされる。日次同期はその日の分が飛び、翌日に追いつく。
 
 ビルドに秘密情報は要らない（`$env/dynamic/private` は実行時に読む）。ビルド引数に DB や
 トークンを渡さないこと。
@@ -54,7 +71,7 @@ https://discord.com/oauth2/authorize?client_id=<CLIENT_ID>&scope=bot&permissions
 | --- | --- |
 | フォーム送信・ログインの POST が全部 403 | `ORIGIN` が公開 URL と一致していない。adapter-node は `ORIGIN` で Origin ヘッダを検査する。スキーム・ホスト・ポートまで完全一致（末尾スラッシュなし） |
 | ログインが `/api/auth/*` で 404 / redirect_uri mismatch | `BETTER_AUTH_URL` が公開 URL と違う、または Portal の Redirects に本番 URL を足していない |
-| 自動リマインドが同じフォームに複数回飛ぶ | レプリカが2つ以上ある。スケジューラはプロセス内 `setInterval` なので、レプリカごとに tick が回る（→ 常に1インスタンス） |
+| cron の実行が全部 401 / `CRON_SECRET is not set` | `CRON_SECRET` が Runtime の環境変数に入っていないか、値が一致しない。未設定のときエンドポイントは常に拒否する |
 | 起動直後に `DATABASE_URL is not set` で落ちる | 環境変数がビルド時ではなく実行時に必要。Coolify 側で Runtime に入っているか確認する |
 
 ### マイグレーション

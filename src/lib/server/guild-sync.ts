@@ -101,16 +101,28 @@ export async function syncAllMembers(): Promise<SyncAllResult> {
 }
 
 /**
- * Refresh a single member. Called on every login so that someone who just joined the guild
- * appears in the mirror without waiting for an admin to run a full sync.
+ * Refresh a single member. Called on every sign-in, so someone who just joined can use the app
+ * at once and someone who left is recorded as departed.
  */
 export async function syncOwnMember(discordId: string): Promise<SyncOwnResult> {
 	const member = await getGuildMember(discordId);
-	if (!member) return { status: 'not_in_guild' };
+	const now = new Date();
+
+	if (!member) {
+		// Same rules as syncAllMembers: keep the first observed leftAt, always advance syncedAt.
+		await db
+			.update(guildMember)
+			.set({
+				leftAt: sql`coalesce(${guildMember.leftAt}, ${sql.param(now, guildMember.leftAt)})`,
+				syncedAt: now
+			})
+			.where(eq(guildMember.discordId, discordId));
+		return { status: 'not_in_guild' };
+	}
 
 	await db
 		.insert(guildMember)
-		.values(toRow(member, new Date()))
+		.values(toRow(member, now))
 		.onConflictDoUpdate({ target: guildMember.discordId, set: UPSERT_SET });
 
 	return { status: 'synced' };

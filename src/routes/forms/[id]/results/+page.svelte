@@ -30,9 +30,14 @@
 
 	const answerTotal = $derived(data.submitted.length + data.outsiders.length);
 
+	const canAnnounce = $derived(!!data.announcement?.channelId && !data.announcement.messageId);
+	const canRemind = $derived(!!data.announcement?.channelId && !data.closed);
+
 	function confirmReopen(event: SubmitEvent) {
-		const ok = confirm('確定済みの未提出者リストを破棄して受付を再開します。元に戻せません。');
-		if (!ok) event.preventDefault();
+		const message = data.reopenClearsClosesAt
+			? '確定済みの未提出者リストを破棄して受付を再開します。受付終了日時を過ぎているため、その設定は解除され、以後は手動でクローズするまで回答を受け付けます。元に戻せません。'
+			: '確定済みの未提出者リストを破棄して受付を再開します。元に戻せません。';
+		if (!confirm(message)) event.preventDefault();
 	}
 </script>
 
@@ -126,7 +131,7 @@
 		<section class="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
 			<p class="text-sm text-text-subtle">
 				{#if data.form.closedAt}
-					{formatJst(data.form.closedAt)} にクローズしました。未提出者リストは確定済みで、
+					{formatJst(data.form.closedAt)} にクローズしました。対象者と未提出者は確定済みで、
 					メンバー情報が更新されても変わりません。
 				{:else}
 					クローズすると Discord から最新のメンバー一覧を取得し、未提出者を確定して提出を締め切ります。
@@ -152,6 +157,8 @@
 					<p class="mt-1 text-text-muted">
 						{#if !data.announcement.channelId}
 							告知チャンネルが未設定のフォームです。告知の投稿もリマインドの送信もできません。
+						{:else if data.closed}
+							受付を終了したフォームのため、リマインドは送信できません。
 						{:else if data.announcement.messageId}
 							リマインドは告知メッセージへの返信として投稿し、未提出者を個別にメンションします。
 						{:else}
@@ -159,16 +166,18 @@
 						{/if}
 					</p>
 				</div>
-				{#if data.announcement.channelId}
+				{#if canAnnounce || canRemind}
 					<div class="flex flex-wrap gap-2">
-						{#if !data.announcement.messageId}
+						{#if canAnnounce}
 							<form method="POST" action="?/announce">
 								<button type="submit" class="chip px-3 py-1.5 text-sm">告知を投稿する</button>
 							</form>
 						{/if}
-						<form method="POST" action="?/remind">
-							<button type="submit" class="btn-primary px-4 py-2">未提出者にリマインド</button>
-						</form>
+						{#if canRemind}
+							<form method="POST" action="?/remind">
+								<button type="submit" class="btn-primary px-4 py-2">未提出者にリマインド</button>
+							</form>
+						{/if}
 					</div>
 				{/if}
 			</div>

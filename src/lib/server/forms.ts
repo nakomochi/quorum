@@ -271,9 +271,12 @@ export function canSubmit(target: Pick<Form, 'submitScope' | 'targetRoleId'>, me
 	return member.roleIds.includes(target.targetRoleId);
 }
 
-export function isClosed(target: Pick<Form, 'closesAt' | 'closedAt'>, now = new Date()): boolean {
-	if (target.closedAt) return true;
+export function closesAtPassed(target: Pick<Form, 'closesAt'>, now = new Date()): boolean {
 	return target.closesAt !== null && target.closesAt.getTime() <= now.getTime();
+}
+
+export function isClosed(target: Pick<Form, 'closesAt' | 'closedAt'>, now = new Date()): boolean {
+	return target.closedAt !== null || closesAtPassed(target, now);
 }
 
 export async function activeMember(discordId: string) {
@@ -538,11 +541,11 @@ async function targetRoster(exec: Executor, targetRoleId: string) {
 		);
 }
 
-/** Computed from the mirror as it stands right now, never from a frozen list. */
-export async function computeNonSubmitters(
+/** The target roster and its non-submitters, both taken from one read of the mirror. */
+async function rosterStatus(
 	exec: Executor,
 	target: Pick<Form, 'id' | 'targetRoleId'>
-): Promise<FrozenMember[]> {
+): Promise<{ targetIds: string[]; nonSubmitters: FrozenMember[] }> {
 	const roster = await targetRoster(exec, target.targetRoleId);
 	const responded = await exec
 		.select({ discordId: response.discordId })
@@ -551,10 +554,21 @@ export async function computeNonSubmitters(
 
 	const answered = new Set(responded.map((row) => row.discordId));
 
-	return roster
-		.filter((row) => !answered.has(row.discordId))
-		.map((row) => ({ discordId: row.discordId, displayName: memberDisplayName(row) }))
-		.sort((a, b) => a.displayName.localeCompare(b.displayName, 'ja'));
+	return {
+		targetIds: roster.map((row) => row.discordId),
+		nonSubmitters: roster
+			.filter((row) => !answered.has(row.discordId))
+			.map((row) => ({ discordId: row.discordId, displayName: memberDisplayName(row) }))
+			.sort((a, b) => a.displayName.localeCompare(b.displayName, 'ja'))
+	};
+}
+
+/** Computed from the mirror as it stands right now, never from a frozen list. */
+export async function computeNonSubmitters(
+	exec: Executor,
+	target: Pick<Form, 'id' | 'targetRoleId'>
+): Promise<FrozenMember[]> {
+	return (await rosterStatus(exec, target)).nonSubmitters;
 }
 
 export type ResultRow = {
@@ -612,6 +626,12 @@ export async function loadResults(target: Form): Promise<FormResults> {
 		bucket[row.questionId] = row.value;
 	}
 
+	// Forms closed before final_target_ids existed have no frozen roster and fall back to the mirror.
+	const frozenTargets =
+		target.closedAt !== null && target.finalTargetIds !== null
+			? new Set(target.finalTargetIds)
+			: null;
+
 	const submitted: ResultRow[] = [];
 	const outsiders: ResultRow[] = [];
 
@@ -629,11 +649,14 @@ export async function loadResults(target: Form): Promise<FormResults> {
 			submittedAt: row.submittedAt,
 			answers: byResponse.get(row.responseId) ?? {}
 		};
-		if (row.roleIds?.includes(target.targetRoleId)) submitted.push(entry);
+		const inTarget = frozenTargets
+			? frozenTargets.has(row.discordId)
+			: (row.roleIds?.includes(target.targetRoleId) ?? false);
+		if (inTarget) submitted.push(entry);
 		else outsiders.push(entry);
 	}
 
-	// Closing is what fixes the record: after it the list must not drift with the mirror.
+	// Closing is what fixes the record: after it neither list may drift with the mirror.
 	const frozen = target.closedAt !== null && target.finalNonSubmitters !== null;
 	const nonSubmitters = frozen
 		? (target.finalNonSubmitters ?? [])
@@ -706,7 +729,7 @@ export async function closeForm(formId: string): Promise<CloseResult> {
 
 	return db.transaction(async (tx) => {
 		// FOR UPDATE pairs with the FOR SHARE in submitResponse: without it a submission can commit
-		// between computeNonSubmitters and the write, landing the same person in both lists.
+		// between rosterStatus and the write, landing the same person in both lists.
 		const [target] = await tx
 			.select()
 			.from(form)
@@ -716,22 +739,31 @@ export async function closeForm(formId: string): Promise<CloseResult> {
 		if (!target) return { ok: false, reason: 'not_found' } as const;
 		if (target.closedAt) return { ok: false, reason: 'already_closed' } as const;
 
-		const frozen = await computeNonSubmitters(tx, target);
+		const { targetIds, nonSubmitters } = await rosterStatus(tx, target);
 
 		await tx
 			.update(form)
-			.set({ closedAt: new Date(), finalNonSubmitters: frozen })
+			.set({ closedAt: new Date(), finalNonSubmitters: nonSubmitters, finalTargetIds: targetIds })
 			.where(and(eq(form.id, formId), isNull(form.closedAt)));
 
-		return { ok: true, frozen: frozen.length } as const;
+		return { ok: true, frozen: nonSubmitters.length } as const;
 	});
 }
 
-/** Recovery from a mistaken close. The frozen list is discarded, not archived. */
+/**
+ * Recovery from a mistaken close. The frozen lists are discarded, not archived. A closes_at that
+ * has already passed is cleared, since it would refuse submissions and let the scheduler close the
+ * form again; a future one is kept.
+ */
 export async function reopenForm(formId: string): Promise<boolean> {
 	const rows = await db
 		.update(form)
-		.set({ closedAt: null, finalNonSubmitters: null })
+		.set({
+			closedAt: null,
+			finalNonSubmitters: null,
+			finalTargetIds: null,
+			closesAt: sql`CASE WHEN ${form.closesAt} <= now() THEN NULL ELSE ${form.closesAt} END`
+		})
 		.where(and(eq(form.id, formId), isNotNull(form.closedAt)))
 		.returning({ id: form.id });
 	return rows.length > 0;

@@ -52,9 +52,8 @@ export async function isGuildAdmin(discordId: string): Promise<boolean> {
 }
 
 /**
- * Display-only: decides whether the admin link is drawn. Judged against the last full sync, so a
- * change in Discord shows here only after the next one. Never use this to authorize;
- * requireAdmin reads live and stays fail-closed.
+ * Judged against the last full sync, so a change in Discord shows here only after the next one.
+ * Fit for drawing links and for refusing early, never for granting: every grant is read live.
  */
 export async function looksLikeGuildAdmin(discordId: string, roleIds: string[]): Promise<boolean> {
 	const snapshot = await syncedGuildRoles();

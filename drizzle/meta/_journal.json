@@ -36,6 +36,13 @@
       "when": 1790459341701,
       "tag": "0004_smart_thanos",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1790461057437,
+      "tag": "0005_aberrant_silver_samurai",
+      "breakpoints": true
     }
   ]
 }

@@ -3,7 +3,7 @@ import { env } from '$env/dynamic/private';
 import { db } from './db';
 import { form, reminder, type Form } from './db/schema';
 import { postMessage, type CreateMessage } from './discord';
-import { computeNonSubmitters, loadForm } from './forms';
+import { computeNonSubmitters, isClosed, loadForm } from './forms';
 import { syncAllMembers } from './guild-sync';
 import { formatJst } from '../datetime';
 
@@ -93,7 +93,14 @@ export type ReminderResult =
 	| { ok: true; targets: number; messages: number }
 	| {
 			ok: false;
-			reason: 'not_found' | 'no_channel' | 'no_targets' | 'already_sent' | 'sync_failed' | 'post_failed';
+			reason:
+				| 'not_found'
+				| 'closed'
+				| 'no_channel'
+				| 'no_targets'
+				| 'already_sent'
+				| 'sync_failed'
+				| 'post_failed';
 	  };
 
 export async function sendReminder(
@@ -102,6 +109,8 @@ export async function sendReminder(
 ): Promise<ReminderResult> {
 	const target = await loadForm(formId);
 	if (!target) return { ok: false, reason: 'not_found' };
+	// Before the sync below, so a form nobody can answer any more costs no Discord calls.
+	if (isClosed(target)) return { ok: false, reason: 'closed' };
 
 	const channelId = target.announcementChannelId;
 	if (!channelId) return { ok: false, reason: 'no_channel' };

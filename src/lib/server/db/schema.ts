@@ -165,6 +165,8 @@ export const form = pgTable(
 			.references(() => user.id),
 		closedAt: timestamp('closed_at', { withTimezone: true }),
 		finalNonSubmitters: jsonb('final_non_submitters').$type<FrozenMember[]>(),
+		// The target roster at close, so a later role change cannot move a response in or out of it.
+		finalTargetIds: jsonb('final_target_ids').$type<string[]>(),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 		updatedAt: timestamp('updated_at', { withTimezone: true })
 			.notNull()

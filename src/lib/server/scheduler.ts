@@ -1,4 +1,4 @@
-import { and, eq, gt, isNotNull, isNull, lte, notExists, sql } from 'drizzle-orm';
+import { and, eq, gt, isNotNull, isNull, lte, notExists, or, sql } from 'drizzle-orm';
 import { db } from './db';
 import { form, reminder } from './db/schema';
 import { closeForm } from './forms';
@@ -26,6 +26,8 @@ async function dueForReminder(): Promise<string[]> {
 		.where(
 			and(
 				isNull(form.closedAt),
+				// A passed closes_at is closed already, even before the close pass below records it.
+				or(isNull(form.closesAt), gt(form.closesAt, sql`now()`)),
 				// Load-bearing: reminder_auto_once_uq is keyed on target_deadline, and Postgres treats
 				// NULLs there as distinct, so a form without a deadline would be reminded every tick.
 				isNotNull(form.deadline),
@@ -70,9 +72,9 @@ export async function runTick(): Promise<TickResult> {
 			const sent = await sendReminder(id, { kind: 'auto', sentBy: null });
 			if (sent.ok) {
 				result.reminded.push(id);
-			} else if (sent.reason !== 'no_targets') {
+			} else if (sent.reason !== 'no_targets' && sent.reason !== 'closed') {
 				// no_targets is not a failure: everyone has answered, and sendReminder has already
-				// recorded the deadline as handled.
+				// recorded the deadline as handled. closed only reaches here by racing a close.
 				result.failed.push(id);
 				// sendReminder drops its reservation when a post fails, so the next tick retries on its
 				// own. Logging is the only thing that keeps a Discord outage from failing in silence.

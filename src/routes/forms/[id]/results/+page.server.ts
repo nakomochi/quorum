@@ -2,6 +2,8 @@ import { error, fail } from '@sveltejs/kit';
 import {
 	canViewResults,
 	closeForm,
+	closesAtPassed,
+	isClosed,
 	loadForm,
 	loadQuestions,
 	loadResults,
@@ -22,6 +24,10 @@ const ANNOUNCE_FAILED = 'Discord への告知の投稿に失敗しました';
 
 const REMINDER_FAILURES = {
 	not_found: { status: 404, message: NOT_FOUND },
+	closed: {
+		status: 409,
+		message: 'このフォームは受付を終了しているため、リマインドは送信していません'
+	},
 	no_channel: { status: 400, message: NO_CHANNEL },
 	no_targets: { status: 409, message: '未提出者がいないため、リマインドは送信していません' },
 	already_sent: { status: 409, message: 'この締切に対する自動リマインドは送信済みです' },
@@ -40,7 +46,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	if (!target) error(404, NOT_FOUND);
 
 	const manage = await canManageForm(locals, target);
-	// Managers keep access even after leaving the guild; everyone else needs current membership.
+	// canManageForm already requires membership, so only a non-manager is checked here.
 	if (!manage && !(await gateMember(locals))) {
 		error(403, 'このサーバーのメンバーではありません');
 	}
@@ -71,6 +77,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			closesAt: target.closesAt,
 			closedAt: target.closedAt
 		},
+		closed: isClosed(target),
+		reopenClearsClosesAt: target.closedAt !== null && closesAtPassed(target),
 		manage,
 		// Set by the redirect the creation page takes when the announcement could not be posted.
 		announceFailed: manage && url.searchParams.get('announce') === 'failed',

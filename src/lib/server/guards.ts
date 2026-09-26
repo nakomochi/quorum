@@ -3,7 +3,7 @@ import type { SessionUser } from './auth';
 import type { Form, GuildMember } from './db/schema';
 import { activeMember } from './forms';
 import { reconcileMember } from './guild-sync';
-import { isGuildAdmin } from './permissions';
+import { isGuildAdmin, looksLikeGuildAdmin } from './permissions';
 
 /**
  * Memoized per request: actions run before, and independently of, the layout load, so both guard
@@ -68,6 +68,10 @@ export function requireUser(locals: App.Locals): SessionUser {
 	return locals.user;
 }
 
+/**
+ * Live only, never screened by the mirror like canManageForm: a newly promoted admin has to reach
+ * the admin page's manual sync to bring the mirror up to date.
+ */
 export async function requireAdmin(locals: App.Locals): Promise<SessionUser> {
 	const user = requireUser(locals);
 	if (!(await guildAdminCheck(locals, user))) error(403, '管理者のみが利用できます');
@@ -86,8 +90,12 @@ export async function requireMember(
 }
 
 /**
- * A form is managed by its creator or by a guild admin. The creator branch short-circuits so the
- * common case costs no Discord call; the admin branch reads live, never the mirror.
+ * A form is managed by its creator or by a guild admin, either way only while in the guild. A
+ * creator present in the mirror costs no Discord call.
+ *
+ * The admin branch is screened by the mirror first: the results page can be open to the whole
+ * guild, and the live check is three calls, one of them the 5/s getGuildMember. The mirror is only
+ * trusted to refuse; a grant is always confirmed live.
  */
 export async function canManageForm(
 	locals: App.Locals,
@@ -95,6 +103,9 @@ export async function canManageForm(
 ): Promise<boolean> {
 	const user = locals.user;
 	if (!user) return false;
-	if (target.createdBy === user.id) return true;
+	if (target.createdBy === user.id) return (await gateMember(locals)) !== null;
+
+	const mirrored = await activeMember(user.discordId);
+	if (!(await looksLikeGuildAdmin(user.discordId, mirrored?.roleIds ?? []))) return false;
 	return guildAdminCheck(locals, user);
 }

@@ -1,0 +1,1 @@
+ALTER TABLE "form" ADD COLUMN "final_target_ids" jsonb;

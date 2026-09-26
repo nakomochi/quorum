@@ -90,6 +90,7 @@ const formRow = (over: Partial<FormRow> & Pick<FormRow, 'id' | 'title'>): FormRo
 	createdBy: USER.id,
 	closedAt: null,
 	finalNonSubmitters: null,
+	finalTargetIds: null,
 	createdAt: at('2026-03-01T10:00:00'),
 	updatedAt: at('2026-03-01T10:00:00'),
 	...over
@@ -494,6 +495,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		data: {
 			user: USER,
 			form: resultsForm(),
+			closed: false,
+			reopenClearsClosesAt: false,
 			manage: false,
 			announceFailed: false,
 			announcement: null,
@@ -513,6 +516,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		data: {
 			user: USER,
 			form: resultsForm(),
+			closed: false,
+			reopenClearsClosesAt: false,
 			manage: true,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
@@ -532,6 +537,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		data: {
 			user: USER,
 			form: resultsForm(),
+			closed: false,
+			reopenClearsClosesAt: false,
 			manage: true,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
@@ -551,6 +558,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		data: {
 			user: USER,
 			form: resultsForm({ visibility: 'after_deadline' }),
+			closed: false,
+			reopenClearsClosesAt: false,
 			manage: true,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
@@ -566,10 +575,12 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-closed',
-		title: 'クローズ済み（凍結表示）',
+		title: 'クローズ済み（凍結表示・リマインド不可）',
 		data: {
 			user: USER,
 			form: resultsForm({ closedAt: at('2026-05-01T00:05:00') }),
+			closed: true,
+			reopenClearsClosesAt: true,
 			manage: true,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
@@ -584,11 +595,34 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		}
 	},
 	{
+		id: 'results-expired',
+		title: '受付終了日時を過ぎた / 自動クローズ前',
+		data: {
+			user: USER,
+			form: resultsForm(),
+			closed: true,
+			reopenClearsClosesAt: false,
+			manage: true,
+			announceFailed: false,
+			announcement: { channelId: CHANNEL_ID, messageId: null },
+			reminders: REMINDERS,
+			questions: RESULT_QUESTIONS,
+			tallies: TALLIES,
+			frozen: false,
+			targetCount: 6,
+			submitted: SUBMITTED,
+			outsiders: [],
+			nonSubmitters: NON_SUBMITTERS
+		}
+	},
+	{
 		id: 'results-reminders',
 		title: 'リマインド送信履歴あり',
 		data: {
 			user: USER,
 			form: resultsForm(),
+			closed: false,
+			reopenClearsClosesAt: false,
 			manage: true,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
@@ -609,6 +643,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		data: {
 			user: USER,
 			form: resultsForm(),
+			closed: false,
+			reopenClearsClosesAt: false,
 			manage: true,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
@@ -628,6 +664,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		data: {
 			user: USER,
 			form: resultsForm({ title: LONG_TITLE }),
+			closed: false,
+			reopenClearsClosesAt: false,
 			manage: true,
 			announceFailed: false,
 			announcement: { channelId: null, messageId: null },
@@ -647,6 +685,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		data: {
 			user: USER,
 			form: resultsForm(),
+			closed: false,
+			reopenClearsClosesAt: false,
 			manage: true,
 			announceFailed: true,
 			announcement: { channelId: CHANNEL_ID, messageId: null },

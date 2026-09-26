@@ -583,7 +583,7 @@ export type FormResults = {
 	frozen: boolean;
 	targetCount: number;
 	submitted: ResultRow[];
-	/** Responses from people without the target role; possible while submit_scope is 'everyone'. */
+	/** Responses from outside the target roster: no target role, a bot, or no longer in the guild. */
 	outsiders: ResultRow[];
 	nonSubmitters: FrozenMember[];
 };
@@ -597,7 +597,9 @@ export async function loadResults(target: Form): Promise<FormResults> {
 			username: guildMember.username,
 			globalName: guildMember.globalName,
 			nickname: guildMember.nickname,
-			roleIds: guildMember.roleIds
+			roleIds: guildMember.roleIds,
+			leftAt: guildMember.leftAt,
+			isBot: guildMember.isBot
 		})
 		.from(response)
 		.leftJoin(guildMember, eq(guildMember.discordId, response.discordId))
@@ -649,9 +651,13 @@ export async function loadResults(target: Form): Promise<FormResults> {
 			submittedAt: row.submittedAt,
 			answers: byResponse.get(row.responseId) ?? {}
 		};
+		// Must match targetRoster, or a response would change sides the moment the form closes.
 		const inTarget = frozenTargets
 			? frozenTargets.has(row.discordId)
-			: (row.roleIds?.includes(target.targetRoleId) ?? false);
+			: row.roleIds !== null &&
+				row.leftAt === null &&
+				row.isBot === false &&
+				row.roleIds.includes(target.targetRoleId);
 		if (inTarget) submitted.push(entry);
 		else outsiders.push(entry);
 	}

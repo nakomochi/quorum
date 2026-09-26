@@ -1,6 +1,6 @@
 import { and, eq, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import { db } from './db';
-import { guildMember, guildSync } from './db/schema';
+import { guildMember, guildSync, type GuildMember } from './db/schema';
 import { getGuildMember, listGuildMembers, type DiscordGuildMember } from './discord';
 
 // Keeps the bind-parameter count of a multi-row INSERT well inside Postgres' 65535 limit.
@@ -13,8 +13,6 @@ export type SyncAllResult = {
 	markedLeft: number;
 	syncedAt: Date;
 };
-
-export type SyncOwnResult = { status: 'synced' | 'not_in_guild' };
 
 type GuildMemberRow = typeof guildMember.$inferInsert;
 
@@ -53,8 +51,22 @@ function chunk<T>(items: T[], size: number): T[][] {
 	return out;
 }
 
-/** Departed rows are kept rather than deleted so old answers stay attributable. */
-export async function syncAllMembers(): Promise<SyncAllResult> {
+let runningSync: Promise<SyncAllResult> | null = null;
+
+/**
+ * The mirror's only writer. Concurrent callers share the sync already in flight instead of paging
+ * the whole guild again. Departed rows are kept rather than deleted so old answers stay
+ * attributable.
+ */
+export function syncAllMembers(): Promise<SyncAllResult> {
+	// Cleared on failure too: a rejected promise left in place would fail every later sync.
+	runningSync ??= runFullSync().finally(() => {
+		runningSync = null;
+	});
+	return runningSync;
+}
+
+async function runFullSync(): Promise<SyncAllResult> {
 	const members = await listGuildMembers();
 	const syncedAt = new Date();
 	const rows = members.map((member) => toRow(member, syncedAt));
@@ -100,32 +112,46 @@ export async function syncAllMembers(): Promise<SyncAllResult> {
 	});
 }
 
-/**
- * Refresh a single member. Called on every sign-in, so someone who just joined can use the app
- * at once and someone who left is recorded as departed.
- */
-export async function syncOwnMember(discordId: string): Promise<SyncOwnResult> {
-	const member = await getGuildMember(discordId);
-	const now = new Date();
+const memberLookups = new Map<string, Promise<DiscordGuildMember | null>>();
 
-	if (!member) {
-		// Same rules as syncAllMembers: keep the first observed leftAt, always advance syncedAt.
-		await db
-			.update(guildMember)
-			.set({
-				leftAt: sql`coalesce(${guildMember.leftAt}, ${sql.param(now, guildMember.leftAt)})`,
-				syncedAt: now
-			})
-			.where(eq(guildMember.discordId, discordId));
-		return { status: 'not_in_guild' };
+function lookupMember(discordId: string): Promise<DiscordGuildMember | null> {
+	let lookup = memberLookups.get(discordId);
+	if (!lookup) {
+		lookup = getGuildMember(discordId).finally(() => memberLookups.delete(discordId));
+		memberLookups.set(discordId, lookup);
 	}
+	return lookup;
+}
 
-	await db
-		.insert(guildMember)
-		.values(toRow(member, now))
-		.onConflictDoUpdate({ target: guildMember.discordId, set: UPSERT_SET });
+function sameRoles(a: string[], b: string[]): boolean {
+	const left = new Set(a);
+	const right = new Set(b);
+	return left.size === right.size && [...left].every((id) => right.has(id));
+}
 
-	return { status: 'synced' };
+/**
+ * Checks one member against Discord and, on any disagreement with the mirrored row, repairs the
+ * mirror with a full sync. The live answer is never written: the full sync stays the only writer.
+ * True when a sync ran. A Discord failure returns false, so the caller's refusal stands.
+ */
+export async function reconcileMember(
+	discordId: string,
+	mirrored: Pick<GuildMember, 'roleIds'> | null
+): Promise<boolean> {
+	try {
+		const live = await lookupMember(discordId);
+		const agrees =
+			live === null
+				? mirrored === null
+				: mirrored !== null && sameRoles(live.roles, mirrored.roleIds);
+		if (agrees) return false;
+
+		await syncAllMembers();
+		return true;
+	} catch (cause) {
+		console.error('[guild-sync] member reconcile failed', cause);
+		return false;
+	}
 }
 
 /** Null before the first full sync. */

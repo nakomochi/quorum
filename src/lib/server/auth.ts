@@ -4,10 +4,8 @@ import { sveltekitCookies } from 'better-auth/svelte-kit';
 import { getRequestEvent } from '$app/server';
 import { building } from '$app/environment';
 import { env } from '$env/dynamic/private';
-import { eq } from 'drizzle-orm';
 import { db } from './db';
 import * as schema from './db/schema';
-import { syncOwnMember } from './guild-sync';
 
 export const auth = betterAuth({
 	// Same reason as db/index.ts: `vite build` imports this module, and better-auth treats a
@@ -41,31 +39,6 @@ export const auth = betterAuth({
 					if (!('discordId' in user)) return;
 					delete user.discordId;
 					return { data: user };
-				}
-			}
-		},
-		session: {
-			create: {
-				/**
-				 * The only hook that runs on every sign-in. better-auth inserts a fresh session row
-				 * per sign-in (internalAdapter.createSession has no reuse path), whereas
-				 * user.create.after fires once and user.update.after not at all for a repeat social
-				 * login.
-				 */
-				after: async (session) => {
-					try {
-						const [row] = await db
-							.select({ discordId: schema.user.discordId })
-							.from(schema.user)
-							.where(eq(schema.user.id, session.userId))
-							.limit(1);
-
-						if (row) await syncOwnMember(row.discordId);
-					} catch (error) {
-						// A throw here propagates out of the sign-in request, so a Discord outage
-						// would lock everyone out. Log it and let the login stand.
-						console.error('[guild-sync] login sync failed', error);
-					}
 				}
 			}
 		}

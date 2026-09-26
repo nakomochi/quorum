@@ -125,11 +125,7 @@ export const guildMember = pgTable('guild_member', {
 	syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().defaultNow()
 });
 
-/**
- * Not derived from guild_member.synced_at: the login-time single-member sync touches that
- * column too, so MAX over it means "last login" and MIN only works while a full sync happens
- * to write every row.
- */
+/** When the last full sync succeeded. Written in the same transaction as the mirror. */
 export const guildSync = pgTable(
 	'guild_sync',
 	{

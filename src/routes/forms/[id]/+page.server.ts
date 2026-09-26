@@ -1,6 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
 import {
-	activeMember,
 	canSubmit,
 	canViewResults,
 	collectAnswerInputs,
@@ -11,7 +10,7 @@ import {
 	loadQuestions,
 	submitResponse
 } from '$lib/server/forms';
-import { requireUser } from '$lib/server/guards';
+import { gateMember, recheckMember, requireUser } from '$lib/server/guards';
 import { looksLikeGuildAdmin } from '$lib/server/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -29,7 +28,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const target = await loadForm(params.id);
 	if (!target) error(404, FAILURES.not_found.message);
 
-	const member = await activeMember(user.discordId);
+	const member = await gateMember(locals, (m) => canSubmit(target, m));
 	if (!member) error(403, FAILURES.not_member.message);
 	if (!canSubmit(target, member)) error(403, FAILURES.forbidden.message);
 
@@ -72,12 +71,22 @@ export const actions: Actions = {
 		const questions = await loadQuestions(params.id);
 		const data = await request.formData();
 
+		const inputs = collectAnswerInputs(data, questions);
+		const submit = () =>
+			submitResponse(params.id, { id: user.id, discordId: user.discordId }, inputs);
+
 		try {
-			const result = await submitResponse(
-				params.id,
-				{ id: user.id, discordId: user.discordId },
-				collectAnswerInputs(data, questions)
-			);
+			let result = await submit();
+
+			// submitResponse only reads the mirror, keeping Discord I/O away from its transaction,
+			// so a stale refusal is checked here and the submission retried once after a re-sync.
+			if (
+				!result.ok &&
+				(result.reason === 'not_member' || result.reason === 'forbidden') &&
+				(await recheckMember(locals))
+			) {
+				result = await submit();
+			}
 
 			if (!result.ok) {
 				const failure = FAILURES[result.reason];

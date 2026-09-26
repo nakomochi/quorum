@@ -1,6 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import { auth } from '$lib/server/auth';
-import { activeMember, listFormsCreatedBy, listFormsForMember } from '$lib/server/forms';
+import { listFormsCreatedBy, listFormsForMember } from '$lib/server/forms';
+import { gateMember } from '$lib/server/guards';
 import { looksLikeGuildAdmin } from '$lib/server/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -10,7 +11,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const user = locals.user;
 	if (!user) return ANONYMOUS;
 
-	const member = await activeMember(user.discordId);
+	const member = await gateMember(locals);
 	if (!member) return ANONYMOUS;
 
 	const [forms, created, isAdmin] = await Promise.all([

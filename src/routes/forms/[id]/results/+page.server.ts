@@ -1,6 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
 import {
-	activeMember,
 	canViewResults,
 	closeForm,
 	loadForm,
@@ -10,7 +9,7 @@ import {
 	RosterRefreshError,
 	tallyChoices
 } from '$lib/server/forms';
-import { canManageForm, requireUser } from '$lib/server/guards';
+import { canManageForm, gateMember, requireUser } from '$lib/server/guards';
 import { syncAllMembers } from '$lib/server/guild-sync';
 import { announceForm, listReminders, sendReminder } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
@@ -35,14 +34,14 @@ const REMINDER_FAILURES = {
 } as const;
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
-	const user = requireUser(locals);
+	requireUser(locals);
 
 	const target = await loadForm(params.id);
 	if (!target) error(404, NOT_FOUND);
 
 	const manage = await canManageForm(locals, target);
 	// Managers keep access even after leaving the guild; everyone else needs current membership.
-	if (!manage && !(await activeMember(user.discordId))) {
+	if (!manage && !(await gateMember(locals))) {
 		error(403, 'このサーバーのメンバーではありません');
 	}
 	if (!canViewResults(target, manage)) error(403, 'この結果はまだ公開されていません');

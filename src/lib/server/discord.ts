@@ -9,8 +9,8 @@ const MEMBER_PAGE_SIZE = 1000;
 const MAX_RATE_LIMIT_RETRIES = 5;
 const MAX_RETRY_AFTER_MS = 60_000;
 
-// Without this a stalled connection hangs the caller: the login hook's syncOwnMember runs
-// inside the sign-in request, where try/catch cannot rescue a fetch that never settles.
+// Without this a stalled connection hangs the caller: a gate's member lookup runs inside a page
+// request, where try/catch cannot rescue a fetch that never settles.
 const REQUEST_TIMEOUT_MS = 10_000;
 
 export const GUILD_TEXT_CHANNEL = 0;

@@ -29,6 +29,13 @@
       "when": 1788935183872,
       "tag": "0003_lean_changeling",
       "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1790459341701,
+      "tag": "0004_smart_thanos",
+      "breakpoints": true
     }
   ]
 }

@@ -125,12 +125,15 @@ export const guildMember = pgTable('guild_member', {
 	syncedAt: timestamp('synced_at', { withTimezone: true }).notNull().defaultNow()
 });
 
-/** When the last full sync succeeded. Written in the same transaction as the mirror. */
+/** When the last full sync succeeded, and the guild owner and role permissions as of then. */
 export const guildSync = pgTable(
 	'guild_sync',
 	{
 		id: integer('id').primaryKey().default(1),
-		lastFullSyncAt: timestamp('last_full_sync_at', { withTimezone: true }).notNull()
+		lastFullSyncAt: timestamp('last_full_sync_at', { withTimezone: true }).notNull(),
+		ownerId: text('owner_id').notNull(),
+		// permissions stays a decimal string: the bitfield is parsed with BigInt at read time.
+		roles: jsonb('roles').$type<{ id: string; permissions: string }[]>().notNull()
 	},
 	(t) => [check('guild_sync_single_row', sql`${t.id} = 1`)]
 );

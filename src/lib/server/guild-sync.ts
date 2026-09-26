@@ -1,7 +1,13 @@
 import { and, eq, isNotNull, isNull, notInArray, sql } from 'drizzle-orm';
 import { db } from './db';
 import { guildMember, guildSync, type GuildMember } from './db/schema';
-import { getGuildMember, listGuildMembers, type DiscordGuildMember } from './discord';
+import {
+	getGuild,
+	getGuildMember,
+	listGuildMembers,
+	listGuildRoles,
+	type DiscordGuildMember
+} from './discord';
 
 // Keeps the bind-parameter count of a multi-row INSERT well inside Postgres' 65535 limit.
 const UPSERT_CHUNK_SIZE = 500;
@@ -67,7 +73,11 @@ export function syncAllMembers(): Promise<SyncAllResult> {
 }
 
 async function runFullSync(): Promise<SyncAllResult> {
-	const members = await listGuildMembers();
+	const [members, guild, roles] = await Promise.all([
+		listGuildMembers(),
+		getGuild(),
+		listGuildRoles()
+	]);
 	const syncedAt = new Date();
 	const rows = members.map((member) => toRow(member, syncedAt));
 
@@ -102,11 +112,16 @@ async function runFullSync(): Promise<SyncAllResult> {
 			.set({ syncedAt })
 			.where(and(absent, isNotNull(guildMember.leftAt)));
 
-		// Same transaction as the mirror rewrite: the stamp must never outlive a rollback.
+		// Same transaction as the mirror rewrite: the stamp and roles must never outlive a rollback.
+		const snapshot = {
+			lastFullSyncAt: syncedAt,
+			ownerId: guild.owner_id,
+			roles: roles.map(({ id, permissions }) => ({ id, permissions }))
+		};
 		await tx
 			.insert(guildSync)
-			.values({ id: 1, lastFullSyncAt: syncedAt })
-			.onConflictDoUpdate({ target: guildSync.id, set: { lastFullSyncAt: syncedAt } });
+			.values({ id: 1, ...snapshot })
+			.onConflictDoUpdate({ target: guildSync.id, set: snapshot });
 
 		return { present: rows.length, markedLeft: departed.length, syncedAt };
 	});
@@ -161,4 +176,13 @@ export async function lastSyncedAt(): Promise<Date | null> {
 		.from(guildSync)
 		.where(eq(guildSync.id, 1));
 	return row?.value ?? null;
+}
+
+/** Owner and role permissions as of the last full sync. Null before the first one. */
+export async function syncedGuildRoles() {
+	const [row] = await db
+		.select({ ownerId: guildSync.ownerId, roles: guildSync.roles })
+		.from(guildSync)
+		.where(eq(guildSync.id, 1));
+	return row ?? null;
 }

@@ -6,7 +6,6 @@ import { isClosed } from '$lib/server/forms';
 import { requireAdmin } from '$lib/server/guards';
 import { listGuildRoles } from '$lib/server/discord';
 import { lastSyncedAt, syncAllMembers } from '$lib/server/guild-sync';
-import { invalidateGuildRoster } from '$lib/server/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -52,7 +51,6 @@ export const actions: Actions = {
 
 		try {
 			const result = await syncAllMembers();
-			invalidateGuildRoster();
 			return { present: result.present, markedLeft: result.markedLeft };
 		} catch {
 			// syncAllMembers throws on a Discord outage or an empty member list; neither should

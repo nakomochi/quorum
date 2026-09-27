@@ -184,8 +184,14 @@ main {
 		@apply border-border bg-surface rounded-xl border;
 	}
 
+	/* The transparent border keeps it the same height as `.btn-secondary` beside it. */
 	.btn-primary {
-		@apply bg-accent hover:bg-accent-hover text-accent-fg rounded-lg text-sm font-semibold transition;
+		@apply bg-accent hover:bg-accent-hover text-accent-fg rounded-lg border border-transparent text-sm font-semibold transition;
+	}
+
+	.btn-secondary {
+		@apply border-border-strong text-text-subtle hover:bg-surface-raised rounded-lg border text-sm font-semibold transition;
+		@apply disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
 	}
 
 	.alert-error {

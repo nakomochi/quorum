@@ -144,7 +144,7 @@
 			</p>
 			{#if data.form.closedAt}
 				<form method="POST" action="?/reopen" onsubmit={confirmReopen} class="shrink-0">
-					<button type="submit" class="chip px-3 py-1.5 text-sm">受付を再開する</button>
+					<button type="submit" class="btn-secondary px-4 py-2">受付を再開する</button>
 				</form>
 			{:else}
 				<form method="POST" action="?/close" class="shrink-0">
@@ -175,7 +175,7 @@
 					<div class="flex shrink-0 flex-wrap gap-2">
 						{#if canAnnounce}
 							<form method="POST" action="?/announce">
-								<button type="submit" class="chip px-3 py-1.5 text-sm">告知を投稿する</button>
+								<button type="submit" class="btn-secondary px-4 py-2">告知を投稿する</button>
 							</form>
 						{/if}
 						{#if canRemind}

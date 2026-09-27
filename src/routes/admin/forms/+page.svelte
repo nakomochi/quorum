@@ -49,7 +49,7 @@
 				};
 			}}
 		>
-			<button type="submit" class="chip px-3 py-1.5 text-sm" disabled={syncing}>
+			<button type="submit" class="btn-secondary px-4 py-2" disabled={syncing}>
 				{syncing ? '更新中…' : '更新'}
 			</button>
 		</form>
@@ -67,7 +67,7 @@
 						<th class="px-4 py-3 font-medium">タイトル</th>
 						<th class="px-4 py-3 font-medium whitespace-nowrap">対象ロール</th>
 						<th class="px-4 py-3 font-medium whitespace-nowrap">締切</th>
-						<th class="px-4 py-3 font-medium whitespace-nowrap">回答</th>
+						<th class="px-4 py-3 font-medium whitespace-nowrap">提出 / 対象</th>
 						<th class="px-4 py-3 font-medium whitespace-nowrap">状態</th>
 					</tr>
 				</thead>
@@ -85,10 +85,10 @@
 							</td>
 							<td class="px-4 py-3 whitespace-nowrap text-text-subtle">{formatJst(row.deadline)}</td>
 							<td class="px-4 py-3 tabular-nums whitespace-nowrap text-text-subtle">
-								{row.submitted}/{row.targetCount}
+								{row.submitted} / {row.targetCount}
 								{#if row.outsiders > 0}
-									<span class="ml-1 text-xs text-text-muted" title="対象外からの回答 {row.outsiders}名">
-										+{row.outsiders}
+									<span class="block text-xs text-text-muted" title="対象外からの回答 {row.outsiders}名">
+										対象外 +{row.outsiders}
 									</span>
 								{/if}
 							</td>

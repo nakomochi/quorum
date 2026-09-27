@@ -308,7 +308,7 @@
 			{#if data.editable}
 				<button
 					type="button"
-					class="chip inline-flex items-center gap-1.5 self-start px-3 py-1.5 text-sm"
+					class="btn-secondary inline-flex items-center gap-1.5 self-start px-4 py-2"
 					onclick={startEditing}
 				>
 					<Icon name="pencil" />

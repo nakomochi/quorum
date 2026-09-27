@@ -9,7 +9,6 @@ import {
 	jsonb,
 	pgEnum,
 	pgTable,
-	serial,
 	text,
 	timestamp,
 	uniqueIndex
@@ -263,7 +262,7 @@ export const answer = pgTable(
 export const responseRevision = pgTable(
 	'response_revision',
 	{
-		id: serial('id').primaryKey(),
+		id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
 		responseId: integer('response_id')
 			.notNull()
 			.references(() => response.id, { onDelete: 'cascade' }),

@@ -22,7 +22,7 @@
 			<p class="text-text-subtle">
 				メンバー情報:
 				{#if data.syncedAt}
-					{formatJst(data.syncedAt)} に更新
+					<span class="whitespace-nowrap">{formatJst(data.syncedAt)}</span> に更新
 				{:else}
 					まだ同期していません
 				{/if}

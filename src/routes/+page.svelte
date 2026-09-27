@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { formatJst } from '$lib/datetime';
+	import { formatJst, formatJstDate } from '$lib/datetime';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	let { data } = $props();
 
 	const avatarUrl = $derived(data.user?.image ?? null);
 
-	const format = (value: Date | null) => formatJst(value, '締切なし');
+	const deadlineText = (value: Date | null) => (value ? `締切 ${formatJst(value)}` : '締切なし');
 
 	const SOON_MS = 48 * 60 * 60 * 1000;
 
@@ -125,7 +125,7 @@
 										{:else if level === 'soon'}
 											<span class="bg-warning-surface text-warning rounded px-2 py-0.5">締切間近</span>
 										{/if}
-										<span>{format(row.deadline)}</span>
+										<span class="whitespace-nowrap">{deadlineText(row.deadline)}</span>
 									</span>
 								</a>
 							</li>
@@ -150,7 +150,9 @@
 										<Icon name="check" class="text-success size-4 shrink-0" />
 										{row.title}
 									</span>
-									<span class="text-text-muted shrink-0 text-xs">{format(row.deadline)}</span>
+									<span class="text-text-muted shrink-0 text-xs whitespace-nowrap">
+										提出 {formatJst(row.submittedAt)}{row.revisionCount > 1 ? '（編集済み）' : ''}
+									</span>
 								</a>
 							</li>
 						{/each}
@@ -180,9 +182,14 @@
 									class="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
 								>
 									<span class="min-w-0 font-medium">{row.title}</span>
-									<span class="text-text-muted flex shrink-0 items-center gap-3 text-xs">
-										<span>{format(row.deadline)}</span>
-										<span class="tabular-nums">{row.responseCount} 件の回答</span>
+									<!-- Inline text rather than flex: a line may break after a ・ but never before
+									     one, so a wrap never opens a line with the separator. -->
+									<span class="text-text-muted shrink-0 text-xs">
+										<span class="whitespace-nowrap">{deadlineText(row.deadline)}</span>
+										・
+										<span class="whitespace-nowrap">作成 {formatJstDate(row.createdAt)}</span>
+										・
+										<span class="whitespace-nowrap tabular-nums">{row.responseCount} 件の回答</span>
 									</span>
 								</a>
 							</li>

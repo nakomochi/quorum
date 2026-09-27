@@ -90,8 +90,8 @@
 		<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
 		<p class="mt-1 text-sm text-text-muted">回答状況</p>
 		<p class="mt-2 text-xs text-text-muted">
-			<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline)}</span>
-			<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt)}</span>
+			<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
+			<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt, '指定なし')}</span>
 			{#if data.manage}
 				<span class="whitespace-nowrap">/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}</span>
 			{/if}
@@ -99,7 +99,7 @@
 	</header>
 
 	{#if data.roleDeleted}
-		<p role="alert" class="bg-warning-surface text-warning rounded-lg border border-border px-4 py-3 text-sm">
+		<p role="alert" class="alert-warning">
 			対象ロールが Discord で削除されています。対象者は0人として扱われます。
 		</p>
 	{/if}
@@ -151,7 +151,7 @@
 		<section class="card action-row px-5 py-4">
 			<p class="min-w-0 flex-1 text-sm text-text-subtle">
 				{#if data.form.closedAt}
-					{formatJst(data.form.closedAt)} にクローズしました。対象者と未提出者は確定済みで、メンバー情報が更新されても変わりません。
+					<span class="whitespace-nowrap">{formatJst(data.form.closedAt)}</span> にクローズしました。対象者と未提出者は確定済みで、メンバー情報が更新されても変わりません。
 				{:else}
 					クローズすると Discord から最新のメンバー一覧を取得し、未提出者を確定して提出を締め切ります。
 				{/if}
@@ -207,8 +207,8 @@
 				{:else}
 					<ul class="flex flex-col gap-1 text-xs text-text-muted">
 						{#each data.reminders as entry (entry.id)}
-							<li class="flex gap-3">
-								<span class="tabular-nums">{formatJst(entry.sentAt)}</span>
+							<li class="flex flex-wrap gap-x-3">
+								<span class="whitespace-nowrap tabular-nums">送信 {formatJst(entry.sentAt)}</span>
 								<span>{REMINDER_KIND[entry.kind]}</span>
 								<span class="tabular-nums">{entry.targetCount}名 / {entry.messageCount}通</span>
 							</li>

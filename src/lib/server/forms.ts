@@ -507,17 +507,29 @@ export async function loadOwnResponse(formId: string, userId: string) {
 	return { response: row, answers };
 }
 
+export type SubmittedForm = Form & {
+	submittedAt: Date;
+	/** More than one means the response was edited. */
+	revisionCount: number;
+};
+
 export async function listFormsForMember(
 	member: MemberContext,
 	userId: string
-): Promise<{ pending: Form[]; submitted: Form[] }> {
+): Promise<{ pending: Form[]; submitted: SubmittedForm[] }> {
 	const rows = await db.select().from(form).orderBy(desc(form.createdAt));
 	const eligible = rows.filter((row) => canSubmit(row, member));
 	if (eligible.length === 0) return { pending: [], submitted: [] };
 
+	// Grouped by the primary key, so each response comes back once with its revision count.
 	const answered = await db
-		.select({ formId: response.formId })
+		.select({
+			formId: response.formId,
+			submittedAt: response.submittedAt,
+			revisionCount: count(responseRevision.id)
+		})
 		.from(response)
+		.leftJoin(responseRevision, eq(responseRevision.responseId, response.id))
 		.where(
 			and(
 				eq(response.userId, userId),
@@ -526,14 +538,22 @@ export async function listFormsForMember(
 					eligible.map((row) => row.id)
 				)
 			)
-		);
-	const answeredIds = new Set(answered.map((row) => row.formId));
+		)
+		.groupBy(response.id);
+	const own = new Map(answered.map((row) => [row.formId, row]));
 
 	const pending = eligible
-		.filter((row) => !answeredIds.has(row.id) && !isClosed(row))
+		.filter((row) => !own.has(row.id) && !isClosed(row))
 		.sort((a, b) => deadlineRank(a) - deadlineRank(b));
 
-	return { pending, submitted: eligible.filter((row) => answeredIds.has(row.id)) };
+	const submitted = eligible.flatMap((row) => {
+		const entry = own.get(row.id);
+		return entry
+			? [{ ...row, submittedAt: entry.submittedAt, revisionCount: entry.revisionCount }]
+			: [];
+	});
+
+	return { pending, submitted };
 }
 
 function deadlineRank(row: Form): number {
@@ -546,6 +566,7 @@ export type CreatedFormSummary = {
 	deadline: Date | null;
 	closesAt: Date | null;
 	closedAt: Date | null;
+	createdAt: Date;
 	responseCount: number;
 };
 
@@ -977,6 +998,7 @@ export async function listFormsCreatedBy(userId: string): Promise<CreatedFormSum
 			deadline: form.deadline,
 			closesAt: form.closesAt,
 			closedAt: form.closedAt,
+			createdAt: form.createdAt,
 			responseCount: count(response.id)
 		})
 		.from(form)

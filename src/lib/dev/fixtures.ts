@@ -35,6 +35,7 @@ export type UiCase<Data, Form = null> = {
 
 type SessionUser = NonNullable<HomeData['user']>;
 type FormRow = HomeData['pending'][number];
+type SubmittedRow = HomeData['submitted'][number];
 type CreatedRow = HomeData['created'][number];
 type QuestionRow = AnswerData['questions'][number];
 type ResultRow = ResultsData['submitted'][number];
@@ -109,10 +110,19 @@ const formRow = (over: Partial<FormRow> & Pick<FormRow, 'id' | 'title'>): FormRo
 	...over
 });
 
+const submittedRow = (
+	over: Partial<SubmittedRow> & Pick<SubmittedRow, 'id' | 'title' | 'submittedAt'>
+): SubmittedRow => ({
+	...formRow(over),
+	revisionCount: 1,
+	...over
+});
+
 const createdRow = (over: Partial<CreatedRow> & Pick<CreatedRow, 'id' | 'title'>): CreatedRow => ({
 	deadline: at('2026-04-30T23:59:00'),
 	closesAt: null,
 	closedAt: null,
+	createdAt: at('2026-04-01T10:00:00'),
 	responseCount: 0,
 	...over
 });
@@ -563,12 +573,14 @@ const REMINDERS: ReminderEntry[] = [
 	{ id: 1, kind: 'manual', sentAt: at('2026-04-20T12:30:00'), targetCount: 60, messageCount: 2 }
 ];
 
+// Relative for the same reason as `fromNow`: the page locks itself once closesAt passes, so a
+// fixed date would lock every open case the day it went by.
 const answerForm = (over: Partial<AnswerData['form']> = {}): AnswerData['form'] => ({
 	id: 'fixtureform1',
 	title: '春合宿の参加確認',
 	description: '5月の合宿について、参加可否を教えてください。',
-	deadline: at('2026-04-30T23:59:00'),
-	closesAt: at('2026-05-01T00:00:00'),
+	deadline: fromNow(24 * 14),
+	closesAt: fromNow(24 * 15),
 	allowEdit: true,
 	...over
 });
@@ -585,6 +597,28 @@ const OTHER_ANSWERS: AnswerData['answers'] = {
 	2: { type: 'multi', optionIds: ['d2', 'd3'], other: '5/5（火）の午前まで' },
 	3: { type: 'text', text: '特になし' }
 };
+
+/** Fills `QUESTIONS` in the rendered form, for a state where typed input has to survive. */
+async function typeAnswers(doc: Document) {
+	const pick = (selector: string) => {
+		const choice = doc.querySelector<HTMLInputElement>(selector);
+		if (!choice) return;
+		choice.checked = true;
+		choice.dispatchEvent(new Event('change', { bubbles: true }));
+	};
+	const type = (selector: string, value: string) => {
+		const field = doc.querySelector<HTMLInputElement | HTMLTextAreaElement>(selector);
+		if (!field) return;
+		field.value = value;
+		field.dispatchEvent(new Event('input', { bubbles: true }));
+	};
+
+	pick('input[name="q_1"][value="yes"]');
+	pick('input[name="q_2"][value="d2"]');
+	type('textarea[name="q_3"]', '初日は講義のため、21時ごろ合流します。');
+	type('input[name="q_4"]', '2026-05-02');
+	await tick();
+}
 
 /** Every check the browser makes beyond plain `required`. */
 const CHECKED_QUESTIONS: QuestionRow[] = [
@@ -657,16 +691,33 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 				formRow({ id: 'pending000004', title: 'Tシャツのサイズ調査', deadline: null })
 			],
 			submitted: [
-				formRow({ id: 'done00000001', title: '夏合宿のふりかえり', deadline: at('2026-03-31T23:59:00') }),
-				formRow({ id: 'done00000002', title: '定例会の出欠（8月）', deadline: at('2026-03-10T20:00:00') })
+				submittedRow({
+					id: 'done00000001',
+					title: '夏合宿のふりかえり',
+					deadline: at('2026-03-31T23:59:00'),
+					submittedAt: at('2026-03-28T22:10:00'),
+					revisionCount: 3
+				}),
+				submittedRow({
+					id: 'done00000002',
+					title: '定例会の出欠（8月）',
+					deadline: at('2026-03-10T20:00:00'),
+					submittedAt: at('2026-03-04T12:30:00')
+				})
 			],
 			created: [
-				createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 }),
+				createdRow({
+					id: 'mine00000001',
+					title: '春合宿の参加確認',
+					responseCount: 12,
+					createdAt: at('2026-04-01T09:00:00')
+				}),
 				createdRow({
 					id: 'mine00000002',
 					title: LONG_TITLE,
 					responseCount: 3,
-					deadline: null
+					deadline: null,
+					createdAt: at('2026-03-15T18:20:00')
 				})
 			]
 		}
@@ -680,10 +731,12 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 			isAdmin: false,
 			pending: [formRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })],
 			submitted: Array.from({ length: 9 }, (_, i) =>
-				formRow({
+				submittedRow({
 					id: `done0000000${i + 1}`,
 					title: `定例会の出欠（第 ${i + 1} 回）`,
-					deadline: fromNow(-24 * 7 * (i + 1))
+					deadline: fromNow(-24 * 7 * (i + 1)),
+					submittedAt: fromNow(-24 * 7 * (i + 1) - 30),
+					revisionCount: i % 3 === 0 ? 2 : 1
 				})
 			),
 			created: Array.from({ length: 6 }, (_, i) =>
@@ -691,7 +744,8 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 					id: `mine0000000${i + 1}`,
 					title: `イベントの出欠確認 ${i + 1}`,
 					responseCount: 20 - i * 3,
-					deadline: fromNow(-24 * 10 * (i + 1))
+					deadline: fromNow(-24 * 10 * (i + 1)),
+					createdAt: fromNow(-24 * 10 * (i + 1) - 24 * 14)
 				})
 			)
 		}
@@ -841,7 +895,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-error',
-		title: 'エラー表示',
+		title: '入力エラー（サーバーの検証で拒否）',
 		data: {
 			user: USER,
 			resultsVisible: false,
@@ -853,25 +907,77 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			updatedAt: null,
 			answers: {}
 		},
-		// Only a failure the browser cannot catch belongs here: the role was lost after loading.
-		form: { message: 'このフォームの対象ではありません' }
+		// Only an input error the browser cannot catch belongs here: a choice sent by a stale page.
+		form: { message: '「参加できますか」の選択肢が不正です' },
+		setup: typeAnswers
 	},
 	{
-		id: 'answer-edit-error',
-		title: '編集中のエラー表示',
+		// The load said open, and closesAt has passed since: the page's own timer locks it.
+		id: 'answer-expired',
+		title: '回答中に受付終了日時を過ぎた（入力あり・送信不可）',
+		data: {
+			user: USER,
+			resultsVisible: false,
+			form: answerForm({ closesAt: fromNow(-1) }),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {}
+		},
+		setup: typeAnswers
+	},
+	{
+		// After the reload that follows the refusal: the data says closed, the form stays.
+		id: 'answer-refused-closed',
+		title: '送信したら受付終了していた（未提出・入力あり）',
+		data: {
+			user: USER,
+			resultsVisible: false,
+			form: answerForm({ closesAt: null }),
+			questions: QUESTIONS,
+			closed: true,
+			editable: false,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {}
+		},
+		form: { reason: 'closed' },
+		setup: typeAnswers
+	},
+	{
+		id: 'answer-edit-closed',
+		title: '編集を保存したら受付終了していた（入力あり）',
 		data: {
 			user: USER,
 			resultsVisible: true,
-			form: answerForm(),
+			form: answerForm({ closesAt: null }),
 			questions: OTHER_QUESTIONS,
-			closed: false,
-			editable: true,
+			closed: true,
+			editable: false,
 			submittedAt: at('2026-04-12T21:40:00'),
 			updatedAt: at('2026-04-12T21:40:00'),
 			answers: OTHER_ANSWERS
 		},
-		// Saved while the form closed underneath.
-		form: { message: 'このフォームは受付を終了しました' }
+		form: { reason: 'closed' }
+	},
+	{
+		// Opened before another tab submitted, then sent: the reload shows the other tab's answer.
+		id: 'answer-already-submitted',
+		title: '送信したら別の画面で提出済みだった（編集不可）',
+		data: {
+			user: USER,
+			resultsVisible: true,
+			form: answerForm({ allowEdit: false }),
+			questions: QUESTIONS,
+			closed: false,
+			editable: false,
+			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-12T21:40:00'),
+			answers: FILLED_ANSWERS
+		},
+		form: { reason: 'already_submitted' }
 	},
 	{
 		id: 'answer-checks',

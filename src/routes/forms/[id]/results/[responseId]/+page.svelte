@@ -35,8 +35,8 @@
 		<h1 class="text-xl font-semibold tracking-tight">{data.response.displayName} さんの回答履歴</h1>
 		<p class="mt-1 text-sm text-text-muted">{data.form.title}</p>
 		<p class="mt-2 text-xs text-text-muted">
-			提出日時: {formatJst(data.response.submittedAt)}
-			/ 最終更新: {formatJst(data.response.updatedAt)}
+			<span class="whitespace-nowrap">提出日時: {formatJst(data.response.submittedAt)}</span>
+			<span class="whitespace-nowrap">/ 最終更新: {formatJst(data.response.updatedAt)}</span>
 		</p>
 	</header>
 
@@ -51,7 +51,10 @@
 					{#if revision.number === 1}
 						<span class="bg-surface-raised rounded px-2 py-0.5 text-xs text-text-muted">初回提出</span>
 					{/if}
-					<span class="text-xs text-text-muted tabular-nums">{formatJst(revision.createdAt)}</span>
+					<span class="text-xs whitespace-nowrap text-text-muted tabular-nums">
+						{revision.number === 1 ? '提出' : '更新'}
+						{formatJst(revision.createdAt)}
+					</span>
 				</div>
 				<dl class="mt-4 flex flex-col gap-4">
 					{#each data.questions as q (q.id)}

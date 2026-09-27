@@ -37,6 +37,7 @@
 	--color-success: oklch(50.8% 0.118 165.612);
 
 	--color-warning-surface: oklch(98.7% 0.022 95.277);
+	--color-warning-line: oklch(92.4% 0.12 95.746);
 	--color-warning: oklch(55.5% 0.163 48.998);
 }
 
@@ -78,6 +79,7 @@
 		--color-success: oklch(84.5% 0.143 164.978);
 
 		--color-warning-surface: oklch(27.9% 0.077 45.635 / 0.6);
+		--color-warning-line: oklch(41.4% 0.112 45.904);
 		--color-warning: oklch(87.9% 0.169 91.605);
 	}
 }
@@ -113,6 +115,7 @@
 	--color-success: oklch(50.8% 0.118 165.612);
 
 	--color-warning-surface: oklch(98.7% 0.022 95.277);
+	--color-warning-line: oklch(92.4% 0.12 95.746);
 	--color-warning: oklch(55.5% 0.163 48.998);
 }
 
@@ -147,6 +150,7 @@
 	--color-success: oklch(84.5% 0.143 164.978);
 
 	--color-warning-surface: oklch(27.9% 0.077 45.635 / 0.6);
+	--color-warning-line: oklch(41.4% 0.112 45.904);
 	--color-warning: oklch(87.9% 0.169 91.605);
 }
 
@@ -195,6 +199,7 @@ main {
 	/* The transparent border keeps it the same height as `.btn-secondary` beside it. */
 	.btn-primary {
 		@apply bg-accent hover:bg-accent-hover text-accent-fg rounded-lg border border-transparent text-sm font-semibold transition;
+		@apply disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-accent;
 	}
 
 	.btn-secondary {
@@ -208,6 +213,11 @@ main {
 
 	.alert-success {
 		@apply border-success-line bg-success-surface text-success-fg rounded-lg border px-4 py-3 text-sm;
+	}
+
+	/* Something changed that the reader has to know about, but nothing they did was wrong. */
+	.alert-warning {
+		@apply border-warning-line bg-warning-surface text-warning rounded-lg border px-4 py-3 text-sm;
 	}
 
 	.field {

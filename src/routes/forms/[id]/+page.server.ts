@@ -8,29 +8,30 @@ import {
 	loadForm,
 	loadOwnResponse,
 	loadQuestions,
-	submitResponse
+	submitResponse,
+	type SubmitFailure
 } from '$lib/server/forms';
 import { gateMember, recheckMember, requireUser } from '$lib/server/guards';
 import { looksLikeGuildAdmin } from '$lib/server/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
-const FAILURES = {
-	not_found: { status: 404, message: 'フォームが見つかりません' },
-	not_member: { status: 403, message: 'このサーバーのメンバーではありません' },
-	forbidden: { status: 403, message: 'このフォームの対象ではありません' },
-	closed: { status: 409, message: 'このフォームは受付を終了しました' },
-	already_submitted: { status: 409, message: 'このフォームは回答の編集が許可されていません' }
-} as const;
+const STATUS: Record<SubmitFailure, number> = {
+	not_found: 404,
+	not_member: 403,
+	forbidden: 403,
+	closed: 409,
+	already_submitted: 409
+};
 
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const user = requireUser(locals);
 
 	const target = await loadForm(params.id);
-	if (!target) error(404, FAILURES.not_found.message);
+	if (!target) error(404, 'フォームが見つかりません');
 
 	const member = await gateMember(locals, (m) => canSubmit(target, m));
-	if (!member) error(403, FAILURES.not_member.message);
-	if (!canSubmit(target, member)) error(403, FAILURES.forbidden.message);
+	if (!member) error(403, 'このサーバーのメンバーではありません');
+	if (!canSubmit(target, member)) error(403, 'このフォームの対象ではありません');
 
 	// Display-only, and only to decide whether the results link is drawn. A reminder puts the whole
 	// target roster on this page at once, so the live admin check (three calls, one of them the
@@ -89,10 +90,9 @@ export const actions: Actions = {
 				result = await submit();
 			}
 
-			if (!result.ok) {
-				const failure = FAILURES[result.reason];
-				return fail(failure.status, { message: failure.message });
-			}
+			// Every refusal means the page is out of date. The client reloads it, and the reload is
+			// what explains the refusal, so only the reason goes back.
+			if (!result.ok) return fail(STATUS[result.reason], { reason: result.reason });
 			return { created: result.created };
 		} catch (err) {
 			if (err instanceof FormInputError) return fail(400, { message: err.message });

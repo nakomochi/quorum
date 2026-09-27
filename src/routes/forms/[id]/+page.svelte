@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import { formatJst } from '$lib/datetime';
 	import {
@@ -16,15 +17,43 @@
 	const answers = $derived(data.answers as Record<number, AnswerValue | undefined>);
 
 	// Both follow the latest action result, and 回答を編集 overrides them until the next one
-	// arrives: a failure keeps the form open, a success returns to the confirmation.
-	let editing = $derived(form?.message !== undefined);
+	// arrives: an input error or a close keeps the form open, anything else returns to the
+	// confirmation.
+	let editing = $derived(form?.message !== undefined || form?.reason === 'closed');
 	let saved = $derived(form?.created);
 	let submitting = $state(false);
+
+	// setTimeout fires at once past 2^31-1 ms (about 24.8 days), so a longer wait is taken in steps.
+	const MAX_TIMEOUT = 2 ** 31 - 1;
+
+	// Read off this browser's clock, which may be wrong. The server still refuses a late
+	// submission, and that refusal ends in the same locked state.
+	let expired = $state(false);
+
+	$effect(() => {
+		const closesAt = data.form.closesAt?.getTime();
+		if (data.closed || closesAt === undefined) return;
+
+		let timer: ReturnType<typeof setTimeout> | undefined;
+		const wait = () => {
+			const remaining = closesAt - Date.now();
+			if (remaining <= 0) expired = true;
+			else timer = setTimeout(wait, Math.min(remaining, MAX_TIMEOUT));
+		};
+		wait();
+		return () => clearTimeout(timer);
+	});
+
+	const closed = $derived(data.closed || expired || form?.reason === 'closed');
 
 	const submitted = $derived(data.submittedAt !== null);
 	// Held open while a save is in flight: its reload lands before its result, and the
 	// confirmation would otherwise flash up with the heading meant for a later visit.
-	const showForm = $derived(data.editable && (!submitted || editing || submitting));
+	// A close refused by the server keeps the form too, with what was typed, after the reload
+	// has marked it not editable.
+	const showForm = $derived(
+		(data.editable || form?.reason === 'closed') && (!submitted || editing || submitting)
+	);
 
 	const heading = $derived(
 		saved === true ? '回答を送信しました' : saved === false ? '回答を更新しました' : '回答済みです'
@@ -124,15 +153,26 @@
 		saved = undefined;
 	}
 
-	const submit: SubmitFunction = () => {
+	const submit: SubmitFunction = ({ cancel }) => {
+		if (closed) {
+			cancel();
+			return;
+		}
 		submitting = true;
 		return async ({ result, update }) => {
+			const reason = result.type === 'failure' ? result.data?.reason : undefined;
 			// The fields take their values from props, so a reset would blank them with no change in
-			// data to draw them again.
+			// data to draw them again. The same keeps them through the reload below.
 			await update({ reset: false });
+			// A refusal means the page is out of date, and the reload shows why: the error page once
+			// access is gone, the confirmation once another tab has submitted, the lock once closed.
+			if (reason) await invalidateAll();
 			submitting = false;
-			// The outcome is shown at the top, and the submit button sits at the bottom of the form.
-			if (result.type === 'success' || result.type === 'failure') window.scrollTo({ top: 0 });
+			// Most outcomes are shown at the top, and the submit button sits at the bottom of the
+			// form. A close is shown beside the button instead, where the reader already is.
+			if (result.type === 'success' || (result.type === 'failure' && reason !== 'closed')) {
+				window.scrollTo({ top: 0 });
+			}
 		};
 	};
 </script>
@@ -165,14 +205,15 @@
 					<p class="mt-2 text-sm whitespace-pre-wrap text-text-subtle">{data.form.description}</p>
 				{/if}
 				<div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-text-muted">
-					{#if data.closed}
+					{#if closed}
 						<span class="bg-surface-alt rounded px-2 py-1 text-text-subtle">受付終了</span>
 					{/if}
 					{#if submitted}
 						<span class="bg-success-badge text-success rounded px-2 py-1">提出済み</span>
 					{/if}
-					<span>
-						締切: {formatJst(data.form.deadline)} / 受付終了: {formatJst(data.form.closesAt)}
+					<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
+					<span class="whitespace-nowrap">
+						受付終了: {formatJst(data.form.closesAt, '指定なし')}
 					</span>
 				</div>
 			</div>
@@ -182,6 +223,10 @@
 	{#if form?.message}
 		<p role="alert" class="alert-error">
 			{form.message}
+		</p>
+	{:else if form?.reason === 'already_submitted'}
+		<p role="alert" class="alert-warning">
+			すでに提出済みの回答があり、編集は許可されていないため、今回の内容は送信されていません。
 		</p>
 	{/if}
 
@@ -267,8 +312,12 @@
 				</div>
 			{/each}
 
+			{#if closed}
+				<p role="alert" class="alert-warning">受付を終了したため送信できません。</p>
+			{/if}
+
 			<div class="flex items-center gap-4">
-				<button type="submit" class="btn-primary px-5 py-2.5" disabled={submitting}>
+				<button type="submit" class="btn-primary px-5 py-2.5" disabled={submitting || closed}>
 					{submitted ? '回答を更新' : '送信'}
 				</button>
 				{#if submitted}
@@ -296,7 +345,7 @@
 							<span class="whitespace-nowrap">/ 最終更新: {updatedAt}</span>
 						{/if}
 					</p>
-					{#if data.closed}
+					{#if closed}
 						<p class="mt-2 text-sm text-text-subtle">受付は終了しています。</p>
 					{:else if !data.editable}
 						<p class="mt-2 text-sm text-text-subtle">
@@ -305,7 +354,7 @@
 					{/if}
 				</div>
 			</div>
-			{#if data.editable}
+			{#if data.editable && !closed}
 				<button
 					type="button"
 					class="btn-secondary inline-flex shrink-0 items-center gap-1.5 self-start px-4 py-2 sm:self-auto"

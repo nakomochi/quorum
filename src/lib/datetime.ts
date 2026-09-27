@@ -11,7 +11,12 @@ const displayFormat = new Intl.DateTimeFormat('ja-JP', {
 	timeZone: 'Asia/Tokyo'
 });
 
-const inputFormat = new Intl.DateTimeFormat('en-CA', {
+const dateFormat = new Intl.DateTimeFormat('ja-JP', {
+	dateStyle: 'short',
+	timeZone: 'Asia/Tokyo'
+});
+
+const inputFormat =new Intl.DateTimeFormat('en-CA', {
 	timeZone: 'Asia/Tokyo',
 	year: 'numeric',
 	month: '2-digit',
@@ -40,6 +45,11 @@ export function parseJstLocal(value: string): Date | null {
 
 export function formatJst(value: Date | null, fallback = '—'): string {
 	return value ? displayFormat.format(value) : fallback;
+}
+
+/** `formatJst` without the time, for dates whose time of day tells the reader nothing. */
+export function formatJstDate(value: Date | null, fallback = '—'): string {
+	return value ? dateFormat.format(value) : fallback;
 }
 
 /** JST value for an `<input type="datetime-local">`. */

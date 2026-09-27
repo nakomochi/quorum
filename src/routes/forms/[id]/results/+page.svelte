@@ -133,8 +133,8 @@
 	</section>
 
 	{#if data.manage}
-		<section class="card flex flex-wrap items-center justify-between gap-3 px-5 py-4">
-			<p class="text-sm text-text-subtle">
+		<section class="card flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-4">
+			<p class="min-w-0 flex-1 text-sm text-text-subtle">
 				{#if data.form.closedAt}
 					{formatJst(data.form.closedAt)} にクローズしました。対象者と未提出者は確定済みで、
 					メンバー情報が更新されても変わりません。
@@ -143,11 +143,11 @@
 				{/if}
 			</p>
 			{#if data.form.closedAt}
-				<form method="POST" action="?/reopen" onsubmit={confirmReopen}>
+				<form method="POST" action="?/reopen" onsubmit={confirmReopen} class="shrink-0">
 					<button type="submit" class="chip px-3 py-1.5 text-sm">受付を再開する</button>
 				</form>
 			{:else}
-				<form method="POST" action="?/close">
+				<form method="POST" action="?/close" class="shrink-0">
 					<button type="submit" class="btn-primary px-4 py-2">クローズして確定する</button>
 				</form>
 			{/if}
@@ -156,8 +156,8 @@
 
 	{#if data.manage && data.announcement}
 		<section class="card flex flex-col gap-4 p-5">
-			<div class="flex flex-wrap items-start justify-between gap-3">
-				<div class="text-sm">
+			<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+				<div class="min-w-0 flex-1 text-sm">
 					<h2 class="font-medium text-text-subtle">Discord への告知とリマインド</h2>
 					<p class="mt-1 text-text-muted">
 						{#if !data.announcement.channelId}
@@ -172,7 +172,7 @@
 					</p>
 				</div>
 				{#if canAnnounce || canRemind}
-					<div class="flex flex-wrap gap-2">
+					<div class="flex shrink-0 flex-wrap gap-2">
 						{#if canAnnounce}
 							<form method="POST" action="?/announce">
 								<button type="submit" class="chip px-3 py-1.5 text-sm">告知を投稿する</button>

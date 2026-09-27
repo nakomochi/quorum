@@ -72,6 +72,12 @@ const USER: SessionUser = {
 const LONG_TITLE =
 	'2026年度 春合宿の参加可否および宿泊プラン・交通手段・食事アレルギーに関する事前アンケート（回答期限厳守）';
 
+const WIDE_ADMIN_TITLE =
+	'2026年度 夏合宿（8/10〜8/17・長野県白馬村）の参加登録、宿泊プラン・部屋割り・交通手段・食事アレルギー・緊急連絡先に関する事前アンケート（締切厳守・全員回答必須）';
+
+const WIDE_ADMIN_TITLE_2 =
+	'【再提出のお願い】新歓イベント運営スタッフの担当希望調査：前回の回答が一部の不具合で保存されていなかったため、お手数ですが全員もう一度回答してください';
+
 const LONG_DESCRIPTION = [
 	'このアンケートは合宿の宿泊手配と貸切バスの座席割当のために使用します。',
 	'キャンセル料が発生する日程を過ぎると変更できませんので、確定した内容を入力してください。',
@@ -250,12 +256,14 @@ const OTHER_SUBMITTED: ResultRow[] = [
 	})
 ];
 
-const RESULT_QUESTIONS: ResultQuestion[] = QUESTIONS.map((q) => ({
+const toResultQuestion = (q: QuestionRow): ResultQuestion => ({
 	id: q.id,
 	label: q.label,
 	type: q.type,
 	options: q.options
-}));
+});
+
+const RESULT_QUESTIONS: ResultQuestion[] = QUESTIONS.map(toResultQuestion);
 
 const TALLIES: Tally[] = [
 	{
@@ -306,6 +314,217 @@ const OTHER_TALLIES: Tally[] = [
 		],
 		other: 2
 	}
+];
+
+/** Same counting as the server's tally, so bars and table rows of a fixture always agree. */
+const tallyOf = (questions: QuestionRow[], rows: ResultRow[]): Tally[] =>
+	questions
+		.filter((q) => hasOptions(q.type))
+		.map((q) => {
+			const values = rows.map((row) => row.answers[q.id]);
+			const picked = values.flatMap((value) => {
+				if (value?.type === 'single') return 'other' in value ? [] : [value.optionId];
+				return value?.type === 'multi' ? value.optionIds : [];
+			});
+			const others = values.filter(
+				(value) =>
+					(value?.type === 'single' && 'other' in value) ||
+					(value?.type === 'multi' && value.other !== undefined)
+			).length;
+			return {
+				questionId: q.id,
+				label: q.label,
+				type: q.type,
+				options: (q.options ?? []).map((option) => ({
+					...option,
+					count: picked.filter((id) => id === option.id).length
+				})),
+				other: q.allowOther ? others : null
+			};
+		});
+
+const WIDE_DAYS = Array.from({ length: 8 }, (_, i) => ({
+	id: `day${i + 1}`,
+	label: `8/${i + 10}（${'月火水木金土日'[i % 7]}）`
+}));
+
+const WIDE_ACTIVITIES = [
+	'登山',
+	'カヌー',
+	'バーベキュー',
+	'花火',
+	'天体観測',
+	'温泉めぐり',
+	'ボードゲーム大会',
+	'写真撮影会',
+	'早朝ランニング',
+	'地元の酒蔵見学'
+].map((label, i) => ({ id: `act${i + 1}`, label }));
+
+const WIDE_QUESTIONS: QuestionRow[] = [
+	question({
+		id: 21,
+		type: 'single',
+		label:
+			'合宿当日の集合方法を一つ選んでください。貸切バスを利用する場合は、乗車地と到着予定時刻を後の自由記述の質問で必ず入力してください。',
+		allowOther: true,
+		options: [
+			{ id: 'bus', label: '貸切バス（新宿駅西口 7:30 発）' },
+			{ id: 'train', label: '電車で現地集合' },
+			{ id: 'car', label: '自家用車' }
+		]
+	}),
+	question({
+		id: 22,
+		type: 'multi',
+		label:
+			'参加できる日程をすべて選んでください。部分参加の場合も、参加できる日はすべて選択し、途中参加・途中離脱の時刻は備考欄に書いてください。',
+		allowOther: true,
+		options: WIDE_DAYS
+	}),
+	question({
+		id: 23,
+		type: 'text',
+		label:
+			'食事に関するアレルギーや配慮が必要な事項があれば、具体的な食材名と症状の程度をあわせて記入してください。該当しない場合は「なし」と記入してください。'
+	}),
+	question({ id: 24, type: 'date', label: '到着予定日' }),
+	question({
+		id: 25,
+		type: 'single',
+		label: '部屋割りの希望',
+		allowOther: true,
+		options: [
+			{ id: 'same', label: '同学年と同室' },
+			{ id: 'any', label: '誰とでもよい' },
+			{ id: 'solo', label: '個室を希望（追加料金あり）' }
+		]
+	}),
+	question({
+		id: 26,
+		type: 'multi',
+		label: '参加したいアクティビティ（いくつでも）',
+		options: WIDE_ACTIVITIES
+	}),
+	question({ id: 27, type: 'text', label: '交通手段の詳細（自家用車の場合は同乗者も）' }),
+	question({
+		id: 28,
+		type: 'single',
+		label: 'Tシャツのサイズ',
+		options: ['S', 'M', 'L', 'XL'].map((size) => ({ id: size, label: size }))
+	}),
+	question({
+		id: 29,
+		type: 'text',
+		label:
+			'緊急連絡先（保護者など）の氏名と電話番号を記入してください。未成年の場合は保護者の同意を得たうえで、連絡がつきやすい時間帯もあわせて記入してください。'
+	}),
+	question({ id: 30, type: 'date', label: '出発予定日' }),
+	question({
+		id: 31,
+		type: 'multi',
+		label: '持参できる備品',
+		allowOther: true,
+		options: [
+			{ id: 'tent', label: 'テント' },
+			{ id: 'stove', label: 'バーナー' },
+			{ id: 'light', label: 'ランタン' },
+			{ id: 'cooler', label: 'クーラーボックス' }
+		]
+	}),
+	question({ id: 32, type: 'text', label: '運営への要望・質問' })
+];
+
+const WIDE_LONG_TEXT = [
+	'初日は午後に必修の講義があるため、新宿駅西口発の貸切バスには間に合いません。',
+	'講義が終わりしだい特急で現地へ向かい、19時前後に合流する予定です。',
+	'夕食の準備に人数が必要であれば、到着が遅れる前提で割り振っていただけると助かります。',
+	'2日目以降は全日程参加できます。帰りは同じ方面の人と相乗りするので、帰路のバスの座席は不要です。',
+	'なお、急な休講などで予定が変わった場合は、前日までに運営チャンネルで必ず連絡します。'
+].join('\n');
+
+const WIDE_SUBMITTED: ResultRow[] = [
+	resultRow(0, {
+		21: { type: 'single', optionId: 'bus' },
+		22: { type: 'multi', optionIds: WIDE_DAYS.map((day) => day.id) },
+		23: { type: 'text', text: 'なし' },
+		24: { type: 'date', date: '2026-08-10' },
+		25: { type: 'single', optionId: 'same' },
+		26: { type: 'multi', optionIds: WIDE_ACTIVITIES.map((activity) => activity.id) },
+		27: { type: 'text', text: '貸切バス' },
+		28: { type: 'single', optionId: 'M' },
+		29: { type: 'text', text: '母・あおい花子 090-0000-0001（平日18時以降）' },
+		30: { type: 'date', date: '2026-08-17' },
+		31: { type: 'multi', optionIds: ['tent', 'stove', 'light', 'cooler'] },
+		32: { type: 'text', text: '特になし' }
+	}),
+	resultRow(1, {
+		21: { type: 'single', other: '初日の夜に特急で合流（19時ごろ現地着）' },
+		22: {
+			type: 'multi',
+			optionIds: ['day1', 'day2', 'day3', 'day4', 'day5', 'day6'],
+			other: '8/16 は午前中のみ参加、昼食後に離脱します'
+		},
+		23: {
+			type: 'text',
+			text: '甲殻類（えび・かに）で蕁麻疹が出ます。\n少量の出汁なら問題ありませんが、揚げ油の共用は避けたいです。'
+		},
+		24: { type: 'date', date: '2026-08-10' },
+		25: { type: 'single', other: '後輩と同室を希望します（同じ班のため）' },
+		26: { type: 'multi', optionIds: ['act2', 'act3', 'act5', 'act6', 'act7', 'act8', 'act10'] },
+		27: { type: 'text', text: WIDE_LONG_TEXT },
+		28: { type: 'single', optionId: 'L' },
+		29: { type: 'text', text: '父・いつき太郎 080-0000-0002\n日中は仕事のため、つながらない場合はSMSでお願いします。' },
+		30: { type: 'date', date: '2026-08-16' },
+		31: { type: 'multi', optionIds: ['light'], other: 'モバイルバッテリー（大容量）を3台' },
+		32: { type: 'text', text: WIDE_LONG_TEXT }
+	}),
+	resultRow(2, {
+		21: { type: 'single', optionId: 'car' },
+		22: { type: 'multi', optionIds: ['day3', 'day4', 'day5'] },
+		23: { type: 'text', text: 'なし' },
+		25: { type: 'single', optionId: 'any' },
+		26: { type: 'multi', optionIds: ['act1'] },
+		27: { type: 'text', text: '自家用車（同乗: かえで、きりや）\n高速代は3人で割ります。' },
+		28: { type: 'single', optionId: 'XL' },
+		30: { type: 'date', date: '2026-08-14' }
+	}),
+	resultRow(3, {
+		21: { type: 'single', optionId: 'train' },
+		22: { type: 'multi', optionIds: [], other: 'まだ未定です。7月末までに連絡します' },
+		23: { type: 'text', text: '乳製品が苦手です（アレルギーではありません）。' },
+		25: { type: 'single', optionId: 'solo' },
+		26: { type: 'multi', optionIds: [] },
+		28: { type: 'single', optionId: 'S' },
+		32: { type: 'text', text: '個室の追加料金を事前に教えてください。' }
+	}),
+	resultRow(4, {
+		21: { type: 'single', optionId: 'bus' },
+		22: { type: 'multi', optionIds: ['day1', 'day2'] },
+		23: { type: 'text', text: 'そばアレルギー（重度）。エピペンを持参します。' },
+		24: { type: 'date', date: '2026-08-10' },
+		25: { type: 'single', optionId: 'same' },
+		26: { type: 'multi', optionIds: ['act3', 'act4'] },
+		27: { type: 'text', text: '貸切バス（帰りは電車）' },
+		28: { type: 'single', optionId: 'M' },
+		29: { type: 'text', text: '姉・おとは 070-0000-0004' },
+		30: { type: 'date', date: '2026-08-11' },
+		31: { type: 'multi', optionIds: ['cooler'] }
+	})
+];
+
+const WIDE_OUTSIDERS: ResultRow[] = [
+	resultRow(11, {
+		21: { type: 'single', optionId: 'train' },
+		22: { type: 'multi', optionIds: ['day4', 'day5', 'day6', 'day7', 'day8'] },
+		23: { type: 'text', text: 'なし' },
+		26: { type: 'multi', optionIds: ['act1', 'act2', 'act3', 'act4', 'act5', 'act6'] },
+		28: { type: 'single', optionId: 'L' },
+		32: {
+			type: 'text',
+			text: 'OBとして途中から見学に行きたいです。\n宿泊は不要なので、日帰りで参加できる日を教えてください。'
+		}
+	})
 ];
 
 const NON_SUBMITTERS = [3, 4, 5].map(member);
@@ -877,6 +1096,28 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			nonSubmitters: []
 		},
 		form: { message: '対象ロールを持つメンバーがいないため、リマインドは送信していません' }
+	},
+	{
+		id: 'results-wide',
+		title: '横に長い回答表（質問12件・長い質問文・長い回答・その他・多数選択）',
+		data: {
+			user: USER,
+			form: resultsForm({ title: '夏合宿（8/10〜8/17）の参加登録と事前アンケート' }),
+			closed: false,
+			reopenClearsClosesAt: false,
+			manage: true,
+			roleDeleted: false,
+			announceFailed: false,
+			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			reminders: [],
+			questions: WIDE_QUESTIONS.map(toResultQuestion),
+			tallies: tallyOf(WIDE_QUESTIONS, [...WIDE_SUBMITTED, ...WIDE_OUTSIDERS]),
+			frozen: false,
+			targetCount: 8,
+			submitted: WIDE_SUBMITTED,
+			outsiders: WIDE_OUTSIDERS,
+			nonSubmitters: [5, 6, 7].map(member)
+		}
 	}
 ];
 
@@ -988,6 +1229,45 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 		id: 'admin-empty',
 		title: 'フォーム0件',
 		data: { user: USER, syncedAt: at('2026-04-09T08:30:00'), forms: [] }
+	},
+	{
+		id: 'admin-wide',
+		title: '横に長いフォーム一覧（80字前後のタイトル・削除されたロール）',
+		data: {
+			user: USER,
+			syncedAt: at('2026-04-09T08:30:00'),
+			forms: [
+				adminRow({
+					id: 'wide00000001',
+					title: WIDE_ADMIN_TITLE,
+					responseCount: 128,
+					structureLockedAt: at('2026-03-02T10:00:00'),
+					roleName: '（削除されたロール）'
+				}),
+				adminRow({
+					id: 'wide00000002',
+					title: WIDE_ADMIN_TITLE_2,
+					submitScope: 'everyone',
+					deadline: null,
+					responseCount: 7,
+					roleName: '2026年度 新入生（春入部・仮登録を含む）'
+				}),
+				adminRow({
+					id: 'wide00000003',
+					title: '定例会の出欠（10月）',
+					responseCount: 31
+				}),
+				adminRow({
+					id: 'wide00000004',
+					title: LONG_TITLE,
+					closed: true,
+					closedAt: at('2026-04-01T00:00:00'),
+					structureLockedAt: at('2026-03-10T10:00:00'),
+					responseCount: 60,
+					roleName: '（削除されたロール）'
+				})
+			]
+		}
 	}
 ];
 

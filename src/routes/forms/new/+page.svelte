@@ -302,7 +302,7 @@
 				<label class="block">
 					<span class="text-sm font-medium">提出できる人</span>
 					<select name="submitScope" class="field mt-1">
-						<option value="everyone">ギルドメンバー全員</option>
+						<option value="everyone">サーバーのメンバー全員</option>
 						<option value="target_role">対象ロールの人のみ</option>
 					</select>
 				</label>

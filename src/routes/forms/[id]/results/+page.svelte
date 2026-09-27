@@ -32,7 +32,7 @@
 
 {#snippet tallyRow(label: string, count: number)}
 	<li class="flex items-center gap-3 text-sm">
-		<span class="w-40 shrink-0 truncate text-text-subtle">{label}</span>
+		<span class="w-28 shrink-0 truncate text-text-subtle sm:w-40">{label}</span>
 		<span class="bg-surface-raised h-2 flex-1 overflow-hidden rounded">
 			<span class="bg-accent block h-full" style="width: {percent(count, answerTotal)}%"></span>
 		</span>
@@ -90,9 +90,10 @@
 		<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
 		<p class="mt-1 text-sm text-text-muted">回答状況</p>
 		<p class="mt-2 text-xs text-text-muted">
-			締切: {formatJst(data.form.deadline)} / 受付終了: {formatJst(data.form.closesAt)}
+			<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline)}</span>
+			<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt)}</span>
 			{#if data.manage}
-				/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}
+				<span class="whitespace-nowrap">/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}</span>
 			{/if}
 		</p>
 	</header>
@@ -147,11 +148,10 @@
 	</section>
 
 	{#if data.manage}
-		<section class="card flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:gap-4">
+		<section class="card action-row px-5 py-4">
 			<p class="min-w-0 flex-1 text-sm text-text-subtle">
 				{#if data.form.closedAt}
-					{formatJst(data.form.closedAt)} にクローズしました。対象者と未提出者は確定済みで、
-					メンバー情報が更新されても変わりません。
+					{formatJst(data.form.closedAt)} にクローズしました。対象者と未提出者は確定済みで、メンバー情報が更新されても変わりません。
 				{:else}
 					クローズすると Discord から最新のメンバー一覧を取得し、未提出者を確定して提出を締め切ります。
 				{/if}
@@ -170,7 +170,7 @@
 
 	{#if data.manage && data.announcement}
 		<section class="card flex flex-col gap-4 p-5">
-			<div class="flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4">
+			<div class="action-row">
 				<div class="min-w-0 flex-1 text-sm">
 					<h2 class="font-medium text-text-subtle">Discord への告知とリマインド</h2>
 					<p class="mt-1 text-text-muted">

@@ -552,7 +552,7 @@
 			</div>
 		</section>
 
-		<div class="flex items-center gap-3">
+		<div class="flex items-center gap-4">
 			<button type="submit" class="btn-primary px-5 py-2.5">作成する</button>
 			<a href="/" class="text-sm text-text-muted hover:underline">キャンセル</a>
 		</div>

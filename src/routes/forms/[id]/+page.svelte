@@ -283,17 +283,17 @@
 			</div>
 		</form>
 	{:else if submitted}
-		<section class="card flex flex-col gap-4 p-6">
-			<div class="flex items-start gap-3">
+		<section class="card action-row p-6">
+			<div class="flex min-w-0 flex-1 items-start gap-3">
 				<span class="bg-success-badge text-success shrink-0 rounded-full p-1.5">
 					<Icon name="check" />
 				</span>
-				<div>
+				<div class="min-w-0">
 					<h2 class="text-lg font-semibold">{heading}</h2>
 					<p class="mt-1 text-xs text-text-muted">
-						提出日時: {formatJst(data.submittedAt)}
+						<span class="whitespace-nowrap">提出日時: {formatJst(data.submittedAt)}</span>
 						{#if updatedAt}
-							/ 最終更新: {updatedAt}
+							<span class="whitespace-nowrap">/ 最終更新: {updatedAt}</span>
 						{/if}
 					</p>
 					{#if data.closed}
@@ -308,7 +308,7 @@
 			{#if data.editable}
 				<button
 					type="button"
-					class="btn-secondary inline-flex items-center gap-1.5 self-start px-4 py-2"
+					class="btn-secondary inline-flex shrink-0 items-center gap-1.5 self-start px-4 py-2 sm:self-auto"
 					onclick={startEditing}
 				>
 					<Icon name="pencil" />

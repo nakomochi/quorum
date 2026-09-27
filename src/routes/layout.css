@@ -152,9 +152,11 @@
 
 /* Titles, descriptions and answers are user-supplied and may hold an unbroken URL or token.
    `anywhere` rather than `break-word`: only the former shrinks the intrinsic width, and the
-   cards are flex items whose min-width would otherwise stretch past the viewport on a phone. */
+   cards are flex items whose min-width would otherwise stretch past the viewport on a phone.
+   `pretty` keeps a paragraph from ending on a lone character or two. */
 main {
 	overflow-wrap: anywhere;
+	text-wrap: pretty;
 }
 
 /* svelte-dnd-action moves the dragged clone to <body> and marks the drop placeholder with its
@@ -182,6 +184,12 @@ main {
 @layer components {
 	.card {
 		@apply border-border bg-surface rounded-xl border;
+	}
+
+	/* Text with its controls: stacked on phones, side by side from `sm`. The children keep their
+	   own `min-w-0 flex-1` (text) and `shrink-0` (controls) so each role reads at the call site. */
+	.action-row {
+		@apply flex flex-col gap-3 sm:flex-row sm:items-center sm:gap-4;
 	}
 
 	/* The transparent border keeps it the same height as `.btn-secondary` beside it. */

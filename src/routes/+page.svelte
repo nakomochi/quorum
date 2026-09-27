@@ -44,48 +44,55 @@
 	{#if data.user}
 		<header class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 sm:flex-nowrap">
 			<h1 class="shrink-0 text-lg font-semibold">form-discord</h1>
-			<!-- Wraps only on phones. Past that it must stay on one line so the display name truncates
-			     instead of shoving the controls onto rows of their own. -->
+			<!-- Wraps only on phones, and then as two groups so the avatar never parts from ログアウト.
+			     Past that it must stay on one line so the display name truncates instead of shoving the
+			     controls onto rows of their own. -->
 			<div class="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
-				{#if data.member}
-					<a
-						href="/forms/new"
-						class="btn-primary inline-flex shrink-0 items-center gap-1.5 px-3 py-1.5 text-xs"
-					>
-						<Icon name="plus" />
-						フォームを作る
-					</a>
+				{#if data.member || data.isAdmin}
+					<div class="flex shrink-0 items-center gap-2">
+						{#if data.member}
+							<a
+								href="/forms/new"
+								class="btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
+							>
+								<Icon name="plus" />
+								フォームを作る
+							</a>
+						{/if}
+						{#if data.isAdmin}
+							<a
+								href="/admin/forms"
+								class="border-border-strong hover:bg-surface-raised rounded-lg border px-3 py-1.5
+									text-xs font-medium transition"
+							>
+								フォーム管理
+							</a>
+						{/if}
+					</div>
 				{/if}
-				{#if data.isAdmin}
-					<a
-						href="/admin/forms"
-						class="border-border-strong hover:bg-surface-raised shrink-0 rounded-lg border px-3
-							py-1.5 text-xs font-medium transition"
-					>
-						フォーム管理
-					</a>
-				{/if}
-				{#if avatarUrl}
-					<img
-						src={avatarUrl}
-						alt=""
-						class="border-border-strong size-8 shrink-0 rounded-full border"
-					/>
-				{:else}
-					<div class="border-border-strong bg-surface-raised size-8 shrink-0 rounded-full border"></div>
-				{/if}
-				<!-- Dropped on phones: the avatar already identifies the viewer, and keeping the name
-				     pushes the controls past the viewport. -->
-				<span class="hidden truncate text-sm sm:inline">{data.user.name}</span>
-				<form method="POST" action="?/logout" class="shrink-0">
-					<button
-						type="submit"
-						class="border-border-strong hover:bg-surface-raised rounded-lg border px-3 py-1.5
-							text-xs font-medium transition"
-					>
-						ログアウト
-					</button>
-				</form>
+				<div class="flex min-w-0 items-center gap-2">
+					{#if avatarUrl}
+						<img
+							src={avatarUrl}
+							alt=""
+							class="border-border-strong size-8 shrink-0 rounded-full border"
+						/>
+					{:else}
+						<div class="border-border-strong bg-surface-raised size-8 shrink-0 rounded-full border"></div>
+					{/if}
+					<!-- Dropped on phones: the avatar already identifies the viewer, and keeping the name
+					     pushes the controls past the viewport. -->
+					<span class="hidden truncate text-sm sm:inline">{data.user.name}</span>
+					<form method="POST" action="?/logout" class="shrink-0">
+						<button
+							type="submit"
+							class="border-border-strong hover:bg-surface-raised rounded-lg border px-3 py-1.5
+								text-xs font-medium transition"
+						>
+							ログアウト
+						</button>
+					</form>
+				</div>
 			</div>
 		</header>
 
@@ -135,7 +142,10 @@
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each submitted as row (row.id)}
 							<li class="card">
-								<a href="/forms/{row.id}" class="flex items-center justify-between gap-4 px-5 py-4">
+								<a
+									href="/forms/{row.id}"
+									class="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+								>
 									<span class="text-text-subtle flex min-w-0 items-center gap-2">
 										<Icon name="check" class="text-success size-4 shrink-0" />
 										{row.title}
@@ -167,9 +177,9 @@
 							<li class="card">
 								<a
 									href="/forms/{row.id}/results"
-									class="flex items-center justify-between gap-4 px-5 py-4"
+									class="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
 								>
-									<span class="font-medium">{row.title}</span>
+									<span class="min-w-0 font-medium">{row.title}</span>
 									<span class="text-text-muted flex shrink-0 items-center gap-3 text-xs">
 										<span>{format(row.deadline)}</span>
 										<span class="tabular-nums">{row.responseCount} 件の回答</span>

@@ -552,6 +552,46 @@ export function memberDisplayName(member: NameParts): string {
 
 type Executor = Pick<typeof db, 'select'>;
 
+/** A person's row in the mirror. Every field is null when a left join found none. */
+type RosterFacts = {
+	roleIds: string[] | null;
+	leftAt: Date | null;
+	isBot: boolean | null;
+};
+
+/** The JS twin of targetRoster's filter. The two must change together. */
+function inRoster(member: RosterFacts | undefined, targetRoleId: string): boolean {
+	return (
+		member !== undefined &&
+		member.roleIds !== null &&
+		member.leftAt === null &&
+		member.isBot === false &&
+		member.roleIds.includes(targetRoleId)
+	);
+}
+
+/**
+ * Whether a responder counts toward the target. Must match targetRoster, or a response would
+ * change sides the moment the form closes. Forms closed before final_target_ids existed have no
+ * frozen roster and fall back to the mirror.
+ */
+function targetMatcher(
+	target: Pick<Form, 'targetRoleId' | 'closedAt' | 'finalTargetIds'>
+): (discordId: string, member: RosterFacts | undefined) => boolean {
+	if (target.closedAt !== null && target.finalTargetIds !== null) {
+		const frozen = new Set(target.finalTargetIds);
+		return (discordId) => frozen.has(discordId);
+	}
+	return (_, member) => inRoster(member, target.targetRoleId);
+}
+
+/** Closing is what fixes the record: after it the non-submitters may not drift with the mirror. */
+function frozenNonSubmitters(
+	target: Pick<Form, 'closedAt' | 'finalNonSubmitters'>
+): FrozenMember[] | null {
+	return target.closedAt !== null ? target.finalNonSubmitters : null;
+}
+
 /**
  * The roster the form is aimed at. Bots cannot answer and departed members are no longer
  * accountable, so neither may ever surface as a non-submitter.
@@ -661,12 +701,7 @@ export async function loadResults(target: Form): Promise<FormResults> {
 		bucket[row.questionId] = row.value;
 	}
 
-	// Forms closed before final_target_ids existed have no frozen roster and fall back to the mirror.
-	const frozenTargets =
-		target.closedAt !== null && target.finalTargetIds !== null
-			? new Set(target.finalTargetIds)
-			: null;
-
+	const isTarget = targetMatcher(target);
 	const submitted: ResultRow[] = [];
 	const outsiders: ResultRow[] = [];
 
@@ -684,29 +719,71 @@ export async function loadResults(target: Form): Promise<FormResults> {
 			submittedAt: row.submittedAt,
 			answers: byResponse.get(row.responseId) ?? {}
 		};
-		// Must match targetRoster, or a response would change sides the moment the form closes.
-		const inTarget = frozenTargets
-			? frozenTargets.has(row.discordId)
-			: row.roleIds !== null &&
-				row.leftAt === null &&
-				row.isBot === false &&
-				row.roleIds.includes(target.targetRoleId);
-		if (inTarget) submitted.push(entry);
+		if (isTarget(row.discordId, row)) submitted.push(entry);
 		else outsiders.push(entry);
 	}
 
-	// Closing is what fixes the record: after it neither list may drift with the mirror.
-	const frozen = target.closedAt !== null && target.finalNonSubmitters !== null;
-	const nonSubmitters = frozen
-		? (target.finalNonSubmitters ?? [])
-		: await computeNonSubmitters(db, target);
+	const frozen = frozenNonSubmitters(target);
+	const nonSubmitters = frozen ?? (await computeNonSubmitters(db, target));
 
 	return {
-		frozen,
+		frozen: frozen !== null,
 		targetCount: submitted.length + nonSubmitters.length,
 		submitted,
 		outsiders,
 		nonSubmitters
+	};
+}
+
+export type ResponseCounts = { submitted: number; targetCount: number; outsiders: number };
+
+type CountTarget = Pick<
+	Form,
+	'id' | 'targetRoleId' | 'closedAt' | 'finalTargetIds' | 'finalNonSubmitters'
+>;
+
+/**
+ * Counts any form as loadResults would, from a single read of the mirror and of every response
+ * instead of a query per form.
+ */
+export async function responseCounter(): Promise<(target: CountTarget) => ResponseCounts> {
+	const [members, responses] = await Promise.all([
+		db
+			.select({
+				discordId: guildMember.discordId,
+				roleIds: guildMember.roleIds,
+				leftAt: guildMember.leftAt,
+				isBot: guildMember.isBot
+			})
+			.from(guildMember),
+		db.select({ formId: response.formId, discordId: response.discordId }).from(response)
+	]);
+
+	const byId = new Map(members.map((row) => [row.discordId, row]));
+	const respondents = new Map<string, string[]>();
+	for (const row of responses) {
+		const ids = respondents.get(row.formId);
+		if (ids) ids.push(row.discordId);
+		else respondents.set(row.formId, [row.discordId]);
+	}
+
+	return (target) => {
+		const ids = respondents.get(target.id) ?? [];
+		const isTarget = targetMatcher(target);
+		const submitted = ids.filter((id) => isTarget(id, byId.get(id))).length;
+
+		const answered = new Set(ids);
+		const nonSubmitters =
+			frozenNonSubmitters(target)?.length ??
+			members.filter(
+				(row) => inRoster(row, target.targetRoleId) && !answered.has(row.discordId)
+			).length;
+
+		return {
+			submitted,
+			targetCount: submitted + nonSubmitters,
+			outsiders: ids.length - submitted
+		};
 	};
 }
 

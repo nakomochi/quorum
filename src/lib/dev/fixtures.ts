@@ -560,6 +560,39 @@ const OTHER_ANSWERS: AnswerData['answers'] = {
 	3: { type: 'text', text: '特になし' }
 };
 
+/** Every check the browser makes beyond plain `required`. */
+const CHECKED_QUESTIONS: QuestionRow[] = [
+	question({
+		id: 41,
+		type: 'multi',
+		label: '参加できる日',
+		required: true,
+		allowOther: true,
+		options: [
+			{ id: 'd1', label: '5/2（土）' },
+			{ id: 'd2', label: '5/3（日）' },
+			{ id: 'd3', label: '5/4（月・祝）' }
+		]
+	}),
+	question({
+		id: 42,
+		type: 'single',
+		label: '集合方法',
+		allowOther: true,
+		options: [
+			{ id: 'bus', label: '貸切バス' },
+			{ id: 'train', label: '電車で現地集合' }
+		]
+	}),
+	question({ id: 43, type: 'text', label: '自己紹介', required: true })
+];
+
+const CHECKED_ANSWERS: AnswerData['answers'] = {
+	41: { type: 'multi', optionIds: ['d2'] },
+	42: { type: 'single', other: '友人の車で向かいます' },
+	43: { type: 'text', text: '2年のあおいです。' }
+};
+
 const resultsForm = (over: Partial<ResultsData['form']> = {}): ResultsData['form'] => ({
 	id: 'fixtureform1',
 	title: '春合宿の参加確認',
@@ -646,7 +679,7 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 		id: 'home-admin',
 		title: '運営（管理リンクあり）',
 		data: {
-			user: { ...USER, image: null, name: 'とてもながい表示名のギルド運営アカウント' },
+			user: { ...USER, image: null, name: 'とてもながい表示名のサーバー運営アカウント' },
 			member: true,
 			isAdmin: true,
 			pending: [formRow({ id: 'pending000001', title: '春合宿の参加確認' })],
@@ -794,7 +827,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			updatedAt: null,
 			answers: {}
 		},
-		form: { message: '「連絡事項があれば書いてください」は必須です' }
+		// Only a failure the browser cannot catch belongs here: the role was lost after loading.
+		form: { message: 'このフォームの対象ではありません' }
 	},
 	{
 		id: 'answer-edit-error',
@@ -810,7 +844,44 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			updatedAt: at('2026-04-12T21:40:00'),
 			answers: OTHER_ANSWERS
 		},
-		form: { message: '「参加できますか」のその他の内容を入力してください' }
+		// Saved while the form closed underneath.
+		form: { message: 'このフォームは受付を終了しました' }
+	},
+	{
+		id: 'answer-checks',
+		title: 'ブラウザの入力チェック（必須の複数選択・その他・必須の自由記述）',
+		data: {
+			user: USER,
+			resultsVisible: false,
+			form: answerForm(),
+			questions: CHECKED_QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {}
+		}
+	},
+	{
+		id: 'answer-checks-restored',
+		title: 'ブラウザの入力チェック（前回の回答を編集中）',
+		data: {
+			user: USER,
+			resultsVisible: false,
+			form: answerForm(),
+			questions: CHECKED_QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-12T21:40:00'),
+			answers: CHECKED_ANSWERS
+		},
+		setup: async (doc) => {
+			[...doc.querySelectorAll('button')]
+				.find((b) => b.textContent?.trim() === '回答を編集')
+				?.click();
+			await tick();
+		}
 	},
 	{
 		id: 'answer-overflow',
@@ -1177,8 +1248,9 @@ const adminRow = (over: Partial<AdminRow> & Pick<AdminRow, 'id' | 'title'>): Adm
 	deadline: at('2026-04-30T23:59:00'),
 	closesAt: null,
 	closedAt: null,
-	structureLockedAt: null,
-	responseCount: 0,
+	submitted: 0,
+	targetCount: 0,
+	outsiders: 0,
 	roleName: '2026年度生',
 	closed: false,
 	...over
@@ -1195,22 +1267,24 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 				adminRow({
 					id: 'pending000001',
 					title: '春合宿の参加確認',
-					responseCount: 12,
-					structureLockedAt: at('2026-03-02T10:00:00')
+					submitted: 12,
+					targetCount: 18
 				}),
 				adminRow({
 					id: 'pending000002',
 					title: '新歓イベントの担当希望',
 					submitScope: 'everyone',
-					responseCount: 4
+					submitted: 1,
+					targetCount: 4,
+					outsiders: 2
 				}),
 				adminRow({
 					id: 'done00000001',
 					title: LONG_TITLE,
 					closed: true,
 					closedAt: at('2026-04-01T00:00:00'),
-					structureLockedAt: at('2026-03-10T10:00:00'),
-					responseCount: 60,
+					submitted: 58,
+					targetCount: 60,
 					roleName: '（削除されたロール）'
 				})
 			]
@@ -1222,7 +1296,9 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 		data: {
 			user: USER,
 			syncedAt: null,
-			forms: [adminRow({ id: 'pending000001', title: '春合宿の参加確認', responseCount: 12 })]
+			forms: [
+				adminRow({ id: 'pending000001', title: '春合宿の参加確認', submitted: 12, targetCount: 18 })
+			]
 		}
 	},
 	{
@@ -1240,8 +1316,8 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 				adminRow({
 					id: 'wide00000001',
 					title: WIDE_ADMIN_TITLE,
-					responseCount: 128,
-					structureLockedAt: at('2026-03-02T10:00:00'),
+					// With the role gone nobody is in the roster, so every response is an outsider's.
+					outsiders: 128,
 					roleName: '（削除されたロール）'
 				}),
 				adminRow({
@@ -1249,21 +1325,26 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 					title: WIDE_ADMIN_TITLE_2,
 					submitScope: 'everyone',
 					deadline: null,
-					responseCount: 7,
+					submitted: 107,
+					targetCount: 124,
+					outsiders: 16,
 					roleName: '2026年度 新入生（春入部・仮登録を含む）'
 				}),
 				adminRow({
 					id: 'wide00000003',
 					title: '定例会の出欠（10月）',
-					responseCount: 31
+					submitted: 31,
+					targetCount: 31
 				}),
 				adminRow({
 					id: 'wide00000004',
 					title: LONG_TITLE,
 					closed: true,
 					closedAt: at('2026-04-01T00:00:00'),
-					structureLockedAt: at('2026-03-10T10:00:00'),
-					responseCount: 60,
+					// Frozen at close, so the deleted role no longer empties the roster.
+					submitted: 57,
+					targetCount: 60,
+					outsiders: 3,
 					roleName: '（削除されたロール）'
 				})
 			]

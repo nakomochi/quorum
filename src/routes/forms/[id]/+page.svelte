@@ -63,13 +63,60 @@
 		return value ? describeAnswer(value, options) : '（未回答）';
 	}
 
+	type Question = (typeof data.questions)[number];
+
 	const otherChoiceId = (questionId: number) => `q_${questionId}_other_choice`;
+
+	function otherChoice(questionId: number): HTMLInputElement | null {
+		const choice = document.getElementById(otherChoiceId(questionId));
+		return choice instanceof HTMLInputElement ? choice : null;
+	}
 
 	// Typing an "その他" answer chooses it, as in Google Forms.
 	function chooseOther(questionId: number, text: string) {
-		if (text.trim() === '') return;
-		const choice = document.getElementById(otherChoiceId(questionId));
-		if (choice instanceof HTMLInputElement) choice.checked = true;
+		const choice = otherChoice(questionId);
+		if (text.trim() === '' || !choice || choice.checked) return;
+		choice.checked = true;
+		// A scripted check fires no event, and checkQuestion listens for one.
+		choice.dispatchEvent(new Event('change', { bubbles: true }));
+	}
+
+	/** Runs `check` on mount, which covers a restored answer, and after every edit inside `node`. */
+	function recheck<T extends HTMLElement>(node: T, check: (node: T) => void) {
+		const run = () => check(node);
+		run();
+		node.addEventListener('input', run);
+		node.addEventListener('change', run);
+		return {
+			destroy() {
+				node.removeEventListener('input', run);
+				node.removeEventListener('change', run);
+			}
+		};
+	}
+
+	// `required` lets whitespace through, and the server trims before checking.
+	function requireFilled(field: HTMLInputElement | HTMLTextAreaElement, required: boolean) {
+		field.setCustomValidity(required && field.value.trim() === '' ? '入力してください' : '');
+	}
+
+	// The browser has no "at least one" for checkboxes, and the "その他" text is only required
+	// while its choice is picked. A custom validity puts the browser's bubble beside the control.
+	function checkQuestion(fieldset: HTMLFieldSetElement, q: Question) {
+		if (q.type === 'multi' && q.required) {
+			const boxes = fieldset.querySelectorAll<HTMLInputElement>(`input[name="q_${q.id}"]`);
+			const picked = [...boxes].some((box) => box.checked);
+			boxes[0]?.setCustomValidity(picked ? '' : 'いずれかを選択してください');
+		}
+
+		const other = fieldset.querySelector<HTMLInputElement>(`input[name="q_${q.id}_other"]`);
+		if (other) {
+			other.required = otherChoice(q.id)?.checked ?? false;
+			requireFilled(other, other.required);
+		}
+
+		const text = fieldset.querySelector<HTMLTextAreaElement>(`textarea[name="q_${q.id}"]`);
+		if (text) requireFilled(text, q.required);
 	}
 
 	function startEditing() {
@@ -144,7 +191,10 @@
 				<!-- The card is the wrapper, not the fieldset: a bordered fieldset lets the browser cut a
 				     notch for the legend and start its padding below it, which misaligns the heading. -->
 				<div class="card p-5">
-					<fieldset class="m-0 border-0 p-0">
+					<fieldset
+						class="m-0 border-0 p-0"
+						use:recheck={(fieldset) => checkQuestion(fieldset, q)}
+					>
 						<legend class="mb-3 block text-sm font-medium">
 							{q.label}
 							{#if q.required}<span class="text-danger">*</span>{/if}

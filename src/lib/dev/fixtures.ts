@@ -6,6 +6,8 @@
  * This module must never import `$lib/server`: it is shipped to the browser.
  */
 
+import { tick } from 'svelte';
+import { hasOptions } from '../forms';
 import type { PageData as HomeData } from '../../routes/$types';
 import type {
 	ActionData as AnswerAction,
@@ -26,6 +28,8 @@ export type UiCase<Data, Form = null> = {
 	title: string;
 	data: Data;
 	form?: Form;
+	/** Drives the rendered page into a state that only interaction can reach. */
+	setup?: (doc: Document) => Promise<void>;
 };
 
 type SessionUser = NonNullable<HomeData['user']>;
@@ -110,6 +114,7 @@ const question = (over: Partial<QuestionRow> & Pick<QuestionRow, 'id' | 'label' 
 	helpText: null,
 	required: false,
 	options: null,
+	allowOther: false,
 	deletedAt: null,
 	...over
 });
@@ -146,6 +151,10 @@ const QUESTIONS: QuestionRow[] = [
 	}),
 	question({ id: 4, type: 'date', label: '到着予定日' })
 ];
+
+const OTHER_QUESTIONS: QuestionRow[] = QUESTIONS.map((q) =>
+	hasOptions(q.type) ? { ...q, allowOther: true } : q
+);
 
 const MANY_OPTIONS = Array.from({ length: 14 }, (_, i) => ({
 	id: `slot${i + 1}`,
@@ -227,6 +236,20 @@ const OUTSIDERS: ResultRow[] = [
 	})
 ];
 
+const OTHER_SUBMITTED: ResultRow[] = [
+	...SUBMITTED,
+	resultRow(3, {
+		1: { type: 'single', other: '2日目の夜から合流します' },
+		2: { type: 'multi', optionIds: ['d2', 'd3'], other: '5/5（火）の午前まで' },
+		3: { type: 'text', text: '特になし' }
+	}),
+	resultRow(4, {
+		1: { type: 'single', optionId: 'yes' },
+		2: { type: 'multi', optionIds: [], other: '日程が決まり次第連絡します' },
+		3: { type: 'text', text: '車で行きます。' }
+	})
+];
+
 const RESULT_QUESTIONS: ResultQuestion[] = QUESTIONS.map((q) => ({
 	id: q.id,
 	label: q.label,
@@ -243,7 +266,8 @@ const TALLIES: Tally[] = [
 			{ id: 'yes', label: '参加する', count: 2 },
 			{ id: 'no', label: '参加しない', count: 1 },
 			{ id: 'maybe', label: '未定', count: 1 }
-		]
+		],
+		other: null
 	},
 	{
 		questionId: 2,
@@ -253,7 +277,8 @@ const TALLIES: Tally[] = [
 			{ id: 'd1', label: '5/2（土）', count: 2 },
 			{ id: 'd2', label: '5/3（日）', count: 1 },
 			{ id: 'd3', label: '5/4（月・祝）', count: 1 }
-		]
+		],
+		other: null
 	}
 ];
 
@@ -261,6 +286,27 @@ const EMPTY_TALLIES: Tally[] = TALLIES.map((tally) => ({
 	...tally,
 	options: tally.options.map((option) => ({ ...option, count: 0 }))
 }));
+
+const OTHER_TALLIES: Tally[] = [
+	{
+		...TALLIES[0],
+		options: [
+			{ id: 'yes', label: '参加する', count: 2 },
+			{ id: 'no', label: '参加しない', count: 1 },
+			{ id: 'maybe', label: '未定', count: 1 }
+		],
+		other: 1
+	},
+	{
+		...TALLIES[1],
+		options: [
+			{ id: 'd1', label: '5/2（土）', count: 1 },
+			{ id: 'd2', label: '5/3（日）', count: 2 },
+			{ id: 'd3', label: '5/4（月・祝）', count: 2 }
+		],
+		other: 2
+	}
+];
 
 const NON_SUBMITTERS = [3, 4, 5].map(member);
 
@@ -287,6 +333,12 @@ const FILLED_ANSWERS: AnswerData['answers'] = {
 	2: { type: 'multi', optionIds: ['d1', 'd3'] },
 	3: { type: 'text', text: '甲殻類アレルギーがあります。\n初日は21時ごろ合流します。' },
 	4: { type: 'date', date: '2026-05-02' }
+};
+
+const OTHER_ANSWERS: AnswerData['answers'] = {
+	1: { type: 'single', other: '2日目の夜から合流します' },
+	2: { type: 'multi', optionIds: ['d2', 'd3'], other: '5/5（火）の午前まで' },
+	3: { type: 'text', text: '特になし' }
 };
 
 const resultsForm = (over: Partial<ResultsData['form']> = {}): ResultsData['form'] => ({
@@ -397,12 +449,45 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			closed: false,
 			editable: true,
 			submittedAt: null,
+			updatedAt: null,
 			answers: {}
 		}
 	},
 	{
-		id: 'answer-editable',
-		title: '提出済み / 編集可',
+		id: 'answer-other',
+		title: '回答中（その他あり）',
+		data: {
+			user: USER,
+			resultsVisible: true,
+			form: answerForm(),
+			questions: OTHER_QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {}
+		}
+	},
+	{
+		// The action result is what tells a first submission from an update, so `form` carries it.
+		id: 'answer-created',
+		title: '送信直後',
+		data: {
+			user: USER,
+			resultsVisible: true,
+			form: answerForm(),
+			questions: OTHER_QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-12T21:40:00'),
+			answers: OTHER_ANSWERS
+		},
+		form: { created: true }
+	},
+	{
+		id: 'answer-updated',
+		title: '更新直後',
 		data: {
 			user: USER,
 			resultsVisible: true,
@@ -411,6 +496,23 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			closed: false,
 			editable: true,
 			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-14T08:15:00'),
+			answers: FILLED_ANSWERS
+		},
+		form: { created: false }
+	},
+	{
+		id: 'answer-submitted',
+		title: '後から開いた提出済み（編集可）',
+		data: {
+			user: USER,
+			resultsVisible: true,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-12T21:40:00'),
 			answers: FILLED_ANSWERS
 		}
 	},
@@ -425,12 +527,28 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			closed: false,
 			editable: false,
 			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-12T21:40:00'),
 			answers: FILLED_ANSWERS
 		}
 	},
 	{
+		id: 'answer-closed-submitted',
+		title: '受付終了（提出済み）',
+		data: {
+			user: USER,
+			resultsVisible: true,
+			form: answerForm({ closesAt: at('2026-04-20T23:59:00') }),
+			questions: OTHER_QUESTIONS,
+			closed: true,
+			editable: false,
+			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-12T21:40:00'),
+			answers: OTHER_ANSWERS
+		}
+	},
+	{
 		id: 'answer-closed',
-		title: 'クローズ済み / 未回答',
+		title: '受付終了（未提出）',
 		data: {
 			user: USER,
 			resultsVisible: true,
@@ -439,6 +557,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			closed: true,
 			editable: false,
 			submittedAt: null,
+			updatedAt: null,
 			answers: {}
 		}
 	},
@@ -453,24 +572,26 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			closed: false,
 			editable: true,
 			submittedAt: null,
+			updatedAt: null,
 			answers: {}
 		},
 		form: { message: '「連絡事項があれば書いてください」は必須です' }
 	},
 	{
-		id: 'answer-saved',
-		title: '保存成功',
+		id: 'answer-edit-error',
+		title: '編集中のエラー表示',
 		data: {
 			user: USER,
 			resultsVisible: true,
 			form: answerForm(),
-			questions: QUESTIONS,
+			questions: OTHER_QUESTIONS,
 			closed: false,
 			editable: true,
 			submittedAt: at('2026-04-12T21:40:00'),
-			answers: FILLED_ANSWERS
+			updatedAt: at('2026-04-12T21:40:00'),
+			answers: OTHER_ANSWERS
 		},
-		form: { saved: true }
+		form: { message: '「参加できますか」のその他の内容を入力してください' }
 	},
 	{
 		id: 'answer-overflow',
@@ -483,6 +604,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			closed: false,
 			editable: true,
 			submittedAt: null,
+			updatedAt: null,
 			answers: {}
 		}
 	}
@@ -498,6 +620,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			closed: false,
 			reopenClearsClosesAt: false,
 			manage: false,
+			roleDeleted: false,
 			announceFailed: false,
 			announcement: null,
 			reminders: [],
@@ -519,6 +642,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			closed: false,
 			reopenClearsClosesAt: false,
 			manage: true,
+			roleDeleted: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -540,6 +664,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			closed: false,
 			reopenClearsClosesAt: false,
 			manage: true,
+			roleDeleted: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -561,6 +686,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			closed: false,
 			reopenClearsClosesAt: false,
 			manage: true,
+			roleDeleted: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -582,6 +708,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			closed: true,
 			reopenClearsClosesAt: true,
 			manage: true,
+			roleDeleted: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: REMINDERS,
@@ -603,6 +730,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			closed: true,
 			reopenClearsClosesAt: false,
 			manage: true,
+			roleDeleted: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: null },
 			reminders: REMINDERS,
@@ -624,6 +752,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			closed: false,
 			reopenClearsClosesAt: false,
 			manage: true,
+			roleDeleted: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: REMINDERS,
@@ -646,6 +775,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			closed: false,
 			reopenClearsClosesAt: false,
 			manage: true,
+			roleDeleted: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -667,6 +797,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			closed: false,
 			reopenClearsClosesAt: false,
 			manage: true,
+			roleDeleted: false,
 			announceFailed: false,
 			announcement: { channelId: null, messageId: null },
 			reminders: [],
@@ -688,6 +819,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			closed: false,
 			reopenClearsClosesAt: false,
 			manage: true,
+			roleDeleted: false,
 			announceFailed: true,
 			announcement: { channelId: CHANNEL_ID, messageId: null },
 			reminders: [],
@@ -699,6 +831,52 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			outsiders: [],
 			nonSubmitters: NON_SUBMITTERS
 		}
+	},
+	{
+		id: 'results-other',
+		title: '「その他」の集計あり',
+		data: {
+			user: USER,
+			form: resultsForm(),
+			closed: false,
+			reopenClearsClosesAt: false,
+			manage: true,
+			roleDeleted: false,
+			announceFailed: false,
+			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			reminders: [],
+			questions: RESULT_QUESTIONS,
+			tallies: OTHER_TALLIES,
+			frozen: false,
+			targetCount: 8,
+			submitted: OTHER_SUBMITTED,
+			outsiders: [],
+			nonSubmitters: [5, 6, 7].map(member)
+		}
+	},
+	{
+		// With the role gone nobody is in the roster, so every response counts as an outsider's.
+		id: 'results-role-deleted',
+		title: '対象ロールが削除済み',
+		data: {
+			user: USER,
+			form: resultsForm(),
+			closed: false,
+			reopenClearsClosesAt: false,
+			manage: true,
+			roleDeleted: true,
+			announceFailed: false,
+			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			reminders: [],
+			questions: RESULT_QUESTIONS,
+			tallies: TALLIES,
+			frozen: false,
+			targetCount: 0,
+			submitted: [],
+			outsiders: SUBMITTED,
+			nonSubmitters: []
+		},
+		form: { message: '対象ロールを持つメンバーがいないため、リマインドは送信していません' }
 	}
 ];
 
@@ -726,6 +904,29 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 		title: '検証エラー表示',
 		data: { user: USER, roles: ROLES, channels: CHANNELS },
 		form: { message: '受付終了は現在より後の日時を指定してください' }
+	},
+	{
+		id: 'new-other',
+		title: '「その他」を追加した質問',
+		data: { user: USER, roles: ROLES, channels: CHANNELS },
+		setup: async (doc) => {
+			const fill = (label: string, value: string) => {
+				const input = doc.querySelector<HTMLInputElement>(`[aria-label="${label}"]`);
+				if (!input) return;
+				input.value = value;
+				input.dispatchEvent(new Event('input', { bubbles: true }));
+			};
+			const click = (text: string) =>
+				[...doc.querySelectorAll('button')].find((b) => b.textContent?.trim() === text)?.click();
+
+			fill('質問 1 の質問文', '参加できる日');
+			click('選択肢を追加');
+			await tick();
+			fill('質問 1 の選択肢 1', '5/2（土）');
+			fill('質問 1 の選択肢 2', '5/3（日）');
+			click('「その他」を追加');
+			await tick();
+		}
 	}
 ];
 
@@ -769,7 +970,7 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 					closedAt: at('2026-04-01T00:00:00'),
 					structureLockedAt: at('2026-03-10T10:00:00'),
 					responseCount: 60,
-					roleName: '900000000000000099'
+					roleName: '（削除されたロール）'
 				})
 			]
 		}

@@ -194,6 +194,8 @@ export const question = pgTable(
 		required: boolean('required').notNull().default(false),
 		// single/multi only. Options carry stable ids so answers survive relabeling.
 		options: jsonb('options').$type<QuestionOption[]>(),
+		// single/multi only: offers a free-text "その他" after the options.
+		allowOther: boolean('allow_other').notNull().default(false),
 		deletedAt: timestamp('deleted_at', { withTimezone: true })
 	},
 	// Not unique: reordering would otherwise need a two-phase update.

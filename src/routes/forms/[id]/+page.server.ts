@@ -58,6 +58,7 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		closed,
 		editable: !closed && (own === null || target.allowEdit),
 		submittedAt: own?.response.submittedAt ?? null,
+		updatedAt: own?.response.updatedAt ?? null,
 		answers: Object.fromEntries(
 			(own?.answers ?? []).map((row) => [row.questionId, row.value] as const)
 		)
@@ -92,7 +93,7 @@ export const actions: Actions = {
 				const failure = FAILURES[result.reason];
 				return fail(failure.status, { message: failure.message });
 			}
-			return { saved: true };
+			return { created: result.created };
 		} catch (err) {
 			if (err instanceof FormInputError) return fail(400, { message: err.message });
 			throw err;

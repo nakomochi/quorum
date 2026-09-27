@@ -12,7 +12,7 @@ import {
 	tallyChoices
 } from '$lib/server/forms';
 import { canManageForm, gateMember, requireUser } from '$lib/server/guards';
-import { syncAllMembers } from '$lib/server/guild-sync';
+import { syncAllMembers, syncedGuildRoles } from '$lib/server/guild-sync';
 import { announceForm, listReminders, sendReminder } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -30,6 +30,10 @@ const REMINDER_FAILURES = {
 	},
 	no_channel: { status: 400, message: NO_CHANNEL },
 	no_targets: { status: 409, message: '未提出者がいないため、リマインドは送信していません' },
+	empty_roster: {
+		status: 409,
+		message: '対象ロールを持つメンバーがいないため、リマインドは送信していません'
+	},
 	already_sent: { status: 409, message: 'この締切に対する自動リマインドは送信済みです' },
 	sync_failed: {
 		status: 502,
@@ -67,6 +71,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const questions = await loadQuestions(params.id);
 	const results = await loadResults(target);
 
+	// Read from the snapshot the sync above just wrote, never from Discord. Without one there is
+	// nothing to judge by, so no warning. A frozen roster no longer depends on the role.
+	const synced = manage && !results.frozen ? await syncedGuildRoles() : null;
+	const roleDeleted =
+		synced !== null && !synced.roles.some((role) => role.id === target.targetRoleId);
+
 	return {
 		form: {
 			id: target.id,
@@ -80,6 +90,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		closed: isClosed(target),
 		reopenClearsClosesAt: target.closedAt !== null && closesAtPassed(target),
 		manage,
+		roleDeleted,
 		// Set by the redirect the creation page takes when the announcement could not be posted.
 		announceFailed: manage && url.searchParams.get('announce') === 'failed',
 		announcement: manage

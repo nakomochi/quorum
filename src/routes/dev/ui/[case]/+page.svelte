@@ -21,6 +21,12 @@
 	const created = $derived(NEW_CASES.find((entry) => entry.id === data.case));
 	const admin = $derived(ADMIN_CASES.find((entry) => entry.id === data.case));
 
+	const setup = $derived([home, answer, results, created, admin].find(Boolean)?.setup);
+
+	$effect(() => {
+		setup?.(document);
+	});
+
 	// The catalogue's theme picker reaches this document through `?theme=`.
 	$effect(() => {
 		const root = document.documentElement;

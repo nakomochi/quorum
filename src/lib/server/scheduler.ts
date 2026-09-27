@@ -72,9 +72,14 @@ export async function runTick(): Promise<TickResult> {
 			const sent = await sendReminder(id, { kind: 'auto', sentBy: null });
 			if (sent.ok) {
 				result.reminded.push(id);
-			} else if (sent.reason !== 'no_targets' && sent.reason !== 'closed') {
-				// no_targets is not a failure: everyone has answered, and sendReminder has already
-				// recorded the deadline as handled. closed only reaches here by racing a close.
+			} else if (
+				sent.reason !== 'no_targets' &&
+				sent.reason !== 'empty_roster' &&
+				sent.reason !== 'closed'
+			) {
+				// no_targets and empty_roster are not failures: nobody is left to mention, and
+				// sendReminder has already recorded the deadline as handled. closed only reaches here
+				// by racing a close.
 				result.failed.push(id);
 				// sendReminder drops its reservation when a post fails, so the next tick retries on its
 				// own. Logging is the only thing that keeps a Discord outage from failing in silence.

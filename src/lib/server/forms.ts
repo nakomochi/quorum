@@ -24,9 +24,11 @@ import {
 	MAX_OPTION_ID,
 	MAX_OPTION_LABEL,
 	MAX_OPTIONS,
+	MAX_OTHER_ANSWER,
 	MAX_QUESTIONS,
 	MAX_TEXT_ANSWER,
 	MAX_TITLE,
+	OTHER_OPTION_ID,
 	QUESTION_TYPES,
 	SUBMIT_SCOPES,
 	VISIBILITIES,
@@ -62,6 +64,7 @@ export type QuestionDraft = {
 	helpText: string | null;
 	required: boolean;
 	options: QuestionOption[] | null;
+	allowOther: boolean;
 };
 
 export type CreateFormInput = {
@@ -141,6 +144,9 @@ function parseOptions(raw: unknown, type: QuestionType, index: number): Question
 		const id = typeof option.id === 'string' ? option.id.trim() : '';
 		const label = typeof option.label === 'string' ? option.label.trim() : '';
 		if (!id) throw new FormInputError(`質問${index + 1}: 選択肢の id がありません`);
+		if (id === OTHER_OPTION_ID) {
+			throw new FormInputError(`質問${index + 1}: 選択肢の id「${OTHER_OPTION_ID}」は使えません`);
+		}
 		if (id.length > MAX_OPTION_ID) {
 			throw new FormInputError(`質問${index + 1}: 選択肢の id が長すぎます`);
 		}
@@ -197,7 +203,8 @@ export function parseQuestions(raw: FormDataEntryValue | null): QuestionDraft[] 
 			label,
 			helpText: helpText || null,
 			required: draft.required === true,
-			options: parseOptions(draft.options, type as QuestionType, index)
+			options: parseOptions(draft.options, type as QuestionType, index),
+			allowOther: hasOptions(type as QuestionType) && draft.allowOther === true
 		};
 	});
 }
@@ -255,7 +262,8 @@ export async function createForm(input: CreateFormInput, createdBy: string): Pro
 				label: draft.label,
 				helpText: draft.helpText,
 				required: draft.required,
-				options: draft.options
+				options: draft.options,
+				allowOther: draft.allowOther
 			}))
 		);
 	});
@@ -301,27 +309,43 @@ export async function loadQuestions(formId: string): Promise<Question[]> {
 		.orderBy(asc(question.position), asc(question.id));
 }
 
-function buildAnswer(q: Question, raw: string[]): AnswerValue | null {
-	const values = raw.map((value) => value.trim()).filter((value) => value !== '');
+function requireOption(q: Question, optionId: string) {
+	if (!q.options?.some((option) => option.id === optionId)) {
+		throw new FormInputError(`「${q.label}」の選択肢が不正です`);
+	}
+}
+
+function otherText(q: Question, raw: string | null): string {
+	if (!q.allowOther) throw new FormInputError(`「${q.label}」の選択肢が不正です`);
+	const text = raw?.trim() ?? '';
+	if (!text) throw new FormInputError(`「${q.label}」のその他の内容を入力してください`);
+	if (text.length > MAX_OTHER_ANSWER) {
+		throw new FormInputError(`「${q.label}」のその他は${MAX_OTHER_ANSWER}文字以内で入力してください`);
+	}
+	return text;
+}
+
+// Text typed into "その他" without choosing it is dropped: the client selects it on input, so
+// what arrives unchosen was deliberately unchecked afterwards.
+function buildAnswer(q: Question, input: AnswerInput): AnswerValue | null {
+	const values = input.values.map((value) => value.trim()).filter((value) => value !== '');
 
 	switch (q.type) {
 		case 'single': {
-			const optionId = values[0];
-			if (!optionId) break;
-			if (!q.options?.some((option) => option.id === optionId)) {
-				throw new FormInputError(`「${q.label}」の選択肢が不正です`);
-			}
-			return { type: 'single', optionId };
+			const choice = values[0];
+			if (!choice) break;
+			if (choice === OTHER_OPTION_ID) return { type: 'single', other: otherText(q, input.other) };
+			requireOption(q, choice);
+			return { type: 'single', optionId: choice };
 		}
 		case 'multi': {
-			const optionIds = [...new Set(values)];
-			if (optionIds.length === 0) break;
-			for (const optionId of optionIds) {
-				if (!q.options?.some((option) => option.id === optionId)) {
-					throw new FormInputError(`「${q.label}」の選択肢が不正です`);
-				}
-			}
-			return { type: 'multi', optionIds };
+			const choices = [...new Set(values)];
+			if (choices.length === 0) break;
+			const optionIds = choices.filter((choice) => choice !== OTHER_OPTION_ID);
+			for (const optionId of optionIds) requireOption(q, optionId);
+			return optionIds.length === choices.length
+				? { type: 'multi', optionIds }
+				: { type: 'multi', optionIds, other: otherText(q, input.other) };
 		}
 		case 'text': {
 			const text = values[0];
@@ -345,13 +369,19 @@ function buildAnswer(q: Question, raw: string[]): AnswerValue | null {
 	return null;
 }
 
-export type AnswerInputs = Map<number, string[]>;
+export type AnswerInput = { values: string[]; other: string | null };
+
+export type AnswerInputs = Map<number, AnswerInput>;
 
 export function collectAnswerInputs(data: FormData, questions: Question[]): AnswerInputs {
 	const inputs: AnswerInputs = new Map();
 	for (const q of questions) {
-		const raw = data.getAll(`q_${q.id}`).filter((value) => typeof value === 'string');
-		inputs.set(q.id, raw as string[]);
+		const values = data.getAll(`q_${q.id}`).filter((value) => typeof value === 'string');
+		const other = data.get(`q_${q.id}_other`);
+		inputs.set(q.id, {
+			values: values as string[],
+			other: typeof other === 'string' ? other : null
+		});
 	}
 	return inputs;
 }
@@ -386,7 +416,10 @@ export async function submitResponse(
 
 	const questions = await loadQuestions(formId);
 	const values = questions
-		.map((q) => ({ questionId: q.id, value: buildAnswer(q, inputs.get(q.id) ?? []) }))
+		.map((q) => ({
+			questionId: q.id,
+			value: buildAnswer(q, inputs.get(q.id) ?? { values: [], other: null })
+		}))
 		.filter((entry): entry is { questionId: number; value: AnswerValue } => entry.value !== null);
 
 	return db.transaction(async (tx) => {
@@ -542,7 +575,7 @@ async function targetRoster(exec: Executor, targetRoleId: string) {
 }
 
 /** The target roster and its non-submitters, both taken from one read of the mirror. */
-async function rosterStatus(
+export async function rosterStatus(
 	exec: Executor,
 	target: Pick<Form, 'id' | 'targetRoleId'>
 ): Promise<{ targetIds: string[]; nonSubmitters: FrozenMember[] }> {
@@ -682,6 +715,8 @@ export type ChoiceTally = {
 	label: string;
 	type: QuestionType;
 	options: { id: string; label: string; count: number }[];
+	/** Answers given as "その他". Null when the question does not offer it. */
+	other: number | null;
 };
 
 export function tallyChoices(questions: Question[], rows: ResultRow[]): ChoiceTally[] {
@@ -689,15 +724,18 @@ export function tallyChoices(questions: Question[], rows: ResultRow[]): ChoiceTa
 		.filter((q) => hasOptions(q.type))
 		.map((q) => {
 			const counts = new Map((q.options ?? []).map((option) => [option.id, 0]));
+			let other = 0;
 
 			for (const row of rows) {
 				const value = row.answers[q.id];
-				const ids =
-					value?.type === 'single'
-						? [value.optionId]
-						: value?.type === 'multi'
-							? value.optionIds
-							: [];
+				let ids: string[] = [];
+				if (value?.type === 'single') {
+					if ('other' in value) other++;
+					else ids = [value.optionId];
+				} else if (value?.type === 'multi') {
+					if (value.other !== undefined) other++;
+					ids = value.optionIds;
+				}
 				// Unknown ids are dropped rather than shown as a blank row.
 				for (const id of ids) {
 					const current = counts.get(id);
@@ -712,7 +750,8 @@ export function tallyChoices(questions: Question[], rows: ResultRow[]): ChoiceTa
 				options: (q.options ?? []).map((option) => ({
 					...option,
 					count: counts.get(option.id) ?? 0
-				}))
+				})),
+				other: q.allowOther ? other : null
 			};
 		});
 }

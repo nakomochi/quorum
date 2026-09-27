@@ -32,9 +32,38 @@ export const MAX_OPTION_ID = 64;
 export const MAX_QUESTIONS = 100;
 export const MAX_OPTIONS = 50;
 export const MAX_TEXT_ANSWER = 4000;
+export const MAX_OTHER_ANSWER = 500;
 
+/** Posted as the choice value for "その他"; option ids may never take it. */
+export const OTHER_OPTION_ID = '__other__';
+
+/**
+ * Shapes saved before "その他" existed must stay valid as they are: `other` is only ever added,
+ * never required, and a single answer carries either `optionId` or `other`, never both.
+ */
 export type AnswerValue =
 	| { type: 'single'; optionId: string }
-	| { type: 'multi'; optionIds: string[] }
+	| { type: 'single'; other: string }
+	| { type: 'multi'; optionIds: string[]; other?: string }
 	| { type: 'text'; text: string }
 	| { type: 'date'; date: string };
+
+type ChoiceLabel = { id: string; label: string };
+
+export function describeAnswer(value: AnswerValue, options: ChoiceLabel[] | null): string {
+	const labelOf = (id: string) => options?.find((option) => option.id === id)?.label ?? id;
+	const other = (text: string) => `その他: ${text}`;
+	switch (value.type) {
+		case 'single':
+			return 'other' in value ? other(value.other) : labelOf(value.optionId);
+		case 'multi':
+			return [
+				...value.optionIds.map(labelOf),
+				...(value.other === undefined ? [] : [other(value.other)])
+			].join('、');
+		case 'text':
+			return value.text;
+		case 'date':
+			return value.date;
+	}
+}

@@ -1,0 +1,1 @@
+ALTER TABLE "question" ADD COLUMN "allow_other" boolean DEFAULT false NOT NULL;

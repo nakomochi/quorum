@@ -38,7 +38,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		syncedAt,
 		forms: rows.map((row) => ({
 			...row,
-			roleName: roleNames.get(row.targetRoleId) ?? row.targetRoleId,
+			roleName: roleNames.get(row.targetRoleId) ?? '（削除されたロール）',
 			closed: isClosed(row)
 		}))
 	};

@@ -3,7 +3,7 @@ import { env } from '$env/dynamic/private';
 import { db } from './db';
 import { form, reminder, type Form } from './db/schema';
 import { postMessage, type CreateMessage } from './discord';
-import { computeNonSubmitters, isClosed, loadForm } from './forms';
+import { isClosed, loadForm, rosterStatus } from './forms';
 import { syncAllMembers } from './guild-sync';
 import { formatJst } from '../datetime';
 
@@ -98,6 +98,7 @@ export type ReminderResult =
 				| 'closed'
 				| 'no_channel'
 				| 'no_targets'
+				| 'empty_roster'
 				| 'already_sent'
 				| 'sync_failed'
 				| 'post_failed';
@@ -124,7 +125,7 @@ export async function sendReminder(
 		return { ok: false, reason: 'sync_failed' };
 	}
 
-	const targets = await computeNonSubmitters(db, target);
+	const { targetIds, nonSubmitters: targets } = await rosterStatus(db, target);
 	if (targets.length === 0) {
 		// An empty row still marks the deadline as handled. Without it the scheduler keeps picking
 		// this form up, and every pass refreshes the whole roster from Discord until the deadline.
@@ -140,7 +141,9 @@ export async function sendReminder(
 				})
 				.onConflictDoNothing();
 		}
-		return { ok: false, reason: 'no_targets' };
+		// An empty roster usually means the target role was deleted or emptied, not that everyone
+		// answered, and the two are reported apart for that reason.
+		return { ok: false, reason: targetIds.length === 0 ? 'empty_roster' : 'no_targets' };
 	}
 
 	const discordIds = targets.map((member) => member.discordId);

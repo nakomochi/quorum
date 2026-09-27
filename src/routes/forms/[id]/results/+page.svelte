@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { formatJst } from '$lib/datetime';
-	import { VISIBILITY_LABELS, type AnswerValue } from '$lib/forms';
+	import { describeAnswer, VISIBILITY_LABELS, type AnswerValue } from '$lib/forms';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	let { data, form } = $props();
@@ -10,18 +10,7 @@
 
 	function readable(row: Row, questionId: number, options: Option[] | null): string {
 		const value = row.answers[questionId] as AnswerValue | undefined;
-		if (!value) return '—';
-		const labelOf = (id: string) => options?.find((option) => option.id === id)?.label ?? id;
-		switch (value.type) {
-			case 'single':
-				return labelOf(value.optionId);
-			case 'multi':
-				return value.optionIds.map(labelOf).join('、');
-			case 'text':
-				return value.text;
-			case 'date':
-				return value.date;
-		}
+		return value ? describeAnswer(value, options) : '—';
 	}
 
 	const REMINDER_KIND = { manual: '手動', auto: '自動' };
@@ -40,6 +29,16 @@
 		if (!confirm(message)) event.preventDefault();
 	}
 </script>
+
+{#snippet tallyRow(label: string, count: number)}
+	<li class="flex items-center gap-3 text-sm">
+		<span class="w-40 shrink-0 truncate text-text-subtle">{label}</span>
+		<span class="bg-surface-raised h-2 flex-1 overflow-hidden rounded">
+			<span class="bg-accent block h-full" style="width: {percent(count, answerTotal)}%"></span>
+		</span>
+		<span class="w-10 shrink-0 text-right tabular-nums text-text-muted">{count}</span>
+	</li>
+{/snippet}
 
 {#snippet answerTable(rows: Row[])}
 	<div class="overflow-x-auto rounded-xl border border-border">
@@ -83,6 +82,12 @@
 			{/if}
 		</p>
 	</header>
+
+	{#if data.roleDeleted}
+		<p role="alert" class="bg-warning-surface text-warning rounded-lg border border-border px-4 py-3 text-sm">
+			対象ロールが Discord で削除されています。対象者は0人として扱われます。
+		</p>
+	{/if}
 
 	{#if data.announceFailed}
 		<p role="alert" class="alert-error">
@@ -208,19 +213,11 @@
 					<p class="text-sm font-medium">{tally.label}</p>
 					<ul class="mt-3 flex flex-col gap-2">
 						{#each tally.options as option (option.id)}
-							<li class="flex items-center gap-3 text-sm">
-								<span class="w-40 shrink-0 truncate text-text-subtle">{option.label}</span>
-								<span class="bg-surface-raised h-2 flex-1 overflow-hidden rounded">
-									<span
-										class="bg-accent block h-full"
-										style="width: {percent(option.count, answerTotal)}%"
-									></span>
-								</span>
-								<span class="w-10 shrink-0 text-right tabular-nums text-text-muted">
-									{option.count}
-								</span>
-							</li>
+							{@render tallyRow(option.label, option.count)}
 						{/each}
+						{#if tally.other !== null}
+							{@render tallyRow('その他', tally.other)}
+						{/if}
 					</ul>
 				</div>
 			{/each}

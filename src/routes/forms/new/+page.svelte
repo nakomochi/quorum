@@ -33,6 +33,7 @@
 		helpText: string;
 		required: boolean;
 		options: Option[];
+		allowOther: boolean;
 	};
 
 	// Everything the editor owns, deep-copied so a history entry can never alias live state.
@@ -65,7 +66,8 @@
 			label: '',
 			helpText: '',
 			required: true,
-			options: [newOption()]
+			options: [newOption()],
+			allowOther: false
 		};
 	}
 
@@ -157,7 +159,8 @@
 				label: q.label,
 				helpText: q.helpText,
 				required: q.required,
-				options: hasOptions(q.type) ? q.options : null
+				options: hasOptions(q.type) ? q.options : null,
+				allowOther: hasOptions(q.type) && q.allowOther
 			}))
 		)
 	);
@@ -195,6 +198,7 @@
 		step(() => {
 			q.type = type;
 			if (hasOptions(type) && q.options.length === 0) q.options = [newOption()];
+			if (!hasOptions(type)) q.allowOther = false;
 		});
 	}
 
@@ -511,13 +515,36 @@
 										</div>
 									{/each}
 								</div>
-								<button
-									type="button"
-									class="chip self-start"
-									onclick={() => step(() => (q.options = [...q.options, newOption()]))}
-								>
-									選択肢を追加
-								</button>
+								<!-- Outside the zone, so it can neither be dragged nor have an option dropped below it. -->
+								{#if q.allowOther}
+									<div class="flex items-center gap-2">
+										<span class="w-6 shrink-0"></span>
+										<p class="field min-w-0 border-dashed text-text-muted">その他…</p>
+										<button
+											type="button"
+											class="chip p-1.5"
+											aria-label="質問 {index + 1} の「その他」を削除"
+											onclick={() => step(() => (q.allowOther = false))}
+										>
+											<Icon name="x" />
+										</button>
+										<span class="w-8"></span>
+									</div>
+								{/if}
+								<div class="flex flex-wrap items-center gap-2">
+									<button
+										type="button"
+										class="chip"
+										onclick={() => step(() => (q.options = [...q.options, newOption()]))}
+									>
+										選択肢を追加
+									</button>
+									{#if !q.allowOther}
+										<button type="button" class="chip" onclick={() => step(() => (q.allowOther = true))}>
+											「その他」を追加
+										</button>
+									{/if}
+								</div>
 							</div>
 						{/if}
 					</div>

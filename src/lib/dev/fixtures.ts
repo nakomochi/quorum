@@ -17,6 +17,7 @@ import type {
 	ActionData as ResultsAction,
 	PageData as ResultsData
 } from '../../routes/forms/[id]/results/$types';
+import type { PageData as HistoryData } from '../../routes/forms/[id]/results/[responseId]/$types';
 import type { ActionData as NewAction, PageData as NewData } from '../../routes/forms/new/$types';
 import type {
 	ActionData as AdminAction,
@@ -41,6 +42,8 @@ type ResultQuestion = ResultsData['questions'][number];
 type Tally = ResultsData['tallies'][number];
 type ReminderEntry = ResultsData['reminders'][number];
 type FrozenMember = ResultsData['nonSubmitters'][number];
+type Revision = HistoryData['revisions'][number];
+type HistoryQuestion = HistoryData['questions'][number];
 type AdminRow = AdminData['forms'][number];
 
 const at = (jst: string) => new Date(`${jst}+09:00`);
@@ -209,10 +212,23 @@ const member = (index: number): FrozenMember => ({
 	displayName: NAMES[index % NAMES.length] + (index >= NAMES.length ? `${index}` : '')
 });
 
-const resultRow = (index: number, answers: ResultRow['answers']): ResultRow => ({
-	...member(index),
-	submittedAt: at(`2026-09-${String(10 + (index % 10)).padStart(2, '0')}T21:0${index % 10}:00`),
-	answers
+const resultRow = (index: number, answers: ResultRow['answers']): ResultRow => {
+	const day = String(10 + (index % 10)).padStart(2, '0');
+	const submittedAt = at(`2026-09-${day}T21:0${index % 10}:00`);
+	return {
+		responseId: index + 1,
+		...member(index),
+		submittedAt,
+		updatedAt: submittedAt,
+		revisionCount: 1,
+		answers
+	};
+};
+
+const edited = (row: ResultRow, updatedAt: Date, revisionCount: number): ResultRow => ({
+	...row,
+	updatedAt,
+	revisionCount
 });
 
 const SUBMITTED: ResultRow[] = [
@@ -241,6 +257,14 @@ const OUTSIDERS: ResultRow[] = [
 		3: { type: 'text', text: 'ロールは持っていませんが参加したいです。' }
 	})
 ];
+
+const EDITED_SUBMITTED: ResultRow[] = [
+	edited(SUBMITTED[0], at('2026-09-14T08:15:00'), 3),
+	SUBMITTED[1],
+	edited(SUBMITTED[2], at('2026-09-12T23:48:00'), 2)
+];
+
+const EDITED_OUTSIDERS: ResultRow[] = [edited(OUTSIDERS[0], at('2026-09-20T07:30:00'), 2)];
 
 const OTHER_SUBMITTED: ResultRow[] = [
 	...SUBMITTED,
@@ -342,6 +366,8 @@ const tallyOf = (questions: QuestionRow[], rows: ResultRow[]): Tally[] =>
 				other: q.allowOther ? others : null
 			};
 		});
+
+const EDITED_TALLIES = tallyOf(QUESTIONS, [...EDITED_SUBMITTED, ...EDITED_OUTSIDERS]);
 
 const WIDE_DAYS = Array.from({ length: 8 }, (_, i) => ({
 	id: `day${i + 1}`,
@@ -946,6 +972,50 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		}
 	},
 	{
+		id: 'results-edited-manager',
+		title: '編集済みの回答あり / 管理者（履歴へのリンク）',
+		data: {
+			user: USER,
+			form: resultsForm(),
+			closed: false,
+			reopenClearsClosesAt: false,
+			manage: true,
+			roleDeleted: false,
+			announceFailed: false,
+			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			reminders: [],
+			questions: RESULT_QUESTIONS,
+			tallies: EDITED_TALLIES,
+			frozen: false,
+			targetCount: 6,
+			submitted: EDITED_SUBMITTED,
+			outsiders: EDITED_OUTSIDERS,
+			nonSubmitters: NON_SUBMITTERS
+		}
+	},
+	{
+		id: 'results-edited-viewer',
+		title: '編集済みの回答あり / 一般閲覧（リンクなし）',
+		data: {
+			user: USER,
+			form: resultsForm(),
+			closed: false,
+			reopenClearsClosesAt: false,
+			manage: false,
+			roleDeleted: false,
+			announceFailed: false,
+			announcement: null,
+			reminders: [],
+			questions: RESULT_QUESTIONS,
+			tallies: EDITED_TALLIES,
+			frozen: false,
+			targetCount: 6,
+			submitted: EDITED_SUBMITTED,
+			outsiders: EDITED_OUTSIDERS,
+			nonSubmitters: NON_SUBMITTERS
+		}
+	},
+	{
 		id: 'results-many-pending',
 		title: '未提出者が多数',
 		data: {
@@ -1192,6 +1262,78 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	}
 ];
 
+const toHistoryQuestion = ({ id, label, options }: QuestionRow): HistoryQuestion => ({
+	id,
+	label,
+	options
+});
+
+// Each revision changes different questions: 1 and 4, then 2 and 3.
+const THREE_REVISIONS: Revision[] = [
+	{
+		number: 3,
+		createdAt: at('2026-04-14T08:15:00'),
+		answers: {
+			1: { type: 'single', optionId: 'yes' },
+			2: { type: 'multi', optionIds: ['d1', 'd2'] },
+			3: { type: 'text', text: '甲殻類アレルギーがあります。\n初日は21時ごろ合流します。' },
+			4: { type: 'date', date: '2026-05-02' }
+		}
+	},
+	{
+		number: 2,
+		createdAt: at('2026-04-13T09:05:00'),
+		answers: {
+			1: { type: 'single', optionId: 'yes' },
+			2: { type: 'multi', optionIds: ['d1'] },
+			3: { type: 'text', text: '仕事の都合次第です。' },
+			4: { type: 'date', date: '2026-05-02' }
+		}
+	},
+	{
+		number: 1,
+		createdAt: at('2026-04-12T21:40:00'),
+		answers: {
+			1: { type: 'single', optionId: 'maybe' },
+			2: { type: 'multi', optionIds: ['d1'] },
+			3: { type: 'text', text: '仕事の都合次第です。' }
+		}
+	}
+];
+
+export const HISTORY_CASES: UiCase<HistoryData>[] = [
+	{
+		id: 'history-three',
+		title: '3版（版ごとに変わった質問が違う）',
+		data: {
+			user: USER,
+			form: { id: 'fixtureform1', title: '春合宿の参加確認' },
+			response: {
+				displayName: 'あおい',
+				submittedAt: at('2026-04-12T21:40:00'),
+				updatedAt: at('2026-04-14T08:15:00')
+			},
+			revisions: THREE_REVISIONS,
+			questions: QUESTIONS.map(toHistoryQuestion)
+		}
+	},
+	{
+		id: 'history-single',
+		title: '1版のみ（その他あり・未回答あり）',
+		data: {
+			user: USER,
+			form: { id: 'fixtureform1', title: LONG_TITLE },
+			response: {
+				displayName: 'とてもながい表示名のサーバーメンバーアカウント',
+				submittedAt: at('2026-04-12T21:40:00'),
+				updatedAt: at('2026-04-12T21:40:00')
+			},
+			revisions: [{ number: 1, createdAt: at('2026-04-12T21:40:00'), answers: OTHER_ANSWERS }],
+			questions: OTHER_QUESTIONS.map(toHistoryQuestion)
+		}
+	}
+];
+
 const ROLES: NewData['roles'] = [
 	{ id: ROLE_ID, name: '運営' },
 	{ id: '900000000000000011', name: '2026年度生' },
@@ -1357,6 +1499,7 @@ export const CASE_GROUPS: { label: string; route: string; cases: { id: string; t
 		{ label: 'トップ', route: '/', cases: HOME_CASES },
 		{ label: '回答画面', route: '/forms/[id]', cases: ANSWER_CASES },
 		{ label: '結果画面', route: '/forms/[id]/results', cases: RESULTS_CASES },
+		{ label: '回答履歴', route: '/forms/[id]/results/[responseId]', cases: HISTORY_CASES },
 		{ label: 'フォーム作成', route: '/forms/new', cases: NEW_CASES },
 		{ label: '管理一覧', route: '/admin/forms', cases: ADMIN_CASES }
 	];

@@ -1,6 +1,6 @@
 import { nanoid } from 'nanoid';
 import { sql } from 'drizzle-orm';
-import type { AnswerValue } from '../../forms';
+import type { AnswerValue, RevisionAnswers } from '../../forms';
 import {
 	boolean,
 	check,
@@ -9,6 +9,7 @@ import {
 	jsonb,
 	pgEnum,
 	pgTable,
+	serial,
 	text,
 	timestamp,
 	uniqueIndex
@@ -253,6 +254,23 @@ export const answer = pgTable(
 		value: jsonb('value').$type<AnswerValue>().notNull()
 	},
 	(t) => [uniqueIndex('answer_response_question_uq').on(t.responseId, t.questionId)]
+);
+
+/**
+ * Append-only history: one row per submission whose content differed from the previous one.
+ * `answer` keeps only the latest, and every tally and table reads from there.
+ */
+export const responseRevision = pgTable(
+	'response_revision',
+	{
+		id: serial('id').primaryKey(),
+		responseId: integer('response_id')
+			.notNull()
+			.references(() => response.id, { onDelete: 'cascade' }),
+		answers: jsonb('answers').$type<RevisionAnswers>().notNull(),
+		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [index('response_revision_response_id_idx').on(t.responseId)]
 );
 
 export const reminder = pgTable(

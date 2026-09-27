@@ -11,7 +11,7 @@ import {
 	RosterRefreshError,
 	tallyChoices
 } from '$lib/server/forms';
-import { canManageForm, gateMember, requireUser } from '$lib/server/guards';
+import { canManageForm, gateMember, requireFormManager, requireUser } from '$lib/server/guards';
 import { syncAllMembers, syncedGuildRoles } from '$lib/server/guild-sync';
 import { announceForm, listReminders, sendReminder } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
@@ -108,20 +108,10 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	};
 };
 
-/** Actions run before the load, so each repeats the manage check itself. */
-async function requireManager(locals: App.Locals, formId: string) {
-	const user = requireUser(locals);
-
-	const target = await loadForm(formId);
-	if (!target) error(404, NOT_FOUND);
-	if (!(await canManageForm(locals, target))) error(403, 'このフォームを操作する権限がありません');
-
-	return { user, target };
-}
-
+// Actions run before the load, so each repeats the manage check itself.
 export const actions: Actions = {
 	close: async ({ locals, params }) => {
-		await requireManager(locals, params.id);
+		await requireFormManager(locals, params.id);
 
 		let result;
 		try {
@@ -146,7 +136,7 @@ export const actions: Actions = {
 	},
 
 	reopen: async ({ locals, params }) => {
-		await requireManager(locals, params.id);
+		await requireFormManager(locals, params.id);
 
 		if (!(await reopenForm(params.id))) {
 			return fail(409, { message: 'このフォームはクローズされていません' });
@@ -156,7 +146,7 @@ export const actions: Actions = {
 	},
 
 	announce: async ({ locals, params }) => {
-		await requireManager(locals, params.id);
+		await requireFormManager(locals, params.id);
 
 		const result = await announceForm(params.id);
 		if (!result.ok) {
@@ -170,7 +160,7 @@ export const actions: Actions = {
 	},
 
 	remind: async ({ locals, params }) => {
-		const { user } = await requireManager(locals, params.id);
+		const { user } = await requireFormManager(locals, params.id);
 
 		const result = await sendReminder(params.id, { kind: 'manual', sentBy: user.id });
 		if (!result.ok) {

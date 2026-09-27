@@ -7,6 +7,7 @@ import {
 	newFormId,
 	question,
 	response,
+	responseRevision,
 	type Form,
 	type FrozenMember,
 	type GuildMember,
@@ -30,10 +31,12 @@ import {
 	MAX_TITLE,
 	OTHER_OPTION_ID,
 	QUESTION_TYPES,
+	sameAnswers,
 	SUBMIT_SCOPES,
 	VISIBILITIES,
 	type AnswerValue,
 	type QuestionType,
+	type RevisionAnswers,
 	type SubmitScope,
 	type Visibility
 } from '../forms';
@@ -421,6 +424,9 @@ export async function submitResponse(
 			value: buildAnswer(q, inputs.get(q.id) ?? { values: [], other: null })
 		}))
 		.filter((entry): entry is { questionId: number; value: AnswerValue } => entry.value !== null);
+	const answers: RevisionAnswers = Object.fromEntries(
+		values.map((entry) => [String(entry.questionId), entry.value])
+	);
 
 	return db.transaction(async (tx) => {
 		// Re-read under a row lock: the check above raced with closeForm, which takes FOR UPDATE.
@@ -452,21 +458,38 @@ export async function submitResponse(
 		} else {
 			if (!target.allowEdit) return { ok: false, reason: 'already_submitted' } as const;
 
+			// FOR UPDATE serializes one person's concurrent edits, so each compares against the
+			// revision the other committed.
 			const [existing] = await tx
 				.select({ id: response.id })
 				.from(response)
 				.where(and(eq(response.formId, formId), eq(response.userId, user.id)))
+				.for('update')
 				.limit(1);
 			if (!existing) return { ok: false, reason: 'already_submitted' } as const;
 
 			responseId = existing.id;
-			await tx.update(response).set({ updatedAt: new Date() }).where(eq(response.id, responseId));
+
+			const [latest] = await tx
+				.select({ answers: responseRevision.answers })
+				.from(responseRevision)
+				.where(eq(responseRevision.responseId, responseId))
+				.orderBy(desc(responseRevision.id))
+				.limit(1);
+			// Resubmitting the same content is not an edit: no revision, and updated_at stays put.
+			if (latest && sameAnswers(latest.answers, answers)) {
+				return { ok: true, responseId, created } as const;
+			}
+
+			// now() rather than new Date(): the transaction's clock, which the revision below uses too.
+			await tx.update(response).set({ updatedAt: sql`now()` }).where(eq(response.id, responseId));
 			await tx.delete(answer).where(eq(answer.responseId, responseId));
 		}
 
 		if (values.length > 0) {
 			await tx.insert(answer).values(values.map((entry) => ({ responseId, ...entry })));
 		}
+		await tx.insert(responseRevision).values({ responseId, answers });
 
 		return { ok: true, responseId, created } as const;
 	});
@@ -644,10 +667,24 @@ export async function computeNonSubmitters(
 	return (await rosterStatus(exec, target)).nonSubmitters;
 }
 
+type ResponderRow = { discordId: string } & {
+	[K in keyof NameParts]: NameParts[K] | null;
+};
+
+/** The join misses only if the mirror never saw the author; the snowflake still names them. */
+function responderName(row: ResponderRow): string {
+	const { username, globalName, nickname } = row;
+	return username ? memberDisplayName({ username, globalName, nickname }) : row.discordId;
+}
+
 export type ResultRow = {
+	responseId: number;
 	discordId: string;
 	displayName: string;
 	submittedAt: Date;
+	updatedAt: Date;
+	/** More than one means the response was edited. */
+	revisionCount: number;
 	answers: Record<number, AnswerValue>;
 };
 
@@ -667,6 +704,7 @@ export async function loadResults(target: Form): Promise<FormResults> {
 			responseId: response.id,
 			discordId: response.discordId,
 			submittedAt: response.submittedAt,
+			updatedAt: response.updatedAt,
 			username: guildMember.username,
 			globalName: guildMember.globalName,
 			nickname: guildMember.nickname,
@@ -679,17 +717,19 @@ export async function loadResults(target: Form): Promise<FormResults> {
 		.where(eq(response.formId, target.id))
 		.orderBy(asc(response.submittedAt), asc(response.id));
 
-	const answers = rows.length
-		? await db
-				.select()
-				.from(answer)
-				.where(
-					inArray(
-						answer.responseId,
-						rows.map((row) => row.responseId)
-					)
-				)
-		: [];
+	const responseIds = rows.map((row) => row.responseId);
+	const [answers, revisionCounts] = rows.length
+		? await Promise.all([
+				db.select().from(answer).where(inArray(answer.responseId, responseIds)),
+				db
+					.select({ responseId: responseRevision.responseId, count: count() })
+					.from(responseRevision)
+					.where(inArray(responseRevision.responseId, responseIds))
+					.groupBy(responseRevision.responseId)
+			])
+		: [[], []];
+
+	const revisionsOf = new Map(revisionCounts.map((row) => [row.responseId, row.count]));
 
 	const byResponse = new Map<number, Record<number, AnswerValue>>();
 	for (const row of answers) {
@@ -707,16 +747,12 @@ export async function loadResults(target: Form): Promise<FormResults> {
 
 	for (const row of rows) {
 		const entry: ResultRow = {
+			responseId: row.responseId,
 			discordId: row.discordId,
-			// The join misses only if the mirror never saw the author; the snowflake still names them.
-			displayName: row.username
-				? memberDisplayName({
-						username: row.username,
-						globalName: row.globalName,
-						nickname: row.nickname
-					})
-				: row.discordId,
+			displayName: responderName(row),
 			submittedAt: row.submittedAt,
+			updatedAt: row.updatedAt,
+			revisionCount: revisionsOf.get(row.responseId) ?? 0,
 			answers: byResponse.get(row.responseId) ?? {}
 		};
 		if (isTarget(row.discordId, row)) submitted.push(entry);
@@ -732,6 +768,48 @@ export async function loadResults(target: Form): Promise<FormResults> {
 		submitted,
 		outsiders,
 		nonSubmitters
+	};
+}
+
+export type ResponseHistory = {
+	displayName: string;
+	submittedAt: Date;
+	updatedAt: Date;
+	/** Newest first. `number` counts from 1 in submission order. */
+	revisions: { number: number; createdAt: Date; answers: RevisionAnswers }[];
+};
+
+/** Null when the response does not exist or belongs to another form. */
+export async function loadResponseHistory(
+	formId: string,
+	responseId: number
+): Promise<ResponseHistory | null> {
+	const [row] = await db
+		.select({
+			discordId: response.discordId,
+			submittedAt: response.submittedAt,
+			updatedAt: response.updatedAt,
+			username: guildMember.username,
+			globalName: guildMember.globalName,
+			nickname: guildMember.nickname
+		})
+		.from(response)
+		.leftJoin(guildMember, eq(guildMember.discordId, response.discordId))
+		.where(and(eq(response.id, responseId), eq(response.formId, formId)))
+		.limit(1);
+	if (!row) return null;
+
+	const revisions = await db
+		.select({ createdAt: responseRevision.createdAt, answers: responseRevision.answers })
+		.from(responseRevision)
+		.where(eq(responseRevision.responseId, responseId))
+		.orderBy(asc(responseRevision.id));
+
+	return {
+		displayName: responderName(row),
+		submittedAt: row.submittedAt,
+		updatedAt: row.updatedAt,
+		revisions: revisions.map((revision, index) => ({ number: index + 1, ...revision })).reverse()
 	};
 }
 

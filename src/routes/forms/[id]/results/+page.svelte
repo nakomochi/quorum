@@ -63,6 +63,20 @@
 						{/each}
 						<td class="px-4 py-3 text-xs whitespace-nowrap text-text-muted">
 							{formatJst(row.submittedAt)}
+							{#if row.revisionCount > 1}
+								<span class="mt-1.5 flex items-center gap-2">
+									{#if data.manage}
+										<a
+											href="/forms/{data.form.id}/results/{row.responseId}"
+											title="編集履歴を見る"
+											class="chip py-0.5">編集済み</a
+										>
+									{:else}
+										<span class="bg-surface-raised rounded px-2 py-0.5 text-text-subtle">編集済み</span>
+									{/if}
+									<span>最終更新: {formatJst(row.updatedAt)}</span>
+								</span>
+							{/if}
 						</td>
 					</tr>
 				{/each}

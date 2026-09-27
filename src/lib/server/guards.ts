@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { SessionUser } from './auth';
 import type { Form, GuildMember } from './db/schema';
-import { activeMember } from './forms';
+import { activeMember, loadForm } from './forms';
 import { reconcileMember } from './guild-sync';
 import { isGuildAdmin, looksLikeGuildAdmin } from './permissions';
 
@@ -108,4 +108,18 @@ export async function canManageForm(
 	const mirrored = await activeMember(user.discordId);
 	if (!(await looksLikeGuildAdmin(user.discordId, mirrored?.roleIds ?? []))) return false;
 	return guildAdminCheck(locals, user);
+}
+
+/** 404 for a missing form, then 403 for anyone who may not manage it. */
+export async function requireFormManager(
+	locals: App.Locals,
+	formId: string
+): Promise<{ user: SessionUser; target: Form }> {
+	const user = requireUser(locals);
+
+	const target = await loadForm(formId);
+	if (!target) error(404, 'フォームが見つかりません');
+	if (!(await canManageForm(locals, target))) error(403, 'このフォームを操作する権限がありません');
+
+	return { user, target };
 }

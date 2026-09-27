@@ -2,6 +2,7 @@
 	import {
 		ADMIN_CASES,
 		ANSWER_CASES,
+		HISTORY_CASES,
 		HOME_CASES,
 		NEW_CASES,
 		RESULTS_CASES
@@ -10,6 +11,7 @@
 	import HomePage from '../../../+page.svelte';
 	import AnswerPage from '../../../forms/[id]/+page.svelte';
 	import ResultsPage from '../../../forms/[id]/results/+page.svelte';
+	import HistoryPage from '../../../forms/[id]/results/[responseId]/+page.svelte';
 	import NewFormPage from '../../../forms/new/+page.svelte';
 	import AdminFormsPage from '../../../admin/forms/+page.svelte';
 
@@ -18,10 +20,11 @@
 	const home = $derived(HOME_CASES.find((entry) => entry.id === data.case));
 	const answer = $derived(ANSWER_CASES.find((entry) => entry.id === data.case));
 	const results = $derived(RESULTS_CASES.find((entry) => entry.id === data.case));
+	const history = $derived(HISTORY_CASES.find((entry) => entry.id === data.case));
 	const created = $derived(NEW_CASES.find((entry) => entry.id === data.case));
 	const admin = $derived(ADMIN_CASES.find((entry) => entry.id === data.case));
 
-	const setup = $derived([home, answer, results, created, admin].find(Boolean)?.setup);
+	const setup = $derived([home, answer, results, history, created, admin].find(Boolean)?.setup);
 
 	$effect(() => {
 		setup?.(document);
@@ -43,6 +46,8 @@
 	<AnswerPage data={answer.data} form={answer.form ?? null} />
 {:else if results}
 	<ResultsPage data={results.data} form={results.form ?? null} />
+{:else if history}
+	<HistoryPage data={history.data} />
 {:else if created}
 	<NewFormPage data={created.data} form={created.form ?? null} />
 {:else if admin}

@@ -48,6 +48,35 @@ export type AnswerValue =
 	| { type: 'text'; text: string }
 	| { type: 'date'; date: string };
 
+/** A whole submission as one revision saw it. jsonb object keys are strings, hence the key type. */
+export type RevisionAnswers = Record<string, AnswerValue>;
+
+// A multi answer's ids carry no order, so they are sorted before comparing.
+function canonicalAnswer(value: AnswerValue): string {
+	switch (value.type) {
+		case 'single':
+			return JSON.stringify(
+				'other' in value ? ['single-other', value.other] : ['single', value.optionId]
+			);
+		case 'multi':
+			return JSON.stringify(['multi', [...value.optionIds].sort(), value.other ?? null]);
+		case 'text':
+			return JSON.stringify(['text', value.text]);
+		case 'date':
+			return JSON.stringify(['date', value.date]);
+	}
+}
+
+export function sameAnswer(a: AnswerValue | undefined, b: AnswerValue | undefined): boolean {
+	if (a === undefined || b === undefined) return a === b;
+	return canonicalAnswer(a) === canonicalAnswer(b);
+}
+
+export function sameAnswers(a: RevisionAnswers, b: RevisionAnswers): boolean {
+	const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+	return [...keys].every((key) => sameAnswer(a[key], b[key]));
+}
+
 type ChoiceLabel = { id: string; label: string };
 
 export function describeAnswer(value: AnswerValue, options: ChoiceLabel[] | null): string {

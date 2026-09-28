@@ -444,13 +444,11 @@ export async function submitResponse(
 		let responseId: number;
 		const created = inserted !== undefined;
 
+		// No write to the form row here: upgrading this FOR SHARE deadlocks concurrent first
+		// responses. A future form editor should tell "has responses" from the response table and
+		// lock the form FOR UPDATE, which serializes it against this FOR SHARE.
 		if (inserted) {
 			responseId = inserted.id;
-			// First response freezes the question set; same transaction so a rollback undoes it.
-			await tx
-				.update(form)
-				.set({ structureLockedAt: new Date() })
-				.where(and(eq(form.id, formId), isNull(form.structureLockedAt)));
 		} else {
 			if (!target.allowEdit) return { ok: false, reason: 'already_submitted' } as const;
 

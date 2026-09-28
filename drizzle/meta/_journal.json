@@ -64,6 +64,13 @@
       "when": 1790549485802,
       "tag": "0008_curved_secret_warriors",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1790574722329,
+      "tag": "0009_fearless_stryfe",
+      "breakpoints": true
     }
   ]
 }

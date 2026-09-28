@@ -156,8 +156,6 @@ export const form = pgTable(
 		// Hard stop: submissions are refused and the form is frozen. Null means never auto-close.
 		closesAt: timestamp('closes_at', { withTimezone: true }),
 		allowEdit: boolean('allow_edit').notNull().default(true),
-		// Set on the first response. After this only labels may be edited.
-		structureLockedAt: timestamp('structure_locked_at', { withTimezone: true }),
 		announcementChannelId: text('announcement_channel_id'),
 		announcementMessageId: text('announcement_message_id'),
 		createdBy: text('created_by')

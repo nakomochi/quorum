@@ -1,4 +1,5 @@
 import { error, fail } from '@sveltejs/kit';
+import { formatJst } from '$lib/datetime';
 import {
 	canViewResults,
 	closeForm,
@@ -59,26 +60,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	}
 	if (!canViewResults(target, manage)) error(403, 'この結果はまだ公開されていません');
 
-	// The non-submitter list drives the decision to remind, so refresh the mirror before reading it
-	// instead of reading Discord here: one more sync trigger, not a second read path. Gated on
-	// manage because canViewResults can let the whole guild onto this page, and listGuildMembers is
-	// 10/10s. A failure is shown to the manager along with the last sync time left in guild_sync.
-	let syncFailed = false;
-	if (manage) {
-		try {
-			await syncAllMembers();
-		} catch (cause) {
-			syncFailed = true;
-			console.error('[guild-sync] results refresh failed', cause);
-		}
-	}
-
+	// Reads the mirror only; a manager refreshes it with ?/syncRoster.
 	const questions = await loadQuestions(params.id);
 	const results = await loadResults(target);
 
-	// Read from the snapshot the sync above just wrote, never from Discord. Without one there is
-	// nothing to judge by, so no warning. A frozen roster no longer depends on the role or on how
-	// fresh the mirror is.
+	// From the last full sync's snapshot, never from Discord. Without one there is nothing to judge
+	// by, so no warning. A frozen roster no longer depends on the role or on how fresh the mirror is.
 	const liveRoster = manage && !results.frozen;
 	const [synced, rosterSyncedAt] = liveRoster
 		? await Promise.all([syncedGuildRoles(), lastSyncedAt()])
@@ -101,7 +88,6 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		manage,
 		roleDeleted,
 		rosterSyncedAt,
-		rosterSyncFailed: liveRoster && syncFailed,
 		// Set by the redirect the creation page takes when the announcement could not be posted.
 		announceFailed: manage && url.searchParams.get('announce') === 'failed',
 		announcement: manage
@@ -184,5 +170,30 @@ export const actions: Actions = {
 		}
 
 		return { reminded: { targets: result.targets, messages: result.messages } };
+	},
+
+	syncRoster: async ({ locals, params }) => {
+		const { target } = await requireFormManager(locals, params.id);
+
+		// Closing froze the non-submitters, so a refresh would change nothing on this page.
+		if (target.closedAt !== null) {
+			return fail(409, {
+				message: 'このフォームはクローズ済みのため、名簿を更新しても未提出者は変わりません'
+			});
+		}
+
+		try {
+			await syncAllMembers();
+		} catch (cause) {
+			console.error('[guild-sync] roster refresh from the results page failed', cause);
+			const syncedAt = await lastSyncedAt();
+			return fail(502, {
+				message: syncedAt
+					? `Discord からメンバー一覧を取得できませんでした。未提出者は前回（${formatJst(syncedAt)}）の名簿のままです。`
+					: 'Discord からメンバー一覧を取得できませんでした。名簿がまだ一度も同期されていないため、未提出者を表示できません。'
+			});
+		}
+
+		return { rosterSynced: true };
 	}
 };

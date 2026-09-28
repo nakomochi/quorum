@@ -22,6 +22,13 @@
 	const canAnnounce = $derived(!!data.announcement?.channelId && !data.announcement.messageId);
 	const canRemind = $derived(!!data.announcement?.channelId && !data.closed);
 
+	// An empty mirror has nothing to count. One that predates guild_sync still has people in it.
+	const rosterMissing = $derived(
+		data.manage && !data.frozen && data.rosterSyncedAt === null && data.targetCount === 0
+	);
+
+	let syncingRoster = $state(false);
+
 	function confirmReopen(event: SubmitEvent) {
 		const message = data.reopenClearsClosesAt
 			? '対象者と未提出者の確定を破棄して受付を再開します。受付終了日時を過ぎているため、その設定は解除され、以後は手動でクローズするまで回答を受け付けます。元に戻せません。'
@@ -85,6 +92,9 @@
 	</div>
 {/snippet}
 
+<!-- The POST is a full navigation; a page restored from the back-forward cache must not stay disabled. -->
+<svelte:window onpageshow={() => (syncingRoster = false)} />
+
 <main class="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-6 py-12">
 	<header>
 		<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
@@ -101,18 +111,6 @@
 	{#if data.roleDeleted}
 		<p role="alert" class="alert-warning">
 			対象ロールが Discord で削除されています。対象者は0人として扱われます。
-		</p>
-	{/if}
-
-	{#if data.rosterSyncFailed}
-		<p role="alert" class="alert-warning">
-			{#if data.rosterSyncedAt}
-				Discord からメンバー一覧を取得できなかったため、未提出者は <span class="whitespace-nowrap"
-					>{formatJst(data.rosterSyncedAt)}</span
-				> 時点の名簿で表示しています。
-			{:else}
-				Discord からメンバー一覧を取得できませんでした。名簿がまだ一度も同期されていないため、対象者と未提出者を表示できません。
-			{/if}
 		</p>
 	{/if}
 
@@ -138,12 +136,16 @@
 		<p role="status" class="alert-success">
 			受付を再開しました。対象者と未提出者の確定は破棄されました。
 		</p>
+	{:else if form?.rosterSynced}
+		<p role="status" class="alert-success">名簿を更新しました。</p>
 	{/if}
 
 	<section class="card divide-border grid grid-cols-3 divide-x">
 		<div class="px-5 py-4">
 			<p class="text-xs text-text-muted">対象者</p>
-			<p class="mt-1 text-2xl font-semibold tabular-nums">{data.targetCount}</p>
+			<p class="mt-1 text-2xl font-semibold tabular-nums">
+				{rosterMissing ? '—' : data.targetCount}
+			</p>
 		</div>
 		<div class="px-5 py-4">
 			<p class="text-xs text-text-muted">提出済み</p>
@@ -154,7 +156,7 @@
 		<div class="px-5 py-4">
 			<p class="text-xs text-text-muted">未提出</p>
 			<p class="mt-1 text-2xl font-semibold text-warning tabular-nums">
-				{data.nonSubmitters.length}
+				{rosterMissing ? '—' : data.nonSubmitters.length}
 			</p>
 		</div>
 	</section>
@@ -261,21 +263,37 @@
 
 	<section class="flex flex-col gap-2">
 		<h2 class="flex items-center gap-2 text-sm font-medium text-text-subtle">
-			未提出者（{data.nonSubmitters.length}名）
+			未提出者{rosterMissing ? '' : `（${data.nonSubmitters.length}名）`}
 			{#if data.frozen}
 				<span class="bg-surface-raised rounded px-2 py-0.5 text-xs text-text-muted">確定済み</span>
 			{/if}
 		</h2>
 		{#if data.manage && !data.frozen}
-			<p class="text-xs text-text-muted">
-				{#if data.rosterSyncedAt}
-					名簿: <span class="whitespace-nowrap">{formatJst(data.rosterSyncedAt)} 時点</span>
-				{:else}
-					名簿がまだ同期されていません
-				{/if}
-			</p>
+			<div class="action-row">
+				<p class="min-w-0 text-xs text-text-muted">
+					{#if data.rosterSyncedAt}
+						名簿: <span class="whitespace-nowrap">{formatJst(data.rosterSyncedAt)} 時点</span>
+					{:else}
+						名簿: 未同期
+					{/if}
+				</p>
+				<form
+					method="POST"
+					action="?/syncRoster"
+					onsubmit={() => (syncingRoster = true)}
+					class="shrink-0"
+				>
+					<button type="submit" class="btn-secondary px-3 py-1 text-xs" disabled={syncingRoster}>
+						{syncingRoster ? '更新中…' : '名簿を更新'}
+					</button>
+				</form>
+			</div>
 		{/if}
-		{#if data.nonSubmitters.length === 0}
+		{#if rosterMissing}
+			<p class="alert-warning">
+				名簿がまだ同期されていないため表示できません。「名簿を更新」を押してください。
+			</p>
+		{:else if data.nonSubmitters.length === 0}
 			<p class="text-sm text-text-muted">未提出者はいません。</p>
 		{:else}
 			<ul class="card flex flex-wrap gap-2 p-4">

@@ -7,6 +7,7 @@
  */
 
 import { tick } from 'svelte';
+import { formatJst } from '../datetime';
 import { hasOptions } from '../forms';
 import type { PageData as HomeData } from '../../routes/$types';
 import type {
@@ -639,6 +640,38 @@ const viewerForm = () => resultsForm({ visibility: null });
 
 const ROSTER_SYNCED_AT = at('2026-04-14T08:15:00');
 
+/** A manager's view of an open form, for the cases that differ only in the roster's sync state. */
+const rosterResults = (over: Partial<ResultsData> = {}): ResultsData => ({
+	user: USER,
+	form: resultsForm(),
+	closed: false,
+	reopenClearsClosesAt: false,
+	manage: true,
+	roleDeleted: false,
+	rosterSyncedAt: ROSTER_SYNCED_AT,
+	announceFailed: false,
+	announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+	reminders: [],
+	questions: RESULT_QUESTIONS,
+	tallies: TALLIES,
+	frozen: false,
+	targetCount: 6,
+	submitted: SUBMITTED,
+	outsiders: [],
+	nonSubmitters: NON_SUBMITTERS,
+	...over
+});
+
+/** Without a mirror nobody can pass the membership check, so there are no responses either. */
+const UNSYNCED_ROSTER: Partial<ResultsData> = {
+	rosterSyncedAt: null,
+	announcement: { channelId: CHANNEL_ID, messageId: null },
+	tallies: EMPTY_TALLIES,
+	targetCount: 0,
+	submitted: [],
+	nonSubmitters: []
+};
+
 // --- cases ---
 
 export const HOME_CASES: UiCase<HomeData>[] = [
@@ -1016,7 +1049,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: false,
 			roleDeleted: false,
 			rosterSyncedAt: null,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: null,
 			reminders: [],
@@ -1040,7 +1072,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -1064,7 +1095,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -1088,7 +1118,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: false,
 			roleDeleted: false,
 			rosterSyncedAt: null,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: null,
 			reminders: [],
@@ -1112,7 +1141,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -1136,7 +1164,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -1161,7 +1188,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			// A frozen roster does not depend on the mirror, so the load leaves these out.
 			rosterSyncedAt: null,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: REMINDERS,
@@ -1185,7 +1211,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: null },
 			reminders: REMINDERS,
@@ -1209,7 +1234,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: REMINDERS,
@@ -1234,7 +1258,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -1258,7 +1281,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: null, messageId: null },
 			reminders: [],
@@ -1282,7 +1304,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: true,
 			announcement: { channelId: CHANNEL_ID, messageId: null },
 			reminders: [],
@@ -1306,7 +1327,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -1331,7 +1351,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: true,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -1356,7 +1375,6 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			manage: true,
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: false,
 			announceFailed: false,
 			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
 			reminders: [],
@@ -1370,52 +1388,43 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		}
 	},
 	{
-		id: 'results-roster-stale',
-		title: '名簿の同期に失敗（前回の名簿で表示）',
-		data: {
-			user: USER,
-			form: resultsForm(),
-			closed: false,
-			reopenClearsClosesAt: false,
-			manage: true,
-			roleDeleted: false,
-			rosterSyncedAt: ROSTER_SYNCED_AT,
-			rosterSyncFailed: true,
-			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
-			reminders: [],
-			questions: RESULT_QUESTIONS,
-			tallies: TALLIES,
-			frozen: false,
-			targetCount: 6,
-			submitted: SUBMITTED,
-			outsiders: [],
-			nonSubmitters: NON_SUBMITTERS
+		id: 'results-roster-refreshed',
+		title: '「名簿を更新」が成功',
+		data: rosterResults(),
+		form: { rosterSynced: true }
+	},
+	{
+		id: 'results-roster-syncing',
+		title: '「名簿を更新」の送信中（ボタン無効）',
+		data: rosterResults(),
+		setup: async (doc) => {
+			// A synthetic submit runs the handler without navigating.
+			doc
+				.querySelector('form[action="?/syncRoster"]')
+				?.dispatchEvent(new Event('submit', { bubbles: true, cancelable: true }));
+			await tick();
 		}
 	},
 	{
-		// Without a mirror nobody can pass the membership check, so there are no responses either.
+		id: 'results-roster-refresh-failed',
+		title: '「名簿を更新」が失敗（前回の名簿のまま）',
+		data: rosterResults(),
+		form: {
+			message: `Discord からメンバー一覧を取得できませんでした。未提出者は前回（${formatJst(ROSTER_SYNCED_AT)}）の名簿のままです。`
+		}
+	},
+	{
 		id: 'results-roster-unsynced',
-		title: '名簿が未同期（初回の同期にも失敗）',
-		data: {
-			user: USER,
-			form: resultsForm(),
-			closed: false,
-			reopenClearsClosesAt: false,
-			manage: true,
-			roleDeleted: false,
-			rosterSyncedAt: null,
-			rosterSyncFailed: true,
-			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: null },
-			reminders: [],
-			questions: RESULT_QUESTIONS,
-			tallies: EMPTY_TALLIES,
-			frozen: false,
-			targetCount: 0,
-			submitted: [],
-			outsiders: [],
-			nonSubmitters: []
+		title: '名簿が未同期（管理者）',
+		data: rosterResults(UNSYNCED_ROSTER)
+	},
+	{
+		id: 'results-roster-unsynced-failed',
+		title: '名簿が未同期 / 「名簿を更新」も失敗',
+		data: rosterResults(UNSYNCED_ROSTER),
+		form: {
+			message:
+				'Discord からメンバー一覧を取得できませんでした。名簿がまだ一度も同期されていないため、未提出者を表示できません。'
 		}
 	}
 ];

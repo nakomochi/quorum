@@ -1,4 +1,4 @@
-import { fail, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { listGuildChannels } from '$lib/server/discord';
 import {
 	createForm,
@@ -6,7 +6,8 @@ import {
 	parseCreateFormPayload,
 	selectableRoles
 } from '$lib/server/forms';
-import { requireMember } from '$lib/server/guards';
+import { confirmMember, requireMember, requireUser } from '$lib/server/guards';
+import { syncAllMembers } from '$lib/server/guild-sync';
 import { announceForm } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -25,8 +26,18 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 export const actions: Actions = {
 	default: async ({ locals, request }) => {
-		// Actions run independently of the layout load, so membership is re-checked here.
-		const { user } = await requireMember(locals);
+		const user = requireUser(locals);
+
+		const live = await confirmMember(locals);
+		// fail rather than error: the editor keeps what was typed for another try.
+		if (live.status === 'unavailable') {
+			return fail(503, {
+				message:
+					'Discord に接続できないため、今は作成できません。時間をおいてもう一度作成してください。'
+			});
+		}
+		if (live.status === 'absent') error(403, 'このサーバーのメンバーではありません');
+
 		const data = await request.formData();
 
 		try {
@@ -49,6 +60,14 @@ export const actions: Actions = {
 			// Not /forms/<id>: a creator without the target role cannot pass that page's canSubmit.
 			const id = await createForm(input, user.id);
 
+			// A role granted just before creating the form must count among the non-submitters at
+			// once. A failure is left to the next sync rather than failing the creation.
+			try {
+				await syncAllMembers();
+			} catch (cause) {
+				console.error('[guild-sync] roster refresh after creating a form failed', cause);
+			}
+
 			// The form is already committed: a Discord outage is reported on the results page, which
 			// offers the post again, rather than being turned into a failed creation.
 			if (input.announcementChannelId && !(await announceForm(id)).ok) {
@@ -56,10 +75,10 @@ export const actions: Actions = {
 			}
 
 			redirect(303, '/');
-		} catch (error) {
+		} catch (err) {
 			// redirect() signals by throwing, so only FormInputError may be swallowed here.
-			if (error instanceof FormInputError) return fail(400, { message: error.message });
-			throw error;
+			if (err instanceof FormInputError) return fail(400, { message: err.message });
+			throw err;
 		}
 	}
 };

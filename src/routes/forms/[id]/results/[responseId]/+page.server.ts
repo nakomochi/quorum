@@ -17,7 +17,7 @@ function parseResponseId(raw: string): number | null {
 // Managers only: the results page may be open to the whole guild, but it shows only the latest
 // answers.
 export const load: PageServerLoad = async ({ locals, params }) => {
-	const { target } = await requireFormManager(locals, params.id);
+	const { target } = await requireFormManager(locals, params.id, 'view');
 
 	const responseId = parseResponseId(params.responseId);
 	const history = responseId === null ? null : await loadResponseHistory(target.id, responseId);

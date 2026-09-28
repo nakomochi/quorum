@@ -389,32 +389,28 @@ export function collectAnswerInputs(data: FormData, questions: Question[]): Answ
 	return inputs;
 }
 
-export type SubmitFailure =
-	| 'not_found'
-	| 'not_member'
-	| 'forbidden'
-	| 'closed'
-	| 'already_submitted';
+export type SubmitFailure = 'not_found' | 'forbidden' | 'closed' | 'already_submitted';
 
 export type SubmitResult =
 	| { ok: true; responseId: number; created: boolean }
 	| { ok: false; reason: SubmitFailure };
 
 /**
+ * `member` carries the roles Discord reports now, never the mirror's: a removed role must stop a
+ * submission at once.
+ *
  * The response row is inserted with ON CONFLICT DO NOTHING so that the response_form_user_uq
  * index reports a duplicate as a normal branch instead of a 500.
  */
 export async function submitResponse(
 	formId: string,
 	user: { id: string; discordId: string },
+	member: MemberContext,
 	inputs: AnswerInputs
 ): Promise<SubmitResult> {
 	const target = await loadForm(formId);
 	if (!target) return { ok: false, reason: 'not_found' };
 	if (isClosed(target)) return { ok: false, reason: 'closed' };
-
-	const member = await activeMember(user.discordId);
-	if (!member) return { ok: false, reason: 'not_member' };
 	if (!canSubmit(target, member)) return { ok: false, reason: 'forbidden' };
 
 	const questions = await loadQuestions(formId);

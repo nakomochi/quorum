@@ -2,7 +2,7 @@ import { error, redirect } from '@sveltejs/kit';
 import type { SessionUser } from './auth';
 import type { Form, GuildMember } from './db/schema';
 import { activeMember, loadForm } from './forms';
-import { reconcileMember } from './guild-sync';
+import { reconcileMember, type Reconciled } from './guild-sync';
 import { isGuildAdmin, looksLikeGuildAdmin } from './permissions';
 
 /**
@@ -20,14 +20,17 @@ function guildAdminCheck(locals: App.Locals, user: SessionUser): Promise<boolean
 	return check;
 }
 
-/** Same per-request memo as adminChecks: an action and the load after it share one lookup. */
-const reconciles = new WeakMap<App.Locals, Promise<boolean>>();
+/**
+ * Same per-request memo as adminChecks: a gate and a write check, or an action and the load after
+ * it, share one lookup.
+ */
+const reconciles = new WeakMap<App.Locals, Promise<Reconciled>>();
 
 function reconcileOnce(
 	locals: App.Locals,
 	discordId: string,
 	mirrored: GuildMember | null
-): Promise<boolean> {
+): Promise<Reconciled> {
 	let reconcile = reconciles.get(locals);
 	if (!reconcile) {
 		reconcile = reconcileMember(discordId, mirrored);
@@ -37,9 +40,9 @@ function reconcileOnce(
 }
 
 /**
- * The mirrored row when it passes `accept`. Otherwise Discord is asked once before refusing, and
- * a disagreement is repaired by a full sync and read back, so a stale mirror does not lock out
- * someone who just joined or gained a role. Null for a non-member.
+ * For reads. The mirrored row when it passes `accept`. Otherwise Discord is asked once before
+ * refusing, and a disagreement is repaired by a full sync and read back, so a stale mirror does not
+ * lock out someone who just joined or gained a role. Null for a non-member.
  */
 export async function gateMember(
 	locals: App.Locals,
@@ -51,15 +54,40 @@ export async function gateMember(
 	const mirrored = await activeMember(user.discordId);
 	if (mirrored && accept(mirrored)) return mirrored;
 
-	if (!(await reconcileOnce(locals, user.discordId, mirrored))) return mirrored;
+	try {
+		const { synced } = await reconcileOnce(locals, user.discordId, mirrored);
+		if (!synced) return mirrored;
+	} catch (cause) {
+		// The refusal stands: a read may be judged by the mirror.
+		console.error('[guards] member lookup before a refusal failed', cause);
+		return mirrored;
+	}
 	return activeMember(user.discordId);
 }
 
-/** For a refusal that came from somewhere other than gateMember. True when the mirror was re-synced. */
-export async function recheckMember(locals: App.Locals): Promise<boolean> {
+export type LiveMembership =
+	| { status: 'member'; roleIds: string[] }
+	| { status: 'absent' }
+	| { status: 'unavailable' };
+
+/**
+ * For writes, which a departure or a removed role must stop at once: Discord is asked every time
+ * and its answer decides, never the mirror's. A disagreement with the mirror is repaired by a full
+ * sync. 'unavailable' when Discord could not be asked, and the write must then be refused.
+ */
+export async function confirmMember(locals: App.Locals): Promise<LiveMembership> {
 	const user = locals.user;
-	if (!user) return false;
-	return reconcileOnce(locals, user.discordId, await activeMember(user.discordId));
+	if (!user) return { status: 'absent' };
+
+	// Outside the try: a database fault must not pass for a Discord outage.
+	const mirrored = await activeMember(user.discordId);
+	try {
+		const { live } = await reconcileOnce(locals, user.discordId, mirrored);
+		return live ? { status: 'member', roleIds: live.roles } : { status: 'absent' };
+	} catch (cause) {
+		console.error('[guards] live member check failed', cause);
+		return { status: 'unavailable' };
+	}
 }
 
 /** Anonymous visitors go to the top page, which is where the login button lives. */
@@ -89,9 +117,13 @@ export async function requireMember(
 	return { user, member };
 }
 
+/** 'view' for a load, 'act' for an action that changes the form or posts to Discord. */
+export type ManageAccess = 'view' | 'act';
+
 /**
- * A form is managed by its creator or by a guild admin, either way only while in the guild. A
- * creator present in the mirror costs no Discord call.
+ * A form is managed by its creator or by a guild admin, either way only while in the guild. To
+ * view, a creator present in the mirror costs no Discord call; to act, the creator's membership is
+ * confirmed live, and an unreachable Discord refuses with 503.
  *
  * The admin branch is screened by the mirror first: the results page can be open to the whole
  * guild, and the live check is three calls, one of them the 5/s getGuildMember. The mirror is only
@@ -99,11 +131,20 @@ export async function requireMember(
  */
 export async function canManageForm(
 	locals: App.Locals,
-	target: Pick<Form, 'createdBy'>
+	target: Pick<Form, 'createdBy'>,
+	access: ManageAccess
 ): Promise<boolean> {
 	const user = locals.user;
 	if (!user) return false;
-	if (target.createdBy === user.id) return (await gateMember(locals)) !== null;
+	if (target.createdBy === user.id) {
+		if (access === 'view') return (await gateMember(locals)) !== null;
+
+		const live = await confirmMember(locals);
+		if (live.status === 'unavailable') {
+			error(503, 'Discord に接続できないため、今は操作できません。時間をおいてもう一度お試しください。');
+		}
+		return live.status === 'member';
+	}
 
 	const mirrored = await activeMember(user.discordId);
 	if (!(await looksLikeGuildAdmin(user.discordId, mirrored?.roleIds ?? []))) return false;
@@ -121,12 +162,15 @@ export async function requireForm(formId: string): Promise<Form> {
 /** 404 for a missing form, then 403 for anyone who may not manage it. */
 export async function requireFormManager(
 	locals: App.Locals,
-	formId: string
+	formId: string,
+	access: ManageAccess
 ): Promise<{ user: SessionUser; target: Form }> {
 	const user = requireUser(locals);
 
 	const target = await requireForm(formId);
-	if (!(await canManageForm(locals, target))) error(403, 'このフォームを操作する権限がありません');
+	if (!(await canManageForm(locals, target, access))) {
+		error(403, 'このフォームを操作する権限がありません');
+	}
 
 	return { user, target };
 }

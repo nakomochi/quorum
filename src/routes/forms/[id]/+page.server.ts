@@ -10,11 +10,11 @@ import {
 	submitResponse,
 	type SubmitFailure
 } from '$lib/server/forms';
-import { gateMember, recheckMember, requireForm, requireUser } from '$lib/server/guards';
+import { confirmMember, gateMember, requireForm, requireUser } from '$lib/server/guards';
 import { looksLikeGuildAdmin } from '$lib/server/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
-const STATUS: Record<SubmitFailure, number> = {
+const STATUS: Record<SubmitFailure | 'not_member', number> = {
 	not_found: 404,
 	not_member: 403,
 	forbidden: 403,
@@ -75,28 +75,30 @@ export const actions: Actions = {
 	default: async ({ locals, params, request }) => {
 		const user = requireUser(locals);
 
+		const live = await confirmMember(locals);
+		// Not a changed situation but a passing fault: the typed answers stay for another try.
+		if (live.status === 'unavailable') {
+			return fail(503, {
+				message:
+					'Discord に接続できないため、今は送信できません。時間をおいてもう一度送信してください。'
+			});
+		}
+
+		// Every refusal means the page is out of date. The client reloads it, and the reload is
+		// what explains the refusal, so only the reason goes back.
+		if (live.status === 'absent') return fail(STATUS.not_member, { reason: 'not_member' });
+
 		const questions = await loadQuestions(params.id);
 		const data = await request.formData();
-
 		const inputs = collectAnswerInputs(data, questions);
-		const submit = () =>
-			submitResponse(params.id, { id: user.id, discordId: user.discordId }, inputs);
 
 		try {
-			let result = await submit();
-
-			// submitResponse only reads the mirror, keeping Discord I/O away from its transaction,
-			// so a stale refusal is checked here and the submission retried once after a re-sync.
-			if (
-				!result.ok &&
-				(result.reason === 'not_member' || result.reason === 'forbidden') &&
-				(await recheckMember(locals))
-			) {
-				result = await submit();
-			}
-
-			// Every refusal means the page is out of date. The client reloads it, and the reload is
-			// what explains the refusal, so only the reason goes back.
+			const result = await submitResponse(
+				params.id,
+				{ id: user.id, discordId: user.discordId },
+				{ roleIds: live.roleIds },
+				inputs
+			);
 			if (!result.ok) return fail(STATUS[result.reason], { reason: result.reason });
 			return { created: result.created };
 		} catch (err) {

@@ -53,7 +53,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 
 	const target = await requireForm(params.id);
 
-	const manage = await canManageForm(locals, target);
+	const manage = await canManageForm(locals, target, 'view');
 	// canManageForm already requires membership, so only a non-manager is checked here.
 	if (!manage && !(await gateMember(locals))) {
 		error(403, 'このサーバーのメンバーではありません');
@@ -112,7 +112,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 // Actions run before the load, so each repeats the manage check itself.
 export const actions: Actions = {
 	close: async ({ locals, params }) => {
-		await requireFormManager(locals, params.id);
+		await requireFormManager(locals, params.id, 'act');
 
 		let result;
 		try {
@@ -137,7 +137,7 @@ export const actions: Actions = {
 	},
 
 	reopen: async ({ locals, params }) => {
-		await requireFormManager(locals, params.id);
+		await requireFormManager(locals, params.id, 'act');
 
 		if (!(await reopenForm(params.id))) {
 			return fail(409, { message: 'このフォームはクローズされていません' });
@@ -147,7 +147,7 @@ export const actions: Actions = {
 	},
 
 	announce: async ({ locals, params }) => {
-		await requireFormManager(locals, params.id);
+		await requireFormManager(locals, params.id, 'act');
 
 		const result = await announceForm(params.id);
 		if (!result.ok) {
@@ -161,7 +161,7 @@ export const actions: Actions = {
 	},
 
 	remind: async ({ locals, params }) => {
-		const { user } = await requireFormManager(locals, params.id);
+		const { user } = await requireFormManager(locals, params.id, 'act');
 
 		const result = await sendReminder(params.id, { kind: 'manual', sentBy: user.id });
 		if (!result.ok) {
@@ -173,7 +173,7 @@ export const actions: Actions = {
 	},
 
 	syncRoster: async ({ locals, params }) => {
-		const { target } = await requireFormManager(locals, params.id);
+		const { target } = await requireFormManager(locals, params.id, 'act');
 
 		// Closing froze the non-submitters, so a refresh would change nothing on this page.
 		if (target.closedAt !== null) {

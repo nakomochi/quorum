@@ -144,31 +144,36 @@ function sameRoles(a: string[], b: string[]): boolean {
 	return left.size === right.size && [...left].every((id) => right.has(id));
 }
 
+export type Reconciled = {
+	/** The member as Discord reports them now. Null when not in the guild. */
+	live: DiscordGuildMember | null;
+	/** True when the mirror disagreed and a full sync has since repaired it. */
+	synced: boolean;
+};
+
 /**
  * Checks one member against Discord and, on any disagreement with the mirrored row, repairs the
  * mirror with a full sync. The live answer is never written: the full sync stays the only writer.
- * True when a sync ran. A Discord failure returns false, so the caller's refusal stands.
+ * A failed lookup throws. A failed sync is only logged: the live answer stands either way.
  *
- * Runs only where a gate is about to refuse. A change that makes no gate refuse, such as a member
- * gaining an admin role, a role's permissions changing or a new owner, waits for the next full sync.
+ * Runs where a gate is about to refuse and on every write. A change no member lookup can see, such
+ * as a role's permissions changing or a new owner, waits for the next full sync.
  */
 export async function reconcileMember(
 	discordId: string,
 	mirrored: Pick<GuildMember, 'roleIds'> | null
-): Promise<boolean> {
-	try {
-		const live = await lookupMember(discordId);
-		const agrees =
-			live === null
-				? mirrored === null
-				: mirrored !== null && sameRoles(live.roles, mirrored.roleIds);
-		if (agrees) return false;
+): Promise<Reconciled> {
+	const live = await lookupMember(discordId);
+	const agrees =
+		live === null ? mirrored === null : mirrored !== null && sameRoles(live.roles, mirrored.roleIds);
+	if (agrees) return { live, synced: false };
 
+	try {
 		await syncAllMembers();
-		return true;
+		return { live, synced: true };
 	} catch (cause) {
-		console.error('[guild-sync] member reconcile failed', cause);
-		return false;
+		console.error('[guild-sync] repair sync after a member check failed', cause);
+		return { live, synced: false };
 	}
 }
 

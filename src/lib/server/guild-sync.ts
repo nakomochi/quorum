@@ -12,6 +12,9 @@ import {
 // Keeps the bind-parameter count of a multi-row INSERT well inside Postgres' 65535 limit.
 const UPSERT_CHUNK_SIZE = 500;
 
+// ASCII "fdsync". Arbitrary, but distinctive enough not to collide with other advisory locks.
+const FULL_SYNC_LOCK_KEY = 0x6664_7379_6e63;
+
 export type SyncAllResult = {
 	/** Members Discord returned, i.e. the guild's current size. */
 	present: number;
@@ -90,6 +93,11 @@ async function runFullSync(): Promise<SyncAllResult> {
 	const presentIds = rows.map((row) => row.discordId);
 
 	return db.transaction(async (tx) => {
+		// The single-flight above is per process. Two processes (e.g. old and new containers during
+		// a deploy) holding member lists that disagree would upsert and mark departed the same rows
+		// in opposite orders and deadlock, so full syncs are serialized across processes too.
+		await tx.execute(sql`select pg_advisory_xact_lock(${FULL_SYNC_LOCK_KEY}::bigint)`);
+
 		for (const batch of chunk(rows, UPSERT_CHUNK_SIZE)) {
 			await tx
 				.insert(guildMember)

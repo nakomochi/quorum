@@ -35,15 +35,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return {
 		syncedAt,
-		// Mapped field by field: the frozen lists are only needed for counting.
+		// Mapped field by field: the role id, the frozen lists and the close times are only needed
+		// for the role name, the counts and `closed`.
 		forms: rows.map((row) => ({
 			id: row.id,
 			title: row.title,
-			targetRoleId: row.targetRoleId,
 			submitScope: row.submitScope,
 			deadline: row.deadline,
-			closesAt: row.closesAt,
-			closedAt: row.closedAt,
 			roleName: roleNames.get(row.targetRoleId) ?? '（削除されたロール）',
 			closed: isClosed(row),
 			...count(row)

@@ -53,7 +53,7 @@
 				</tr>
 			</thead>
 			<tbody>
-				{#each rows as row (row.discordId)}
+				{#each rows as row (row.responseId)}
 					<tr class="border-t border-border">
 						<td class="px-4 py-3 font-medium whitespace-nowrap">{row.displayName}</td>
 						{#each data.questions as q (q.id)}
@@ -92,7 +92,7 @@
 		<p class="mt-2 text-xs text-text-muted">
 			<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
 			<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt, '指定なし')}</span>
-			{#if data.manage}
+			{#if data.manage && data.form.visibility}
 				<span class="whitespace-nowrap">/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}</span>
 			{/if}
 		</p>
@@ -258,9 +258,9 @@
 			<p class="text-sm text-text-muted">未提出者はいません。</p>
 		{:else}
 			<ul class="card flex flex-wrap gap-2 p-4">
-				{#each data.nonSubmitters as member (member.discordId)}
+				{#each data.nonSubmitters as name, index (index)}
 					<li class="border-border-strong rounded border px-2 py-1 text-xs text-text-subtle">
-						{member.displayName}
+						{name}
 					</li>
 				{/each}
 			</ul>

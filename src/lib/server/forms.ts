@@ -507,17 +507,46 @@ export async function loadOwnResponse(formId: string, userId: string) {
 	return { response: row, answers };
 }
 
-export type SubmittedForm = Form & {
+/**
+ * What the top page shows of a form. Sent to the browser as is, so it must never carry a column
+ * the member is not meant to read, such as the frozen rosters or the audience settings.
+ */
+export type PendingFormSummary = {
+	id: string;
+	title: string;
+	deadline: Date | null;
+};
+
+export type SubmittedFormSummary = {
+	id: string;
+	title: string;
 	submittedAt: Date;
 	/** More than one means the response was edited. */
 	revisionCount: number;
 };
 
+export type MemberFormLists = {
+	pending: PendingFormSummary[];
+	submitted: SubmittedFormSummary[];
+};
+
 export async function listFormsForMember(
 	member: MemberContext,
 	userId: string
-): Promise<{ pending: Form[]; submitted: SubmittedForm[] }> {
-	const rows = await db.select().from(form).orderBy(desc(form.createdAt));
+): Promise<MemberFormLists> {
+	// submitScope and targetRoleId feed canSubmit here and are dropped from what is returned.
+	const rows = await db
+		.select({
+			id: form.id,
+			title: form.title,
+			deadline: form.deadline,
+			closesAt: form.closesAt,
+			closedAt: form.closedAt,
+			submitScope: form.submitScope,
+			targetRoleId: form.targetRoleId
+		})
+		.from(form)
+		.orderBy(desc(form.createdAt));
 	const eligible = rows.filter((row) => canSubmit(row, member));
 	if (eligible.length === 0) return { pending: [], submitted: [] };
 
@@ -544,19 +573,27 @@ export async function listFormsForMember(
 
 	const pending = eligible
 		.filter((row) => !own.has(row.id) && !isClosed(row))
-		.sort((a, b) => deadlineRank(a) - deadlineRank(b));
+		.sort((a, b) => deadlineRank(a) - deadlineRank(b))
+		.map((row) => ({ id: row.id, title: row.title, deadline: row.deadline }));
 
 	const submitted = eligible.flatMap((row) => {
 		const entry = own.get(row.id);
 		return entry
-			? [{ ...row, submittedAt: entry.submittedAt, revisionCount: entry.revisionCount }]
+			? [
+					{
+						id: row.id,
+						title: row.title,
+						submittedAt: entry.submittedAt,
+						revisionCount: entry.revisionCount
+					}
+				]
 			: [];
 	});
 
 	return { pending, submitted };
 }
 
-function deadlineRank(row: Form): number {
+function deadlineRank(row: Pick<Form, 'deadline'>): number {
 	return row.deadline ? row.deadline.getTime() : Number.POSITIVE_INFINITY;
 }
 
@@ -564,8 +601,6 @@ export type CreatedFormSummary = {
 	id: string;
 	title: string;
 	deadline: Date | null;
-	closesAt: Date | null;
-	closedAt: Date | null;
 	createdAt: Date;
 	responseCount: number;
 };
@@ -698,9 +733,9 @@ function responderName(row: ResponderRow): string {
 	return username ? memberDisplayName({ username, globalName, nickname }) : row.discordId;
 }
 
+/** Sent to anyone canViewResults admits, so it names people but carries no Discord id. */
 export type ResultRow = {
 	responseId: number;
-	discordId: string;
 	displayName: string;
 	submittedAt: Date;
 	updatedAt: Date;
@@ -716,7 +751,8 @@ export type FormResults = {
 	submitted: ResultRow[];
 	/** Responses from outside the target roster: no target role, a bot, or no longer in the guild. */
 	outsiders: ResultRow[];
-	nonSubmitters: FrozenMember[];
+	/** Display names only, for the same reason as ResultRow. */
+	nonSubmitters: string[];
 };
 
 export async function loadResults(target: Form): Promise<FormResults> {
@@ -769,7 +805,6 @@ export async function loadResults(target: Form): Promise<FormResults> {
 	for (const row of rows) {
 		const entry: ResultRow = {
 			responseId: row.responseId,
-			discordId: row.discordId,
 			displayName: responderName(row),
 			submittedAt: row.submittedAt,
 			updatedAt: row.updatedAt,
@@ -788,7 +823,7 @@ export async function loadResults(target: Form): Promise<FormResults> {
 		targetCount: submitted.length + nonSubmitters.length,
 		submitted,
 		outsiders,
-		nonSubmitters
+		nonSubmitters: nonSubmitters.map((member) => member.displayName)
 	};
 }
 
@@ -996,8 +1031,6 @@ export async function listFormsCreatedBy(userId: string): Promise<CreatedFormSum
 			id: form.id,
 			title: form.title,
 			deadline: form.deadline,
-			closesAt: form.closesAt,
-			closedAt: form.closedAt,
 			createdAt: form.createdAt,
 			responseCount: count(response.id)
 		})

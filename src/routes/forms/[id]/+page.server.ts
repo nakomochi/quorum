@@ -52,10 +52,17 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			title: target.title,
 			description: target.description,
 			deadline: target.deadline,
-			closesAt: target.closesAt,
-			allowEdit: target.allowEdit
+			closesAt: target.closesAt
 		},
-		questions,
+		questions: questions.map((q) => ({
+			id: q.id,
+			type: q.type,
+			label: q.label,
+			helpText: q.helpText,
+			required: q.required,
+			options: q.options,
+			allowOther: q.allowOther
+		})),
 		closed,
 		editable: !closed && (own === null || target.allowEdit),
 		submittedAt: own?.response.submittedAt ?? null,

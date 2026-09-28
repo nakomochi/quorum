@@ -81,14 +81,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		form: {
 			id: target.id,
 			title: target.title,
-			description: target.description,
-			visibility: target.visibility,
 			deadline: target.deadline,
 			closesAt: target.closesAt,
-			closedAt: target.closedAt
+			// Drawn only in the managers' controls.
+			visibility: manage ? target.visibility : null,
+			closedAt: manage ? target.closedAt : null
 		},
 		closed: isClosed(target),
-		reopenClearsClosesAt: target.closedAt !== null && closesAtPassed(target),
+		reopenClearsClosesAt: manage && target.closedAt !== null && closesAtPassed(target),
 		manage,
 		roleDeleted,
 		// Set by the redirect the creation page takes when the announcement could not be posted.
@@ -104,7 +104,11 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			options: q.options
 		})),
 		tallies: tallyChoices(questions, [...results.submitted, ...results.outsiders]),
-		...results
+		frozen: results.frozen,
+		targetCount: results.targetCount,
+		submitted: results.submitted,
+		outsiders: results.outsiders,
+		nonSubmitters: results.nonSubmitters
 	};
 };
 

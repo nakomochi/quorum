@@ -34,7 +34,7 @@ export type UiCase<Data, Form = null> = {
 };
 
 type SessionUser = NonNullable<HomeData['user']>;
-type FormRow = HomeData['pending'][number];
+type PendingRow = HomeData['pending'][number];
 type SubmittedRow = HomeData['submitted'][number];
 type CreatedRow = HomeData['created'][number];
 type QuestionRow = AnswerData['questions'][number];
@@ -42,7 +42,6 @@ type ResultRow = ResultsData['submitted'][number];
 type ResultQuestion = ResultsData['questions'][number];
 type Tally = ResultsData['tallies'][number];
 type ReminderEntry = ResultsData['reminders'][number];
-type FrozenMember = ResultsData['nonSubmitters'][number];
 type Revision = HistoryData['revisions'][number];
 type HistoryQuestion = HistoryData['questions'][number];
 type AdminRow = AdminData['forms'][number];
@@ -63,14 +62,8 @@ const CHANNEL_ID = '900000000000000002';
 const MESSAGE_ID = '900000000000000003';
 
 const USER: SessionUser = {
-	id: 'user_fixture_1',
 	name: 'なこもち',
-	email: 'fixture@example.invalid',
-	emailVerified: true,
-	image: null,
-	discordId: '100000000000000001',
-	createdAt: at('2025-08-05T12:00:00'),
-	updatedAt: at('2026-03-01T12:00:00')
+	image: null
 };
 
 const LONG_TITLE =
@@ -90,51 +83,32 @@ const LONG_DESCRIPTION = [
 
 // --- builders ---
 
-const formRow = (over: Partial<FormRow> & Pick<FormRow, 'id' | 'title'>): FormRow => ({
-	description: null,
-	targetRoleId: ROLE_ID,
-	submitScope: 'everyone',
-	visibility: 'public',
+const pendingRow = (over: Partial<PendingRow> & Pick<PendingRow, 'id' | 'title'>): PendingRow => ({
 	deadline: at('2026-04-30T23:59:00'),
-	closesAt: null,
-	allowEdit: true,
-	structureLockedAt: null,
-	announcementChannelId: CHANNEL_ID,
-	announcementMessageId: MESSAGE_ID,
-	createdBy: USER.id,
-	closedAt: null,
-	finalNonSubmitters: null,
-	finalTargetIds: null,
-	createdAt: at('2026-03-01T10:00:00'),
-	updatedAt: at('2026-03-01T10:00:00'),
 	...over
 });
 
 const submittedRow = (
 	over: Partial<SubmittedRow> & Pick<SubmittedRow, 'id' | 'title' | 'submittedAt'>
 ): SubmittedRow => ({
-	...formRow(over),
 	revisionCount: 1,
 	...over
 });
 
 const createdRow = (over: Partial<CreatedRow> & Pick<CreatedRow, 'id' | 'title'>): CreatedRow => ({
 	deadline: at('2026-04-30T23:59:00'),
-	closesAt: null,
-	closedAt: null,
 	createdAt: at('2026-04-01T10:00:00'),
 	responseCount: 0,
 	...over
 });
 
-const question = (over: Partial<QuestionRow> & Pick<QuestionRow, 'id' | 'label' | 'type'>) => ({
-	formId: 'fixtureform1',
-	position: over.id,
+const question = (
+	over: Partial<QuestionRow> & Pick<QuestionRow, 'id' | 'label' | 'type'>
+): QuestionRow => ({
 	helpText: null,
 	required: false,
 	options: null,
 	allowOther: false,
-	deletedAt: null,
 	...over
 });
 
@@ -217,17 +191,15 @@ const NAMES = [
 	'そら'
 ];
 
-const member = (index: number): FrozenMember => ({
-	discordId: `20000000000000${String(index).padStart(4, '0')}`,
-	displayName: NAMES[index % NAMES.length] + (index >= NAMES.length ? `${index}` : '')
-});
+const member = (index: number): string =>
+	NAMES[index % NAMES.length] + (index >= NAMES.length ? `${index}` : '');
 
 const resultRow = (index: number, answers: ResultRow['answers']): ResultRow => {
 	const day = String(10 + (index % 10)).padStart(2, '0');
 	const submittedAt = at(`2026-09-${day}T21:0${index % 10}:00`);
 	return {
 		responseId: index + 1,
-		...member(index),
+		displayName: member(index),
 		submittedAt,
 		updatedAt: submittedAt,
 		revisionCount: 1,
@@ -581,7 +553,6 @@ const answerForm = (over: Partial<AnswerData['form']> = {}): AnswerData['form'] 
 	description: '5月の合宿について、参加可否を教えてください。',
 	deadline: fromNow(24 * 14),
 	closesAt: fromNow(24 * 15),
-	allowEdit: true,
 	...over
 });
 
@@ -656,13 +627,15 @@ const CHECKED_ANSWERS: AnswerData['answers'] = {
 const resultsForm = (over: Partial<ResultsData['form']> = {}): ResultsData['form'] => ({
 	id: 'fixtureform1',
 	title: '春合宿の参加確認',
-	description: '5月の合宿について、参加可否を教えてください。',
-	visibility: 'public',
 	deadline: at('2026-04-30T23:59:00'),
 	closesAt: at('2026-05-01T00:00:00'),
+	visibility: 'public',
 	closedAt: null,
 	...over
 });
+
+/** What the load leaves out for someone who may only read the results. */
+const viewerForm = () => resultsForm({ visibility: null });
 
 // --- cases ---
 
@@ -685,23 +658,21 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 			member: true,
 			isAdmin: false,
 			pending: [
-				formRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(-36) }),
-				formRow({ id: 'pending000002', title: '新歓イベントの担当希望', deadline: fromNow(30) }),
-				formRow({ id: 'pending000003', title: '定例会の出欠（10月）', deadline: fromNow(24 * 21) }),
-				formRow({ id: 'pending000004', title: 'Tシャツのサイズ調査', deadline: null })
+				pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(-36) }),
+				pendingRow({ id: 'pending000002', title: '新歓イベントの担当希望', deadline: fromNow(30) }),
+				pendingRow({ id: 'pending000003', title: '定例会の出欠（10月）', deadline: fromNow(24 * 21) }),
+				pendingRow({ id: 'pending000004', title: 'Tシャツのサイズ調査', deadline: null })
 			],
 			submitted: [
 				submittedRow({
 					id: 'done00000001',
 					title: '夏合宿のふりかえり',
-					deadline: at('2026-03-31T23:59:00'),
 					submittedAt: at('2026-03-28T22:10:00'),
 					revisionCount: 3
 				}),
 				submittedRow({
 					id: 'done00000002',
 					title: '定例会の出欠（8月）',
-					deadline: at('2026-03-10T20:00:00'),
 					submittedAt: at('2026-03-04T12:30:00')
 				})
 			],
@@ -729,12 +700,11 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 			user: USER,
 			member: true,
 			isAdmin: false,
-			pending: [formRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })],
+			pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })],
 			submitted: Array.from({ length: 9 }, (_, i) =>
 				submittedRow({
 					id: `done0000000${i + 1}`,
 					title: `定例会の出欠（第 ${i + 1} 回）`,
-					deadline: fromNow(-24 * 7 * (i + 1)),
 					submittedAt: fromNow(-24 * 7 * (i + 1) - 30),
 					revisionCount: i % 3 === 0 ? 2 : 1
 				})
@@ -762,7 +732,7 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 			user: { ...USER, image: null, name: 'とてもながい表示名のサーバー運営アカウント' },
 			member: true,
 			isAdmin: true,
-			pending: [formRow({ id: 'pending000001', title: '春合宿の参加確認' })],
+			pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認' })],
 			submitted: [],
 			created: [createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 })]
 		}
@@ -854,7 +824,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			user: USER,
 			resultsVisible: true,
-			form: answerForm({ allowEdit: false }),
+			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
 			editable: false,
@@ -969,7 +939,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			user: USER,
 			resultsVisible: true,
-			form: answerForm({ allowEdit: false }),
+			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
 			editable: false,
@@ -1038,7 +1008,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		title: '一般閲覧（manage: false）',
 		data: {
 			user: USER,
-			form: resultsForm(),
+			form: viewerForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
 			manage: false,
@@ -1104,7 +1074,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		title: '編集済みの回答あり / 一般閲覧（リンクなし）',
 		data: {
 			user: USER,
-			form: resultsForm(),
+			form: viewerForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
 			manage: false,
@@ -1491,11 +1461,8 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 ];
 
 const adminRow = (over: Partial<AdminRow> & Pick<AdminRow, 'id' | 'title'>): AdminRow => ({
-	targetRoleId: ROLE_ID,
 	submitScope: 'target_role',
 	deadline: at('2026-04-30T23:59:00'),
-	closesAt: null,
-	closedAt: null,
 	submitted: 0,
 	targetCount: 0,
 	outsiders: 0,
@@ -1530,7 +1497,6 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 					id: 'done00000001',
 					title: LONG_TITLE,
 					closed: true,
-					closedAt: at('2026-04-01T00:00:00'),
 					submitted: 58,
 					targetCount: 60,
 					roleName: '（削除されたロール）'
@@ -1588,7 +1554,6 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 					id: 'wide00000004',
 					title: LONG_TITLE,
 					closed: true,
-					closedAt: at('2026-04-01T00:00:00'),
 					// Frozen at close, so the deleted role no longer empties the roster.
 					submitted: 57,
 					targetCount: 60,

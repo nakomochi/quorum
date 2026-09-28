@@ -110,6 +110,14 @@ export async function canManageForm(
 	return guildAdminCheck(locals, user);
 }
 
+export const FORM_NOT_FOUND = 'フォームが見つかりません';
+
+export async function requireForm(formId: string): Promise<Form> {
+	const target = await loadForm(formId);
+	if (!target) error(404, FORM_NOT_FOUND);
+	return target;
+}
+
 /** 404 for a missing form, then 403 for anyone who may not manage it. */
 export async function requireFormManager(
 	locals: App.Locals,
@@ -117,8 +125,7 @@ export async function requireFormManager(
 ): Promise<{ user: SessionUser; target: Form }> {
 	const user = requireUser(locals);
 
-	const target = await loadForm(formId);
-	if (!target) error(404, 'フォームが見つかりません');
+	const target = await requireForm(formId);
 	if (!(await canManageForm(locals, target))) error(403, 'このフォームを操作する権限がありません');
 
 	return { user, target };

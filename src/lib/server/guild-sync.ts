@@ -148,6 +148,9 @@ function sameRoles(a: string[], b: string[]): boolean {
  * Checks one member against Discord and, on any disagreement with the mirrored row, repairs the
  * mirror with a full sync. The live answer is never written: the full sync stays the only writer.
  * True when a sync ran. A Discord failure returns false, so the caller's refusal stands.
+ *
+ * Runs only where a gate is about to refuse. A change that makes no gate refuse, such as a member
+ * gaining an admin role, a role's permissions changing or a new owner, waits for the next full sync.
  */
 export async function reconcileMember(
 	discordId: string,

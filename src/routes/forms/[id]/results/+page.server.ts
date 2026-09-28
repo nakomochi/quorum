@@ -4,26 +4,30 @@ import {
 	closeForm,
 	closesAtPassed,
 	isClosed,
-	loadForm,
 	loadQuestions,
 	loadResults,
 	reopenForm,
 	RosterRefreshError,
 	tallyChoices
 } from '$lib/server/forms';
-import { canManageForm, gateMember, requireFormManager, requireUser } from '$lib/server/guards';
-import { syncAllMembers, syncedGuildRoles } from '$lib/server/guild-sync';
+import {
+	canManageForm,
+	FORM_NOT_FOUND,
+	gateMember,
+	requireForm,
+	requireFormManager,
+	requireUser
+} from '$lib/server/guards';
+import { lastSyncedAt, syncAllMembers, syncedGuildRoles } from '$lib/server/guild-sync';
 import { announceForm, listReminders, sendReminder } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
-
-const NOT_FOUND = 'フォームが見つかりません';
 
 const NO_CHANNEL = '告知チャンネルが設定されていないため、Discord へ投稿できません';
 
 const ANNOUNCE_FAILED = 'Discord への告知の投稿に失敗しました';
 
 const REMINDER_FAILURES = {
-	not_found: { status: 404, message: NOT_FOUND },
+	not_found: { status: 404, message: FORM_NOT_FOUND },
 	closed: {
 		status: 409,
 		message: 'このフォームは受付を終了しているため、リマインドは送信していません'
@@ -46,8 +50,7 @@ const REMINDER_FAILURES = {
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	requireUser(locals);
 
-	const target = await loadForm(params.id);
-	if (!target) error(404, NOT_FOUND);
+	const target = await requireForm(params.id);
 
 	const manage = await canManageForm(locals, target);
 	// canManageForm already requires membership, so only a non-manager is checked here.
@@ -59,11 +62,13 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	// The non-submitter list drives the decision to remind, so refresh the mirror before reading it
 	// instead of reading Discord here: one more sync trigger, not a second read path. Gated on
 	// manage because canViewResults can let the whole guild onto this page, and listGuildMembers is
-	// 10/10s. A failure leaves the last sync time behind in guild_sync rather than going unnoticed.
+	// 10/10s. A failure is shown to the manager along with the last sync time left in guild_sync.
+	let syncFailed = false;
 	if (manage) {
 		try {
 			await syncAllMembers();
 		} catch (cause) {
+			syncFailed = true;
 			console.error('[guild-sync] results refresh failed', cause);
 		}
 	}
@@ -72,8 +77,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const results = await loadResults(target);
 
 	// Read from the snapshot the sync above just wrote, never from Discord. Without one there is
-	// nothing to judge by, so no warning. A frozen roster no longer depends on the role.
-	const synced = manage && !results.frozen ? await syncedGuildRoles() : null;
+	// nothing to judge by, so no warning. A frozen roster no longer depends on the role or on how
+	// fresh the mirror is.
+	const liveRoster = manage && !results.frozen;
+	const [synced, rosterSyncedAt] = liveRoster
+		? await Promise.all([syncedGuildRoles(), lastSyncedAt()])
+		: [null, null];
 	const roleDeleted =
 		synced !== null && !synced.roles.some((role) => role.id === target.targetRoleId);
 
@@ -91,6 +100,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		reopenClearsClosesAt: manage && target.closedAt !== null && closesAtPassed(target),
 		manage,
 		roleDeleted,
+		rosterSyncedAt,
+		rosterSyncFailed: liveRoster && syncFailed,
 		// Set by the redirect the creation page takes when the announcement could not be posted.
 		announceFailed: manage && url.searchParams.get('announce') === 'failed',
 		announcement: manage
@@ -132,7 +143,7 @@ export const actions: Actions = {
 
 		if (!result.ok) {
 			return result.reason === 'not_found'
-				? fail(404, { message: NOT_FOUND })
+				? fail(404, { message: FORM_NOT_FOUND })
 				: fail(409, { message: 'このフォームはすでにクローズされています' });
 		}
 
@@ -154,7 +165,7 @@ export const actions: Actions = {
 
 		const result = await announceForm(params.id);
 		if (!result.ok) {
-			if (result.reason === 'not_found') return fail(404, { message: NOT_FOUND });
+			if (result.reason === 'not_found') return fail(404, { message: FORM_NOT_FOUND });
 			return result.reason === 'no_channel'
 				? fail(400, { message: NO_CHANNEL })
 				: fail(502, { message: ANNOUNCE_FAILED });

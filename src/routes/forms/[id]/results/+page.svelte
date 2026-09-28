@@ -104,6 +104,18 @@
 		</p>
 	{/if}
 
+	{#if data.rosterSyncFailed}
+		<p role="alert" class="alert-warning">
+			{#if data.rosterSyncedAt}
+				Discord からメンバー一覧を取得できなかったため、未提出者は <span class="whitespace-nowrap"
+					>{formatJst(data.rosterSyncedAt)}</span
+				> 時点の名簿で表示しています。
+			{:else}
+				Discord からメンバー一覧を取得できませんでした。名簿がまだ一度も同期されていないため、対象者と未提出者を表示できません。
+			{/if}
+		</p>
+	{/if}
+
 	{#if data.announceFailed}
 		<p role="alert" class="alert-error">
 			フォームは作成しましたが、Discord への告知の投稿に失敗しました。下の「告知を投稿する」から再投稿できます。
@@ -254,6 +266,15 @@
 				<span class="bg-surface-raised rounded px-2 py-0.5 text-xs text-text-muted">確定済み</span>
 			{/if}
 		</h2>
+		{#if data.manage && !data.frozen}
+			<p class="text-xs text-text-muted">
+				{#if data.rosterSyncedAt}
+					名簿: <span class="whitespace-nowrap">{formatJst(data.rosterSyncedAt)} 時点</span>
+				{:else}
+					名簿がまだ同期されていません
+				{/if}
+			</p>
+		{/if}
 		{#if data.nonSubmitters.length === 0}
 			<p class="text-sm text-text-muted">未提出者はいません。</p>
 		{:else}

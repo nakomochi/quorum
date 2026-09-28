@@ -5,13 +5,12 @@ import {
 	collectAnswerInputs,
 	FormInputError,
 	isClosed,
-	loadForm,
 	loadOwnResponse,
 	loadQuestions,
 	submitResponse,
 	type SubmitFailure
 } from '$lib/server/forms';
-import { gateMember, recheckMember, requireUser } from '$lib/server/guards';
+import { gateMember, recheckMember, requireForm, requireUser } from '$lib/server/guards';
 import { looksLikeGuildAdmin } from '$lib/server/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
@@ -26,8 +25,7 @@ const STATUS: Record<SubmitFailure, number> = {
 export const load: PageServerLoad = async ({ locals, params }) => {
 	const user = requireUser(locals);
 
-	const target = await loadForm(params.id);
-	if (!target) error(404, 'フォームが見つかりません');
+	const target = await requireForm(params.id);
 
 	const member = await gateMember(locals, (m) => canSubmit(target, m));
 	if (!member) error(403, 'このサーバーのメンバーではありません');

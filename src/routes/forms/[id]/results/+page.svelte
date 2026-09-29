@@ -1,4 +1,6 @@
 <script lang="ts">
+	import ContextLink from '$lib/components/ContextLink.svelte';
+	import MetaLine from '$lib/components/MetaLine.svelte';
 	import { formatJst } from '$lib/datetime';
 	import { describeAnswer, VISIBILITY_LABELS, type AnswerValue } from '$lib/forms';
 	import Icon from '$lib/icons/Icon.svelte';
@@ -61,30 +63,32 @@
 {/snippet}
 
 {#snippet answerTable(rows: Row[])}
-	<div class="overflow-x-auto rounded-xl border border-border">
-		<table class="w-max min-w-full text-left text-sm">
-			<thead class="bg-surface-alt text-xs text-text-muted">
+	<div class="table-wrap">
+		<table class="table">
+			<thead>
 				<tr>
-					<th class="px-4 py-3 font-medium whitespace-nowrap">回答者</th>
+					<th class="whitespace-nowrap">回答者</th>
 					{#each data.questions as q (q.id)}
-						<th class="px-4 py-3 font-medium">{q.label}</th>
+						<th>{q.label}</th>
 					{/each}
-					<th class="px-4 py-3 font-medium whitespace-nowrap">提出日時</th>
+					<th class="whitespace-nowrap">提出日時</th>
 				</tr>
 			</thead>
 			<tbody>
 				{#each rows as row (row.responseId)}
-					<tr class="border-t border-border">
-						<td class="px-4 py-3 font-medium whitespace-nowrap">{row.displayName}</td>
+					<tr>
+						<td class="font-medium whitespace-nowrap">{row.displayName}</td>
 						{#each data.questions as q (q.id)}
-							<td class="max-w-64 px-4 py-3 whitespace-pre-wrap text-text-subtle">
+							<td class="max-w-64 whitespace-pre-wrap text-text-subtle">
 								{readable(row, q.id, q.options)}
 							</td>
 						{/each}
-						<td class="px-4 py-3 text-xs whitespace-nowrap text-text-muted">
+						<td class="text-xs whitespace-nowrap text-text-muted tabular-nums">
 							{formatJst(row.submittedAt)}
 							{#if row.revisionCount > 1}
+								<!-- The date first and the mark after it, as everywhere else. -->
 								<span class="mt-1.5 flex items-center gap-2">
+									<span>更新 {formatJst(row.updatedAt)}</span>
 									{#if data.manage}
 										<a
 											href="/forms/{data.form.id}/results/{row.responseId}"
@@ -92,9 +96,8 @@
 											class="chip py-0.5">編集済み</a
 										>
 									{:else}
-										<span class="bg-surface-raised rounded px-2 py-0.5 text-text-subtle">編集済み</span>
+										<span class="badge badge-muted">編集済み</span>
 									{/if}
-									<span>最終更新: {formatJst(row.updatedAt)}</span>
 								</span>
 							{/if}
 						</td>
@@ -108,25 +111,23 @@
 <!-- The POST is a full navigation; a page restored from the back-forward cache must not stay disabled. -->
 <svelte:window onpageshow={() => (syncingRoster = false)} />
 
-<main class="mx-auto flex max-w-4xl flex-col gap-6 px-6 pt-8 pb-12">
+<main class="page-wide">
 	<div class="flex flex-col gap-3">
 		<!-- Not "back": the creator and admins usually arrive from the top page or the admin list. -->
-		<nav class="self-start text-sm text-text-muted">
-			<a href="/forms/{data.form.id}" class="inline-flex items-center gap-1.5 hover:underline">
-				回答画面へ
-				<Icon name="arrow-right" />
-			</a>
-		</nav>
+		<ContextLink href="/forms/{data.form.id}" label="回答画面へ" direction="forward" />
 
 		<header class="min-w-0">
-			<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
-			<p class="mt-1.5 text-xs text-text-muted">
-				<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
-				<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt, '指定なし')}</span>
-				{#if data.manage && data.form.visibility}
-					<span class="whitespace-nowrap">/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}</span>
-				{/if}
-			</p>
+			<h1 class="page-title">{data.form.title}</h1>
+			<MetaLine
+				class="mt-1.5"
+				items={[
+					{ label: '締切', value: formatJst(data.form.deadline, 'なし') },
+					{ label: '受付終了', value: formatJst(data.form.closesAt, '指定なし') },
+					...(data.manage && data.form.visibility
+						? [{ label: '公開範囲', value: VISIBILITY_LABELS[data.form.visibility] }]
+						: [])
+				]}
+			/>
 		</header>
 	</div>
 
@@ -210,7 +211,7 @@
 		<section class="card flex flex-col gap-4 p-5">
 			<div class="action-row">
 				<div class="min-w-0 flex-1 text-sm">
-					<h2 class="font-medium text-text-subtle">Discord への告知とリマインド</h2>
+					<h2 class="section-title">Discord への告知とリマインド</h2>
 					<p class="mt-1 text-text-muted">
 						{#if !data.announcement.hasChannel}
 							告知チャンネルが未設定のフォームです。告知の投稿もリマインドの送信もできません。
@@ -286,7 +287,7 @@
 
 	{#if data.tallies.length > 0}
 		<section class="flex flex-col gap-3">
-			<h2 class="text-sm font-medium text-text-subtle">集計（回答 {answerTotal}件）</h2>
+			<h2 class="section-title">集計（回答 {answerTotal}件）</h2>
 			{#each data.tallies as tally (tally.questionId)}
 				<div class="card p-5">
 					<p class="text-sm font-medium">{tally.label}</p>
@@ -304,7 +305,7 @@
 	{/if}
 
 	<section class="flex flex-col gap-2">
-		<h2 class="text-sm font-medium text-text-subtle">回答一覧（{data.submitted.length}名）</h2>
+		<h2 class="section-title">回答一覧（{data.submitted.length}名）</h2>
 		{#if data.submitted.length === 0}
 			<p class="text-sm text-text-muted">対象者からの回答はまだありません。</p>
 		{:else}
@@ -313,28 +314,30 @@
 	</section>
 
 	<section class="flex flex-col gap-2">
-		<h2 class="flex items-center gap-2 text-sm font-medium text-text-subtle">
+		<h2 class="section-title flex items-center gap-2">
 			未提出者{rosterMissing ? '' : `（${data.nonSubmitters.length}名）`}
 			{#if data.frozen}
-				<span class="bg-surface-raised rounded px-2 py-0.5 text-xs text-text-muted">確定済み</span>
+				<span class="badge badge-muted">確定済み</span>
 			{/if}
 		</h2>
 		{#if data.manage && !data.frozen}
 			<div class="action-row">
-				<p class="min-w-0 text-xs text-text-muted">
-					{#if data.rosterSyncedAt}
-						名簿: <span class="whitespace-nowrap">{formatJst(data.rosterSyncedAt)} 時点</span>
-					{:else}
-						名簿: 未同期
-					{/if}
-				</p>
+				<MetaLine
+					class="min-w-0"
+					items={[
+						{
+							label: '名簿',
+							value: data.rosterSyncedAt ? `${formatJst(data.rosterSyncedAt)} 時点` : '未同期'
+						}
+					]}
+				/>
 				<form
 					method="POST"
 					action="?/syncRoster"
 					onsubmit={() => (syncingRoster = true)}
 					class="shrink-0"
 				>
-					<button type="submit" class="btn-secondary px-3 py-1 text-xs" disabled={syncingRoster}>
+					<button type="submit" class="btn-secondary btn-sm" disabled={syncingRoster}>
 						{syncingRoster ? '更新中…' : '名簿を更新'}
 					</button>
 				</form>
@@ -359,7 +362,7 @@
 
 	{#if data.outsiders.length > 0}
 		<section class="flex flex-col gap-2">
-			<h2 class="text-sm font-medium text-text-subtle">
+			<h2 class="section-title">
 				対象外からの回答（{data.outsiders.length}名）
 			</h2>
 			<p class="text-xs text-text-muted">対象ロールを持たない人の回答です。未提出者には含みません。</p>

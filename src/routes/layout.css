@@ -229,4 +229,73 @@ main {
 		@apply border-border-strong text-text-subtle hover:bg-surface-raised rounded border px-2 py-1 text-xs;
 		@apply disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
 	}
+
+	/* Size only, after the two button styles so that its text size wins over theirs. */
+	.btn-sm {
+		@apply px-3 py-1.5 text-xs;
+	}
+
+	/* The outer frame of every page; `.page-wide` for the ones built around a table. */
+	.page {
+		@apply mx-auto flex max-w-2xl flex-col gap-6 px-6 pt-8 pb-12;
+	}
+
+	.page-wide {
+		@apply mx-auto flex max-w-4xl flex-col gap-6 px-6 pt-8 pb-12;
+	}
+
+	.page-title {
+		@apply text-xl font-semibold tracking-tight;
+	}
+
+	.section-title {
+		@apply text-text-subtle text-sm font-medium;
+	}
+
+	/* A status mark. It goes at the right end of a title row, never ahead of a line of details,
+	   so that the details start at the same x on every row. */
+	.badge {
+		@apply inline-flex shrink-0 items-center rounded px-2 py-0.5 text-xs font-normal whitespace-nowrap;
+	}
+
+	.badge-success {
+		@apply bg-success-badge text-success;
+	}
+
+	.badge-warning {
+		@apply bg-warning-surface text-warning;
+	}
+
+	.badge-danger {
+		@apply bg-error-surface text-error-fg;
+	}
+
+	.badge-muted {
+		@apply bg-surface-raised text-text-subtle;
+	}
+
+	/* Scrolls sideways on its own, so a wide table never widens the page. */
+	.table-wrap {
+		@apply border-border overflow-x-auto rounded-xl border;
+	}
+
+	.table {
+		@apply w-max min-w-full text-left text-sm;
+
+		& thead {
+			@apply bg-surface-alt text-text-muted text-xs;
+		}
+
+		& th {
+			@apply px-4 py-3 font-medium;
+		}
+
+		& td {
+			@apply px-4 py-3;
+		}
+
+		& tbody tr {
+			@apply border-border border-t;
+		}
+	}
 }

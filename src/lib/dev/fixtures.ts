@@ -1059,7 +1059,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-closed-submitted',
-		title: '受付終了（提出済み）',
+		title: '受付終了（提出済み・タイトル行に印が2つ）',
 		data: {
 			...SESSION,
 			resultsVisible: true,
@@ -1070,6 +1070,22 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			submittedAt: at('2026-04-12T21:40:00'),
 			updatedAt: at('2026-04-12T21:40:00'),
 			answers: OTHER_ANSWERS,
+			...NO_DRAFT
+		}
+	},
+	{
+		id: 'answer-closed-long-title',
+		title: '受付終了（提出済み・折り返す長いタイトルと印が2つ）',
+		data: {
+			...SESSION,
+			resultsVisible: true,
+			form: answerForm({ title: LONG_TITLE, closesAt: at('2026-04-20T23:59:00') }),
+			questions: QUESTIONS,
+			closed: true,
+			editable: false,
+			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-14T08:15:00'),
+			answers: FILLED_ANSWERS,
 			...NO_DRAFT
 		}
 	},
@@ -1341,7 +1357,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-history',
-		title: '回答履歴あり（3版・読み込みボタン）',
+		title: '回答履歴あり（3版・最新／初回提出の印のある版とない版・読み込みボタン）',
 		data: {
 			...SESSION,
 			resultsVisible: true,
@@ -1440,7 +1456,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-edited-manager',
-		title: '編集済みの回答あり / 管理者（履歴へのリンク）',
+		title: '編集済みの回答あり / 管理者（更新日時の後ろに履歴へのリンク）',
 		data: {
 			...SESSION,
 			form: resultsForm(),
@@ -1463,7 +1479,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-edited-viewer',
-		title: '編集済みの回答あり / 一般閲覧（リンクなし）',
+		title: '編集済みの回答あり / 一般閲覧（更新日時の後ろに印・リンクなし）',
 		data: {
 			...SESSION,
 			form: viewerForm(),
@@ -1871,7 +1887,7 @@ const THREE_REVISIONS: Revision[] = [
 export const HISTORY_CASES: UiCase<HistoryData>[] = [
 	{
 		id: 'history-three',
-		title: '3版（版ごとに変わった質問が違う）',
+		title: '3版（最新／初回提出の印のある版とない版・版ごとに変わった質問が違う）',
 		data: {
 			...SESSION,
 			form: { id: 'fixtureform1', title: '春合宿の参加確認' },
@@ -1886,7 +1902,7 @@ export const HISTORY_CASES: UiCase<HistoryData>[] = [
 	},
 	{
 		id: 'history-single',
-		title: '1版のみ（その他あり・未回答あり）',
+		title: '1版のみ（最新と初回提出の印が並ぶ・その他あり・未回答あり）',
 		data: {
 			...SESSION,
 			form: { id: 'fixtureform1', title: LONG_TITLE },

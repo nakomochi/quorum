@@ -1,12 +1,15 @@
 <script lang="ts">
+	import ItemHeader from '$lib/components/ItemHeader.svelte';
 	import Menu, { type MenuItem } from '$lib/components/Menu.svelte';
+	import MetaLine, { type MetaItem } from '$lib/components/MetaLine.svelte';
 	import { formatJst } from '$lib/datetime';
 	import { FORM_STATUS_LABELS, type FormStatus } from '$lib/forms';
 	import Icon, { type IconName } from '$lib/icons/Icon.svelte';
 
 	let { data, form } = $props();
 
-	const deadlineText = (value: Date | null) => (value ? `締切 ${formatJst(value)}` : '締切なし');
+	const deadlineItem = (value: Date | null): MetaItem =>
+		value ? { label: '締切', value: formatJst(value) } : { value: '締切なし' };
 
 	const SOON_MS = 48 * 60 * 60 * 1000;
 
@@ -32,11 +35,6 @@
 		closed: { name: 'lock', tone: 'text-text-muted' }
 	};
 
-	/**
-	 * Every row is a title line, with any badge at its right end, over a line of details. The badge
-	 * never shares the details line, so the details start at the same x on every row of a list.
-	 */
-	const BADGE = 'shrink-0 rounded px-2 py-0.5 text-xs whitespace-nowrap';
 	/** Lines the details up with the title in lists whose rows lead with a size-4 icon and gap-2. */
 	const UNDER_ICON = 'pl-6';
 
@@ -63,11 +61,7 @@
 {/snippet}
 
 <!-- Signed in, the shared header sits above; signed out there is none, and the login is centred. -->
-<main
-	class="mx-auto flex max-w-2xl flex-col gap-6 px-6 {data.user
-		? 'pt-8 pb-10'
-		: 'min-h-screen justify-center py-10'}"
->
+<main class="page {data.user ? '' : 'min-h-screen justify-center py-10'}">
 	{#if data.user}
 		{#if !data.member}
 			<p class="card text-text-muted p-5 text-sm">
@@ -91,17 +85,16 @@
 								class="card border-l-2 {level === 'overdue' ? 'border-l-danger' : 'border-l-accent'}"
 							>
 								<a href="/forms/{row.id}" class="flex flex-col gap-1 px-5 py-4">
-									<span class="flex min-w-0 items-center gap-2">
-										<span class="min-w-0 flex-1 truncate font-medium">{row.title}</span>
-										{#if level === 'overdue'}
-											<span class="{BADGE} bg-error-surface text-error-fg">期限切れ</span>
-										{:else if level === 'soon'}
-											<span class="{BADGE} bg-warning-surface text-warning">締切間近</span>
-										{/if}
-									</span>
-									<span class="text-text-muted text-xs whitespace-nowrap tabular-nums">
-										{deadlineText(row.deadline)}
-									</span>
+									<ItemHeader title={row.title}>
+										{#snippet badges()}
+											{#if level === 'overdue'}
+												<span class="badge badge-danger">期限切れ</span>
+											{:else if level === 'soon'}
+												<span class="badge badge-warning">締切間近</span>
+											{/if}
+										{/snippet}
+									</ItemHeader>
+									<MetaLine items={[deadlineItem(row.deadline)]} />
 								</a>
 							</li>
 						{/each}
@@ -111,23 +104,27 @@
 
 			{#if data.submitted.length > 0}
 				<section>
-					<h2 class="text-text-subtle text-sm font-medium">
+					<h2 class="section-title">
 						提出済みのフォーム {data.submitted.length} 件
 					</h2>
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each submitted as row (row.id)}
 							<li class="card">
 								<a href="/forms/{row.id}" class="flex flex-col gap-1 px-5 py-4">
-									<span class="flex min-w-0 items-center gap-2">
-										<Icon name="check" class="text-success size-4 shrink-0" />
-										<span class="text-text-subtle min-w-0 flex-1 truncate">{row.title}</span>
-										{#if row.revisionCount > 1}
-											<span class="{BADGE} bg-surface-raised text-text-subtle">編集済み</span>
-										{/if}
-									</span>
-									<span class="text-text-muted {UNDER_ICON} text-xs whitespace-nowrap tabular-nums">
-										提出 {formatJst(row.submittedAt)}
-									</span>
+									<ItemHeader title={row.title} titleClass="text-text-subtle">
+										{#snippet icon()}
+											<Icon name="check" class="text-success size-4 shrink-0" />
+										{/snippet}
+										{#snippet badges()}
+											{#if row.revisionCount > 1}
+												<span class="badge badge-muted">編集済み</span>
+											{/if}
+										{/snippet}
+									</ItemHeader>
+									<MetaLine
+										class={UNDER_ICON}
+										items={[{ label: '提出', value: formatJst(row.submittedAt) }]}
+									/>
 								</a>
 							</li>
 						{/each}
@@ -146,7 +143,7 @@
 
 			{#if data.drafts.length > 0}
 				<section>
-					<h2 class="text-text-subtle text-sm font-medium">下書き {data.drafts.length} 件</h2>
+					<h2 class="section-title">下書き {data.drafts.length} 件</h2>
 					{#if form?.message}
 						<p role="alert" class="alert-error mt-2">{form.message}</p>
 					{/if}
@@ -157,17 +154,18 @@
 									href="/forms/new?draft={row.id}"
 									class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5"
 								>
-									<span class="flex min-w-0 items-center gap-2">
-										<Icon name="pencil" class="text-text-muted size-4 shrink-0" />
-										<span
-											class="min-w-0 flex-1 truncate {row.title ? 'font-medium' : 'text-text-muted'}"
-										>
-											{row.title ?? '無題のフォーム'}
-										</span>
-									</span>
-									<span class="text-text-muted {UNDER_ICON} text-xs whitespace-nowrap tabular-nums">
-										更新 {formatJst(row.updatedAt)}
-									</span>
+									<ItemHeader
+										title={row.title ?? '無題のフォーム'}
+										titleClass={row.title ? 'font-medium' : 'text-text-muted'}
+									>
+										{#snippet icon()}
+											<Icon name="pencil" class="text-text-muted size-4 shrink-0" />
+										{/snippet}
+									</ItemHeader>
+									<MetaLine
+										class={UNDER_ICON}
+										items={[{ label: '更新', value: formatJst(row.updatedAt) }]}
+									/>
 								</a>
 								{@render rowMenu(`「${row.title ?? '無題のフォーム'}」の下書きの操作`, [
 									{
@@ -188,7 +186,7 @@
 
 			{#if data.created.length > 0}
 				<section>
-					<h2 class="text-text-subtle text-sm font-medium">
+					<h2 class="section-title">
 						自分が作成したフォーム {data.created.length} 件
 					</h2>
 					<ul class="mt-2 flex flex-col gap-2">
@@ -199,25 +197,23 @@
 									href="/forms/{row.id}/results"
 									class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5"
 								>
-									<span class="flex min-w-0 items-center gap-2">
-										<!-- The icon's shape and label carry the status, so no text badge repeats it. -->
-										<span
-											role="img"
-											aria-label={FORM_STATUS_LABELS[row.status]}
-											title={FORM_STATUS_LABELS[row.status]}
-											class="flex shrink-0"
-										>
-											<Icon name={status.name} class="{status.tone} size-4" />
-										</span>
-										<span class="min-w-0 flex-1 truncate font-medium">{row.title}</span>
-									</span>
-									<!-- Inline text rather than flex: a line may break after a ・ but never before
-									     one, so a wrap never opens a line with the separator. -->
-									<span class="text-text-muted {UNDER_ICON} text-xs">
-										<span class="whitespace-nowrap tabular-nums">{deadlineText(row.deadline)}</span>
-										・
-										<span class="whitespace-nowrap tabular-nums">{row.responseCount} 件の回答</span>
-									</span>
+									<ItemHeader title={row.title}>
+										{#snippet icon()}
+											<!-- The icon's shape and label carry the status, so no text badge repeats it. -->
+											<span
+												role="img"
+												aria-label={FORM_STATUS_LABELS[row.status]}
+												title={FORM_STATUS_LABELS[row.status]}
+												class="flex shrink-0"
+											>
+												<Icon name={status.name} class="{status.tone} size-4" />
+											</span>
+										{/snippet}
+									</ItemHeader>
+									<MetaLine
+										class={UNDER_ICON}
+										items={[deadlineItem(row.deadline), { value: `${row.responseCount} 件の回答` }]}
+									/>
 								</a>
 								<!-- The results page's own action: it redirects to the new draft. -->
 								{@render rowMenu(`「${row.title}」の操作`, [
@@ -240,7 +236,7 @@
 		{/if}
 	{:else}
 		<header>
-			<h1 class="text-2xl font-semibold tracking-tight">Quorum</h1>
+			<h1 class="page-title text-2xl">Quorum</h1>
 			<p class="text-text-muted mt-1 text-sm">Discord 認証つきフォーム / 出欠管理</p>
 		</header>
 

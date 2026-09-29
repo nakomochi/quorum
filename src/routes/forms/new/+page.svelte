@@ -11,8 +11,12 @@
 	import { enhance } from '$app/forms';
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import { formatJstTime } from '$lib/datetime';
-	import { DraftAutosave, fetchTransport, type SaveStatus } from '$lib/draft-autosave';
+	import SaveStatus from '$lib/components/SaveStatus.svelte';
+	import {
+		DraftAutosave,
+		fetchTransport,
+		type SaveStatus as DraftSaveStatus
+	} from '$lib/draft-autosave';
 	import { draftPayload, questionsField, type DraftQuestion } from '$lib/form-draft';
 	import {
 		hasOptions,
@@ -294,7 +298,7 @@
 		return JSON.stringify(draftPayload(fields, closesAtTouched));
 	}
 
-	let saveStatus = $state<SaveStatus>(
+	let saveStatus = $state<DraftSaveStatus>(
 		restored ? { kind: 'saved', at: restored.updatedAt } : { kind: 'idle' }
 	);
 
@@ -339,9 +343,9 @@
 	});
 </script>
 
-<main class="mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-8 pb-12">
+<main class="page max-w-3xl">
 	<header>
-		<h1 class="text-xl font-semibold tracking-tight">フォームを作成</h1>
+		<h1 class="page-title">フォームを作成</h1>
 	</header>
 
 	{#if form?.message}
@@ -493,7 +497,7 @@
 
 		<section class="flex flex-col gap-4">
 			<div class="flex items-center justify-between gap-2">
-				<h2 class="text-sm font-medium">質問</h2>
+				<h2 class="section-title">質問</h2>
 				<div class="flex gap-1">
 					<!-- Ctrl+Z does the same, but a phone has no Ctrl and a shortcut is invisible. -->
 					<button
@@ -697,36 +701,14 @@
 			</div>
 		</section>
 
-		{#if saveStatus.kind === 'conflict'}
-			<div role="alert" class="alert-warning action-row">
-				<p class="min-w-0 flex-1">
-					別の画面でこの下書きが更新されたか、作成・破棄されました。この画面の自動保存は停止しています。
-				</p>
-				<button
-					type="button"
-					class="btn-secondary shrink-0 px-3 py-1.5 text-xs"
-					onclick={() => location.reload()}
-				>
-					再読み込み
-				</button>
-			</div>
-		{/if}
-
-		<div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+		<SaveStatus
+			status={saveStatus}
+			savedLabel="保存済み"
+			failedLabel="保存できませんでした"
+			tooLargeHint="フォームが大きすぎます。質問や選択肢を減らしてください"
+			conflictMessage="別の画面でこの下書きが更新されたか、作成・破棄されました。この画面の自動保存は停止しています。"
+		>
 			<button type="submit" class="btn-primary px-5 py-2.5">作成する</button>
-			<p role="status" class="text-xs text-text-muted">
-				{#if saveStatus.kind === 'saving'}
-					保存中…
-				{:else if saveStatus.kind === 'saved'}
-					<span class="whitespace-nowrap">保存済み {formatJstTime(saveStatus.at)}</span>
-				{:else if saveStatus.kind === 'failed'}
-					<span class="text-error-fg">
-						保存できませんでした{saveStatus.tooLarge
-							? '。フォームが大きすぎます。質問や選択肢を減らしてください'
-							: ''}
-					</span>
-				{/if}
-			</p>
-		</div>
+		</SaveStatus>
 	</form>
 </main>

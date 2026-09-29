@@ -3,15 +3,20 @@
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { formatJst, formatJstTime } from '$lib/datetime';
+	import AnswerList from '$lib/components/AnswerList.svelte';
+	import ContextLink from '$lib/components/ContextLink.svelte';
+	import ItemHeader from '$lib/components/ItemHeader.svelte';
+	import MetaLine from '$lib/components/MetaLine.svelte';
+	import RevisionList from '$lib/components/RevisionList.svelte';
+	import SaveStatus from '$lib/components/SaveStatus.svelte';
+	import { formatJst } from '$lib/datetime';
 	import {
 		DraftAutosave,
 		discardResponseDraft,
 		responseDraftTransport,
-		type SaveStatus
+		type SaveStatus as DraftSaveStatus
 	} from '$lib/draft-autosave';
 	import {
-		describeAnswer,
 		MAX_OTHER_ANSWER,
 		MAX_TEXT_ANSWER,
 		OTHER_OPTION_ID,
@@ -73,7 +78,7 @@
 
 	// --- draft autosave ---
 
-	let saveStatus = $state<SaveStatus>(
+	let saveStatus = $state<DraftSaveStatus>(
 		initialDraft?.answers ? { kind: 'saved', at: initialDraft.updatedAt } : { kind: 'idle' }
 	);
 
@@ -246,13 +251,6 @@
 		return '';
 	};
 
-	function readable(
-		value: AnswerValue | undefined,
-		options: { id: string; label: string }[] | null
-	): string {
-		return value ? describeAnswer(value, options) : '（未回答）';
-	}
-
 	type Question = (typeof data.questions)[number];
 
 	const otherChoiceId = (questionId: number) => `q_${questionId}_other_choice`;
@@ -338,18 +336,10 @@
 	};
 </script>
 
-<main class="mx-auto flex max-w-2xl flex-col gap-6 px-6 pt-8 pb-12">
+<main class="page">
 	<div class="flex flex-col gap-3">
 		{#if data.resultsVisible}
-			<nav class="self-start text-sm text-text-muted">
-				<a
-					href="/forms/{data.form.id}/results"
-					class="inline-flex items-center gap-1.5 hover:underline"
-				>
-					回答状況を見る
-					<Icon name="arrow-right" />
-				</a>
-			</nav>
+			<ContextLink href="/forms/{data.form.id}/results" label="回答状況を見る" direction="forward" />
 		{/if}
 
 		<!-- The accent bar is a clipped child, not a `border-t-4`: the rounded top corners would
@@ -357,22 +347,22 @@
 		<header class="card overflow-hidden">
 			<div class="bg-accent h-1.5"></div>
 			<div class="p-6">
-				<h1 class="text-2xl font-semibold tracking-tight">{data.form.title}</h1>
+				<ItemHeader title={data.form.title} tag="h1" titleClass="page-title text-2xl" wrap>
+					{#snippet badges()}
+						{#if closed}<span class="badge badge-muted">受付終了</span>{/if}
+						{#if submitted}<span class="badge badge-success">提出済み</span>{/if}
+					{/snippet}
+				</ItemHeader>
 				{#if data.form.description}
 					<p class="mt-2 text-sm whitespace-pre-wrap text-text-subtle">{data.form.description}</p>
 				{/if}
-				<div class="mt-4 flex flex-wrap items-center gap-x-3 gap-y-2 text-xs text-text-muted">
-					{#if closed}
-						<span class="bg-surface-alt rounded px-2 py-1 text-text-subtle">受付終了</span>
-					{/if}
-					{#if submitted}
-						<span class="bg-success-badge text-success rounded px-2 py-1">提出済み</span>
-					{/if}
-					<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
-					<span class="whitespace-nowrap">
-						受付終了: {formatJst(data.form.closesAt, '指定なし')}
-					</span>
-				</div>
+				<MetaLine
+					class="mt-4"
+					items={[
+						{ label: '締切', value: formatJst(data.form.deadline, 'なし') },
+						{ label: '受付終了', value: formatJst(data.form.closesAt, '指定なし') }
+					]}
+				/>
 			</div>
 		</header>
 	</div>
@@ -404,7 +394,7 @@
 				</p>
 				<button
 					type="button"
-					class="btn-secondary shrink-0 self-start px-3 py-1.5 text-xs sm:self-auto"
+					class="btn-secondary btn-sm shrink-0 self-start sm:self-auto"
 					disabled={discarding}
 					onclick={discard}
 				>
@@ -502,24 +492,14 @@
 					</div>
 				{/each}
 
-				{#if closed}
-					<p role="alert" class="alert-warning">受付を終了したため送信できません。</p>
-				{:else if saveStatus.kind === 'conflict'}
-					<div role="alert" class="alert-warning action-row">
-						<p class="min-w-0 flex-1">
-							別の画面でこの回答が送信されたか、下書きが更新・破棄されました。この画面の自動保存は停止しています。
-						</p>
-						<button
-							type="button"
-							class="btn-secondary shrink-0 self-start px-3 py-1.5 text-xs sm:self-auto"
-							onclick={() => location.reload()}
-						>
-							再読み込み
-						</button>
-					</div>
-				{/if}
-
-				<div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+				<SaveStatus
+					status={saveStatus}
+					savedLabel="下書きを保存済み"
+					failedLabel="下書きを保存できませんでした"
+					tooLargeHint="回答が大きすぎます。入力を短くしてください"
+					conflictMessage="別の画面でこの回答が送信されたか、下書きが更新・破棄されました。この画面の自動保存は停止しています。"
+					closedMessage={closed ? '受付を終了したため送信できません。' : null}
+				>
 					<button type="submit" class="btn-primary px-5 py-2.5" disabled={submitting || closed}>
 						{submitted ? '回答を更新' : '送信'}
 					</button>
@@ -532,20 +512,7 @@
 							キャンセル
 						</button>
 					{/if}
-					<p role="status" class="text-xs text-text-muted">
-						{#if saveStatus.kind === 'saving'}
-							保存中…
-						{:else if saveStatus.kind === 'saved'}
-							<span class="whitespace-nowrap">下書きを保存済み {formatJstTime(saveStatus.at)}</span>
-						{:else if saveStatus.kind === 'failed'}
-							<span class="text-error-fg">
-								下書きを保存できませんでした{saveStatus.tooLarge
-									? '。回答が大きすぎます。入力を短くしてください'
-									: ''}
-							</span>
-						{/if}
-					</p>
-				</div>
+				</SaveStatus>
 			</form>
 		{/key}
 	{:else if submitted}
@@ -557,12 +524,13 @@
 					</span>
 					<div class="min-w-0">
 						<h2 class="text-lg font-semibold">{heading}</h2>
-						<p class="mt-1 text-xs text-text-muted">
-							<span class="whitespace-nowrap">提出日時: {formatJst(data.submittedAt)}</span>
-							{#if updatedAt}
-								<span class="whitespace-nowrap">/ 最終更新: {updatedAt}</span>
-							{/if}
-						</p>
+						<MetaLine
+							class="mt-1"
+							items={[
+								{ label: '提出', value: formatJst(data.submittedAt) },
+								...(updatedAt ? [{ label: '更新', value: updatedAt }] : [])
+							]}
+						/>
 						{#if closed}
 							<p class="mt-2 text-sm text-text-subtle">受付は終了しています。</p>
 						{:else if !data.editable}
@@ -610,53 +578,26 @@
 		</section>
 
 		<section class="flex flex-col gap-3">
-			<h2 class="text-sm font-medium text-text-subtle">あなたの回答</h2>
-			{#each data.questions as q (q.id)}
-				<div class="card p-5">
-					<p class="text-sm font-medium">{q.label}</p>
-					<p class="mt-2 text-sm whitespace-pre-wrap text-text-subtle">{readable(submittedAnswers[q.id], q.options)}</p>
-				</div>
-			{/each}
+			<h2 class="section-title">あなたの回答</h2>
+			<AnswerList questions={data.questions} answers={submittedAnswers} cards />
 		</section>
 
 		{#if data.history.length > 0}
 			<section class="flex flex-col gap-3">
-				<h2 class="text-sm font-medium text-text-subtle">回答履歴</h2>
-				<ol class="flex flex-col gap-3">
-					{#each data.history as revision, index (revision.number)}
-						<li class="card p-5">
-							<div class="action-row">
-								<div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
-									<h3 class="text-sm font-semibold">{revision.number}版目</h3>
-									{#if index === 0}
-										<span class="bg-success-badge text-success rounded px-2 py-0.5 text-xs">最新</span>
-									{/if}
-									<span class="text-xs whitespace-nowrap text-text-muted tabular-nums">
-										{revision.number === 1 ? '提出' : '更新'}
-										{formatJst(revision.createdAt)}
-									</span>
-								</div>
-								{#if canEdit && index > 0}
-									<button
-										type="button"
-										class="btn-secondary shrink-0 self-start px-3 py-1.5 text-xs sm:self-auto"
-										onclick={() => loadRevision(revision)}
-									>
-										この内容を読み込む
-									</button>
-								{/if}
-							</div>
-							<dl class="mt-4 flex flex-col gap-3">
-								{#each data.questions as q (q.id)}
-									<div>
-										<dt class="text-sm font-medium">{q.label}</dt>
-										<dd class="mt-1 text-sm whitespace-pre-wrap text-text-subtle">{readable(revision.answers[q.id], q.options)}</dd>
-									</div>
-								{/each}
-							</dl>
-						</li>
-					{/each}
-				</ol>
+				<h2 class="section-title">回答履歴</h2>
+				<RevisionList revisions={data.history} questions={data.questions} headingTag="h3">
+					{#snippet actions(revision, index)}
+						{#if canEdit && index > 0}
+							<button
+								type="button"
+								class="btn-secondary btn-sm shrink-0"
+								onclick={() => loadRevision(revision)}
+							>
+								この内容を読み込む
+							</button>
+						{/if}
+					{/snippet}
+				</RevisionList>
 			</section>
 		{/if}
 	{:else}

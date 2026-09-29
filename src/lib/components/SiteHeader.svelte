@@ -26,7 +26,7 @@
 		<a href="/" class="min-w-0 truncate text-lg font-semibold hover:underline">Quorum</a>
 		<div class="flex shrink-0 items-center gap-3">
 			{#if member}
-				<a href="/forms/new" class="btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs">
+				<a href="/forms/new" class="btn-primary btn-sm inline-flex items-center gap-1.5">
 					<Icon name="plus" />
 					フォームを作る
 				</a>

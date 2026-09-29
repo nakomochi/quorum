@@ -1161,7 +1161,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-draft-saving',
-		title: '下書きの自動保存中（入力の 1.5 秒後から）',
+		title: '下書きの自動保存中（入力の直後から）',
 		data: {
 			...SESSION,
 			resultsVisible: false,
@@ -1179,7 +1179,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-draft-saved',
-		title: '下書きの自動保存が完了（入力の 1.5 秒後から）',
+		title: '下書きの自動保存が完了（入力の直後から）',
 		data: {
 			...SESSION,
 			resultsVisible: false,
@@ -1196,7 +1196,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-draft-failed',
-		title: '下書きの自動保存に失敗（入力の 1.5 秒後から）',
+		title: '下書きの自動保存に失敗（入力の直後から）',
 		data: {
 			...SESSION,
 			resultsVisible: false,
@@ -1214,7 +1214,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-draft-conflict',
-		title: '別の画面で送信・更新されていた（409・入力の 1.5 秒後から）',
+		title: '別の画面で送信・更新されていた（409・入力の直後から）',
 		data: {
 			...SESSION,
 			resultsVisible: false,
@@ -1232,7 +1232,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-draft-closed',
-		title: '下書きの保存で受付終了がわかった（409・入力の 1.5 秒後から）',
+		title: '下書きの保存で受付終了がわかった（409・入力の直後から）',
 		data: {
 			...SESSION,
 			resultsVisible: false,
@@ -1822,7 +1822,7 @@ const draftData = (state: DraftState = DRAFT_STATE): NewData => ({
 
 const FRESH_EDITOR: NewData = { ...SESSION, roles: ROLES, channels: CHANNELS, draft: null };
 
-/** One keystroke's worth of change; the editor saves it after its debounce. */
+/** One keystroke's worth of change; the editor saves it at once. */
 async function editTitle(doc: Document) {
 	const title = doc.querySelector<HTMLInputElement>('input[name="title"]');
 	if (!title) return;
@@ -1850,27 +1850,27 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 	},
 	{
 		id: 'new-draft-saving',
-		title: '自動保存中（入力の 1.5 秒後から）',
+		title: '自動保存中（入力の直後から）',
 		data: draftData(),
 		setup: editTitle,
 		draftApi: 'hang'
 	},
 	{
 		id: 'new-draft-saved',
-		title: '最初の自動保存が完了（入力の 1.5 秒後から）',
+		title: '最初の自動保存が完了（入力の直後から）',
 		data: FRESH_EDITOR,
 		setup: editTitle
 	},
 	{
 		id: 'new-draft-failed',
-		title: '自動保存に失敗（入力の 1.5 秒後から）',
+		title: '自動保存に失敗（入力の直後から）',
 		data: draftData(),
 		setup: editTitle,
 		draftApi: 'fail'
 	},
 	{
 		id: 'new-draft-conflict',
-		title: '別の画面で更新されていた（409・入力の 1.5 秒後から）',
+		title: '別の画面で更新されていた（409・入力の直後から）',
 		data: draftData(),
 		setup: editTitle,
 		draftApi: 'conflict'

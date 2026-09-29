@@ -2,10 +2,10 @@
  * Schedules draft saves, for the form editor and for the answer page. Plain TypeScript with the
  * network injected, so the timing rules can be tested without a browser.
  *
- * - A change is saved once the editor has been quiet for `debounceMs`, and no later than
- *   `maxWaitMs` after the first unsaved change, however long the typing goes on.
- * - One request at a time. Changes made while it runs are sent once, with the latest content,
- *   after it returns.
+ * - A change is sent at once, unless a request is on its way or the last one started less than
+ *   `minIntervalMs` ago. Then it waits for both, and the changes made meanwhile go out once, with
+ *   the latest content.
+ * - One request at a time.
  * - A 409 stops saving for good: another tab moved the draft on, created the form or submitted
  *   the answers, or discarded the draft ('conflict'), or the form stopped taking answers
  *   ('closed').
@@ -44,10 +44,12 @@ export type AutosaveOptions = {
 	onStatus: (status: SaveStatus) => void;
 	/** Called once the first save has created the draft. */
 	onCreated?: (id: string) => void;
-	debounceMs?: number;
-	maxWaitMs?: number;
+	minIntervalMs?: number;
 	retryMs?: number;
 };
+
+/** The shortest time between the starts of two scheduled saves. */
+export const MIN_SAVE_INTERVAL_MS = 1000;
 
 const draftUrl = (id: string | null) =>
 	id === null ? '/forms/drafts' : `/forms/drafts/${encodeURIComponent(id)}`;
@@ -135,8 +137,7 @@ export class DraftAutosave {
 	#lastSent: string | null = null;
 
 	#dirty = false;
-	#firstChangeAt = 0;
-	#lastChangeAt = 0;
+	#lastStartAt = -Infinity;
 	#timer: ReturnType<typeof setTimeout> | undefined;
 	#inflight: Promise<void> | null = null;
 
@@ -150,8 +151,7 @@ export class DraftAutosave {
 
 	constructor(options: AutosaveOptions) {
 		this.#options = {
-			debounceMs: 1500,
-			maxWaitMs: 10_000,
+			minIntervalMs: MIN_SAVE_INTERVAL_MS,
 			retryMs: 10_000,
 			onCreated: () => {},
 			...options
@@ -172,12 +172,7 @@ export class DraftAutosave {
 
 	changed() {
 		if (this.#stopped) return;
-		const now = Date.now();
-		if (!this.#dirty) {
-			this.#dirty = true;
-			this.#firstChangeAt = now;
-		}
-		this.#lastChangeAt = now;
+		this.#dirty = true;
 		if (!this.#inflight) this.#schedule();
 	}
 
@@ -186,10 +181,13 @@ export class DraftAutosave {
 		this.#timer = undefined;
 	}
 
+	/**
+	 * Also cuts a retry's wait short. A timer even with no wait left, so that the edits of one
+	 * task, such as a checkbox's input and change, go out together.
+	 */
 	#schedule() {
 		this.#clearTimer();
-		const { debounceMs, maxWaitMs } = this.#options;
-		const due = Math.min(this.#lastChangeAt + debounceMs, this.#firstChangeAt + maxWaitMs);
+		const due = this.#lastStartAt + this.#options.minIntervalMs;
 		this.#timer = setTimeout(() => void this.flush(), Math.max(0, due - Date.now()));
 	}
 
@@ -209,9 +207,10 @@ export class DraftAutosave {
 			return Promise.resolve();
 		}
 
+		this.#lastStartAt = Date.now();
 		const run = this.#send(payload, keepalive).finally(() => {
 			this.#inflight = null;
-			// Changes made meanwhile go out once, as soon as their own wait is over.
+			// Changes made meanwhile go out once, as soon as the interval allows.
 			if (!this.#stopped && this.#dirty && this.#timer === undefined) this.#schedule();
 		});
 		this.#inflight = run;
@@ -265,7 +264,6 @@ export class DraftAutosave {
 		// Kept unsaved and tried again later, or sooner when the editor changes.
 		this.#report({ kind: 'failed', tooLarge: false });
 		this.#dirty = true;
-		this.#firstChangeAt = this.#lastChangeAt = Date.now();
 		this.#clearTimer();
 		this.#timer = setTimeout(() => void this.flush(), this.#options.retryMs);
 	}

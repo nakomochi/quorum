@@ -31,7 +31,8 @@
 
 	// The editor and the answer page save drafts through fetch. The catalogue answers in the
 	// server's place, so that nothing shown here can write to the database, and each case picks the
-	// answer it shows. Children mount first, but the first save waits for its debounce.
+	// answer it shows. Children mount first, but nothing is saved before the case's setup edits,
+	// which runs after this.
 	const isDraftApi = (path: string) =>
 		path.startsWith('/forms/drafts') || /^\/forms\/[^/]+\/draft$/.test(path);
 

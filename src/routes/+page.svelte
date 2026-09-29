@@ -1,7 +1,8 @@
 <script lang="ts">
 	import Menu, { type MenuItem } from '$lib/components/Menu.svelte';
 	import { formatJst } from '$lib/datetime';
-	import Icon from '$lib/icons/Icon.svelte';
+	import { FORM_STATUS_LABELS, type FormStatus } from '$lib/forms';
+	import Icon, { type IconName } from '$lib/icons/Icon.svelte';
 
 	let { data, form } = $props();
 
@@ -24,6 +25,20 @@
 		if (remaining < 0) return 'overdue';
 		return remaining <= SOON_MS ? 'soon' : null;
 	};
+
+	const STATUS_ICONS: Record<FormStatus, { name: IconName; tone: string }> = {
+		open: { name: 'clock', tone: 'text-accent' },
+		ended: { name: 'hourglass', tone: 'text-warning' },
+		closed: { name: 'lock', tone: 'text-text-muted' }
+	};
+
+	/**
+	 * Every row is a title line, with any badge at its right end, over a line of details. The badge
+	 * never shares the details line, so the details start at the same x on every row of a list.
+	 */
+	const BADGE = 'shrink-0 rounded px-2 py-0.5 text-xs whitespace-nowrap';
+	/** Lines the details up with the title in lists whose rows lead with a size-4 icon and gap-2. */
+	const UNDER_ICON = 'pl-6';
 
 	// These two only ever grow; show a window of them until asked for the rest.
 	const PREVIEW = 3;
@@ -76,14 +91,16 @@
 								class="card border-l-2 {level === 'overdue' ? 'border-l-danger' : 'border-l-accent'}"
 							>
 								<a href="/forms/{row.id}" class="flex flex-col gap-1 px-5 py-4">
-									<span class="font-medium">{row.title}</span>
-									<span class="text-text-muted flex flex-wrap items-center gap-2 text-xs">
+									<span class="flex min-w-0 items-center gap-2">
+										<span class="min-w-0 flex-1 truncate font-medium">{row.title}</span>
 										{#if level === 'overdue'}
-											<span class="bg-error-surface text-error-fg rounded px-2 py-0.5">期限切れ</span>
+											<span class="{BADGE} bg-error-surface text-error-fg">期限切れ</span>
 										{:else if level === 'soon'}
-											<span class="bg-warning-surface text-warning rounded px-2 py-0.5">締切間近</span>
+											<span class="{BADGE} bg-warning-surface text-warning">締切間近</span>
 										{/if}
-										<span class="whitespace-nowrap">{deadlineText(row.deadline)}</span>
+									</span>
+									<span class="text-text-muted text-xs whitespace-nowrap tabular-nums">
+										{deadlineText(row.deadline)}
 									</span>
 								</a>
 							</li>
@@ -100,26 +117,16 @@
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each submitted as row (row.id)}
 							<li class="card">
-								<a
-									href="/forms/{row.id}"
-									class="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
-								>
-									<span class="text-text-subtle flex min-w-0 items-center gap-2">
+								<a href="/forms/{row.id}" class="flex flex-col gap-1 px-5 py-4">
+									<span class="flex min-w-0 items-center gap-2">
 										<Icon name="check" class="text-success size-4 shrink-0" />
-										{row.title}
-									</span>
-									<!-- The badge goes before the date once the dates are right-aligned, and after it
-									     while they stack left-aligned, so the dates line up either way. -->
-									<span class="text-text-muted flex shrink-0 items-center gap-2 text-xs">
-										<span class="whitespace-nowrap tabular-nums">提出 {formatJst(row.submittedAt)}</span>
+										<span class="text-text-subtle min-w-0 flex-1 truncate">{row.title}</span>
 										{#if row.revisionCount > 1}
-											<span
-												class="bg-surface-raised text-text-subtle rounded px-2 py-0.5 whitespace-nowrap
-													sm:order-first"
-											>
-												編集済み
-											</span>
+											<span class="{BADGE} bg-surface-raised text-text-subtle">編集済み</span>
 										{/if}
+									</span>
+									<span class="text-text-muted {UNDER_ICON} text-xs whitespace-nowrap tabular-nums">
+										提出 {formatJst(row.submittedAt)}
 									</span>
 								</a>
 							</li>
@@ -148,13 +155,17 @@
 							<li class="card flex items-center gap-2 pr-3">
 								<a
 									href="/forms/new?draft={row.id}"
-									class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+									class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5"
 								>
-									<span class="flex min-w-0 items-center gap-2 {row.title ? 'font-medium' : 'text-text-muted'}">
+									<span class="flex min-w-0 items-center gap-2">
 										<Icon name="pencil" class="text-text-muted size-4 shrink-0" />
-										{row.title ?? '無題のフォーム'}
+										<span
+											class="min-w-0 flex-1 truncate {row.title ? 'font-medium' : 'text-text-muted'}"
+										>
+											{row.title ?? '無題のフォーム'}
+										</span>
 									</span>
-									<span class="text-text-muted shrink-0 text-xs whitespace-nowrap tabular-nums">
+									<span class="text-text-muted {UNDER_ICON} text-xs whitespace-nowrap tabular-nums">
 										更新 {formatJst(row.updatedAt)}
 									</span>
 								</a>
@@ -182,16 +193,28 @@
 					</h2>
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each created as row (row.id)}
+							{@const status = STATUS_ICONS[row.status]}
 							<li class="card flex items-center gap-2 pr-3">
 								<a
 									href="/forms/{row.id}/results"
-									class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+									class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5"
 								>
-									<span class="min-w-0 font-medium">{row.title}</span>
+									<span class="flex min-w-0 items-center gap-2">
+										<!-- The icon's shape and label carry the status, so no text badge repeats it. -->
+										<span
+											role="img"
+											aria-label={FORM_STATUS_LABELS[row.status]}
+											title={FORM_STATUS_LABELS[row.status]}
+											class="flex shrink-0"
+										>
+											<Icon name={status.name} class="{status.tone} size-4" />
+										</span>
+										<span class="min-w-0 flex-1 truncate font-medium">{row.title}</span>
+									</span>
 									<!-- Inline text rather than flex: a line may break after a ・ but never before
 									     one, so a wrap never opens a line with the separator. -->
-									<span class="text-text-muted shrink-0 text-xs">
-										<span class="whitespace-nowrap">{deadlineText(row.deadline)}</span>
+									<span class="text-text-muted {UNDER_ICON} text-xs">
+										<span class="whitespace-nowrap tabular-nums">{deadlineText(row.deadline)}</span>
 										・
 										<span class="whitespace-nowrap tabular-nums">{row.responseCount} 件の回答</span>
 									</span>

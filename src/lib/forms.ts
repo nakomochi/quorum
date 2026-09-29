@@ -23,6 +23,15 @@ export const VISIBILITY_LABELS: Record<Visibility, string> = {
 
 export const hasOptions = (type: QuestionType) => type === 'single' || type === 'multi';
 
+/** How a form stands for its creator; the top page gets this instead of the times behind it. */
+export type FormStatus = 'open' | 'ended' | 'closed';
+
+export const FORM_STATUS_LABELS: Record<FormStatus, string> = {
+	open: '受付中',
+	ended: '受付終了',
+	closed: '確定済み'
+};
+
 export const MAX_TITLE = 200;
 export const MAX_DESCRIPTION = 4000;
 export const MAX_LABEL = 500;

@@ -144,6 +144,7 @@ const submittedRow = (
 const createdRow = (over: Partial<CreatedRow> & Pick<CreatedRow, 'id' | 'title'>): CreatedRow => ({
 	deadline: at('2026-04-30T23:59:00'),
 	responseCount: 0,
+	status: 'open',
 	...over
 });
 
@@ -832,11 +833,12 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 	},
 	{
 		id: 'home-member',
-		title: 'メンバー / 未提出・提出済み・作成済み',
+		title: 'メンバー / 全一覧（印のある行とない行・長いタイトル・作成フォームの各状態）',
 		data: {
 			...SESSION,
 			pending: [
 				pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(-36) }),
+				pendingRow({ id: 'pending000005', title: LONG_TITLE, deadline: fromNow(20) }),
 				pendingRow({ id: 'pending000002', title: '新歓イベントの担当希望', deadline: fromNow(30) }),
 				pendingRow({ id: 'pending000003', title: '定例会の出欠（10月）', deadline: fromNow(24 * 21) }),
 				pendingRow({ id: 'pending000004', title: 'Tシャツのサイズ調査', deadline: null })
@@ -852,6 +854,12 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 					id: 'done00000002',
 					title: '定例会の出欠（8月）',
 					submittedAt: at('2026-03-04T12:30:00')
+				}),
+				submittedRow({
+					id: 'done00000003',
+					title: LONG_TITLE,
+					submittedAt: at('2026-02-11T09:05:00'),
+					revisionCount: 2
 				})
 			],
 			created: [
@@ -861,13 +869,25 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 					responseCount: 12
 				}),
 				createdRow({
+					id: 'mine00000003',
+					title: '新歓イベントの担当希望',
+					responseCount: 8,
+					deadline: at('2026-09-29T18:00:00'),
+					status: 'ended'
+				}),
+				createdRow({
 					id: 'mine00000002',
 					title: LONG_TITLE,
 					responseCount: 3,
-					deadline: null
+					deadline: null,
+					status: 'closed'
 				})
 			],
-			drafts: []
+			drafts: [
+				{ id: 'draft0000001', title: '秋合宿の参加確認', updatedAt: at('2026-09-29T12:34:00') },
+				{ id: 'draft0000002', title: null, updatedAt: at('2026-09-28T21:05:00') },
+				{ id: 'draft0000003', title: LONG_TITLE, updatedAt: at('2026-09-20T08:00:00') }
+			]
 		}
 	},
 	{
@@ -894,7 +914,8 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 					id: `mine0000000${i + 1}`,
 					title: `イベントの出欠確認 ${i + 1}`,
 					responseCount: 20 - i * 3,
-					deadline: fromNow(-24 * 10 * (i + 1))
+					deadline: fromNow(-24 * 10 * (i + 1)),
+					status: i === 0 ? 'ended' : 'closed'
 				})
 			),
 			drafts: []

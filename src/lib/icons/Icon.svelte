@@ -21,13 +21,22 @@
 		'undo-2': ['M9 14 4 9l5-5', 'M4 9h10.5a5.5 5.5 0 0 1 5.5 5.5a5.5 5.5 0 0 1-5.5 5.5H11'],
 		'redo-2': ['m15 14 5-5-5-5', 'M20 9H9.5A5.5 5.5 0 0 0 4 14.5A5.5 5.5 0 0 0 9.5 20H13'],
 		'grip-vertical': [],
-		'grip-horizontal': []
+		'grip-horizontal': [],
+		clock: ['M12 6v6l4 2'],
+		hourglass: [
+			'M5 22h14',
+			'M5 2h14',
+			'M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22',
+			'M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2'
+		],
+		lock: ['M7 11V7a5 5 0 0 1 10 0v4']
 	} as const;
 
 	export type IconName = keyof typeof paths;
 
-	// Lucide draws these out of circles instead of paths: `[cx, cy]` pairs, all r=1.
-	const circles: Partial<Record<IconName, [number, number][]>> = {
+	// Lucide draws these partly out of circles: `[cx, cy]` with r=1, or `[cx, cy, r]`.
+	const circles: Partial<Record<IconName, [number, number, number?][]>> = {
+		clock: [[12, 12, 10]],
 		ellipsis: [
 			[12, 12],
 			[19, 12],
@@ -50,6 +59,12 @@
 			[19, 15]
 		]
 	};
+
+	type Rect = { x: number; y: number; width: number; height: number; rx: number };
+
+	const rects: Partial<Record<IconName, Rect[]>> = {
+		lock: [{ x: 3, y: 11, width: 18, height: 11, rx: 2 }]
+	};
 </script>
 
 <script lang="ts">
@@ -70,7 +85,10 @@
 	{#each paths[name] as d (d)}
 		<path {d} />
 	{/each}
-	{#each circles[name] ?? [] as [cx, cy] (`${cx},${cy}`)}
-		<circle {cx} {cy} r="1" />
+	{#each circles[name] ?? [] as [cx, cy, r = 1] (`${cx},${cy}`)}
+		<circle {cx} {cy} {r} />
+	{/each}
+	{#each rects[name] ?? [] as { x, y, width, height, rx } (`${x},${y}`)}
+		<rect {x} {y} {width} {height} {rx} />
 	{/each}
 </svg>

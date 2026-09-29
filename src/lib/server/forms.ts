@@ -40,6 +40,7 @@ import {
 	utf8Bytes,
 	VISIBILITIES,
 	type AnswerValue,
+	type FormStatus,
 	type QuestionType,
 	type RevisionAnswers,
 	type SubmitScope,
@@ -319,6 +320,15 @@ export function closesAtPassed(target: Pick<Form, 'closesAt'>, now = new Date())
 
 export function isClosed(target: Pick<Form, 'closesAt' | 'closedAt'>, now = new Date()): boolean {
 	return target.closedAt !== null || closesAtPassed(target, now);
+}
+
+/** 'ended': closes_at has passed but the close has not run yet, so the rosters are not frozen. */
+export function formStatus(
+	target: Pick<Form, 'closesAt' | 'closedAt'>,
+	now = new Date()
+): FormStatus {
+	if (target.closedAt !== null) return 'closed';
+	return closesAtPassed(target, now) ? 'ended' : 'open';
 }
 
 export async function activeMember(discordId: string) {
@@ -649,6 +659,7 @@ export type CreatedFormSummary = {
 	title: string;
 	deadline: Date | null;
 	responseCount: number;
+	status: FormStatus;
 };
 
 export function canViewResults(
@@ -1105,11 +1116,13 @@ export async function reopenForm(formId: string): Promise<boolean> {
 }
 
 export async function listFormsCreatedBy(userId: string): Promise<CreatedFormSummary[]> {
-	return db
+	const rows = await db
 		.select({
 			id: form.id,
 			title: form.title,
 			deadline: form.deadline,
+			closesAt: form.closesAt,
+			closedAt: form.closedAt,
 			responseCount: count(response.id)
 		})
 		.from(form)
@@ -1117,4 +1130,11 @@ export async function listFormsCreatedBy(userId: string): Promise<CreatedFormSum
 		.where(eq(form.createdBy, userId))
 		.groupBy(form.id)
 		.orderBy(desc(form.createdAt));
+
+	// The two times decide the status and are not sent on.
+	const now = new Date();
+	return rows.map(({ closesAt, closedAt, ...row }) => ({
+		...row,
+		status: formStatus({ closesAt, closedAt }, now)
+	}));
 }

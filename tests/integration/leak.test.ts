@@ -17,6 +17,7 @@ import {
 	inputs,
 	makeForm,
 	member,
+	patchForm,
 	seedGuild,
 	sessionLocals,
 	snowflake,
@@ -201,6 +202,24 @@ describe('what a member receives', () => {
 		expect(data).toMatchObject({ member: true, created: [] });
 		expect((data as { pending: { id: string }[] }).pending.map((f) => f.id)).toContain(open.id);
 		expectNoLeak(data, [...secrets, SECRET_NAME]);
+		expect(discord.count()).toBe(0);
+	});
+
+	test('top page: the creator’s forms carry a status, not the times behind it', async () => {
+		const { creator, open, adminOnly, secrets } = await scene();
+		const ended = await makeForm(creator, { closesAt: new Date(Date.now() + 3_600_000) });
+		await patchForm(ended.id, { closesAt: new Date(Date.now() - 60_000) });
+
+		const data = (await topLoad(event(creator))) as { created: { id: string; status: string }[] };
+
+		const byId = new Map(data.created.map((row) => [row.id, row]));
+		expect(byId.get(open.id)?.status).toBe('open');
+		expect(byId.get(ended.id)?.status).toBe('ended');
+		expect(byId.get(adminOnly.id)?.status).toBe('closed');
+		expect(keysOf(data.created)).toEqual(
+			new Set(['id', 'title', 'deadline', 'responseCount', 'status'])
+		);
+		expectNoLeak(data, secrets);
 		expect(discord.count()).toBe(0);
 	});
 

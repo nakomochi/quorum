@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { SessionUser } from './auth';
 import type { Form, GuildMember } from './db/schema';
-import { activeMember, loadForm } from './forms';
+import { activeMember, canSubmit, loadForm } from './forms';
 import { reconcileMember, type Reconciled } from './guild-sync';
 import { isGuildAdmin, looksLikeGuildAdmin } from './permissions';
 
@@ -104,6 +104,20 @@ export async function requireAdmin(locals: App.Locals): Promise<SessionUser> {
 	const user = requireUser(locals);
 	if (!(await guildAdminCheck(locals, user))) error(403, '管理者のみが利用できます');
 	return user;
+}
+
+/**
+ * Whoever may open a form's answer page, judged by the mirror like any read. Also guards the
+ * answer drafts: they affect nobody but their owner, so a write there need not ask Discord.
+ */
+export async function requireSubmitter(
+	locals: App.Locals,
+	target: Pick<Form, 'submitScope' | 'targetRoleId'>
+): Promise<GuildMember> {
+	const member = await gateMember(locals, (m) => canSubmit(target, m));
+	if (!member) error(403, 'このサーバーのメンバーではありません');
+	if (!canSubmit(target, member)) error(403, 'このフォームの対象ではありません');
+	return member;
 }
 
 export async function requireMember(

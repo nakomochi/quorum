@@ -15,7 +15,7 @@ flowchart LR
 
 SvelteKit（adapter-node）の単一コンテナ。Discord は Bot の REST だけを使い、Gateway は使わない。
 
-リクエスト本文の上限は adapter-node の既定（512KB）のまま。フォーム全体・回答全体・下書きに UTF-8 のバイト数の上限（`MAX_FORM_BYTES`、`MAX_RESPONSE_BYTES`、`MAX_DRAFT_BYTES`）を設け、送信の本文が 512KB に収まるようにしている。
+リクエスト本文の上限は adapter-node の既定（512KB）のまま。フォーム全体・回答全体・下書きに UTF-8 のバイト数の上限（`MAX_FORM_BYTES`、`MAX_RESPONSE_BYTES`、`MAX_DRAFT_BYTES`、`MAX_RESPONSE_DRAFT_BYTES`）を設け、送信の本文が 512KB に収まるようにしている。
 
 ## Discord API
 
@@ -41,6 +41,8 @@ erDiagram
   user ||--o{ response : ""
   user ||--o{ form_draft : "created_by"
   form |o--o{ form_draft : "form_id"
+  user ||--o{ response_draft : ""
+  form ||--o{ response_draft : ""
   form ||--o{ question : ""
   form ||--o{ response : ""
   form ||--o{ reminder : ""
@@ -62,18 +64,21 @@ erDiagram
 | `response_revision` | 送信のたびに回答全体を 1 版として残す。同じ内容の再送では増えない |
 | `reminder` | リマインドの送信記録。自動は締切ごとに 1 件（部分ユニーク `reminder_auto_once_uq`） |
 | `form_draft` | 作成画面の下書き。エディタの入力を `payload`（jsonb）に検証せずに持つ。`version` で古い画面からの上書きを 409 で止める。作成が成功すると同じトランザクションで消す。フォームの複製もこの行を作る |
+| `response_draft` | 回答画面の下書き。1 人 1 フォーム 1 行。`version` で古い画面からの上書きを 409 で止める。送信とクローズで消す。本人にしか見えず、提出数やリマインドには影響しない |
 
 ロックの順序:
 
 | 処理 | 順序 |
 | --- | --- |
-| 回答の送信 `submitResponse` | `form` を `FOR SHARE` → `response` を INSERT（重複は DO NOTHING）→ 編集なら `response` を `FOR UPDATE` → `answer` の入れ直し・`response_revision` の追加 |
-| クローズ `closeForm` | `form` を `FOR UPDATE` → 名簿と回答を読む → `form` を UPDATE |
+| 回答の送信 `submitResponse` | `form` を `FOR SHARE` → `response` を INSERT（重複は DO NOTHING）→ 編集なら `response` を `FOR UPDATE` → 本人の `response_draft` の DELETE → `answer` の入れ直し・`response_revision` の追加 |
+| クローズ `closeForm` | `form` を `FOR UPDATE` → 名簿と回答を読む → `form` を UPDATE → そのフォームの `response_draft` の DELETE |
+| 回答の下書きの保存 `saveResponseDraft` | `form` を `FOR SHARE` → `isClosed` なら 409 → `response_draft` を版 0 なら INSERT（重複は DO NOTHING）、それ以外は条件付き UPDATE。`response` には触れない |
 | 全員同期 `runFullSync` | advisory lock → `guild_member` の upsert・離脱の UPDATE → `guild_sync` の upsert |
 | フォームの作成 `createForm` | `form_draft` の DELETE → `form` と `question` の INSERT。`form` の行のロックは取らない |
 | 下書きの保存 `updateDraft` | `form_draft` の条件付き UPDATE だけ。ほかの行には触れない |
 
 - 送信のトランザクションで `form` の行に書き込まない。`FOR SHARE` の後に同じ行を UPDATE すると、同時に来た初回の回答どうしがデッドロックする。
+- `response_draft` は `form` の行のロックの後に書く。保存の `FOR SHARE` とクローズの `FOR UPDATE` が順番を決めるので、クローズの後に下書きは残らない。
 - トランザクションの中で Discord などの外部 I/O を待たない。全員同期とクローズは、Discord からの取得をトランザクションの前に済ませる。
 
 ## 認証と認可
@@ -118,10 +123,11 @@ flowchart TD
 | 管理画面（`requireAdmin`） | Discord 上の権限 | 毎回 3 回 |
 | 管理者向けリンクの表示 | 名簿（`looksLikeGuildAdmin`） | なし |
 | 下書きの保存・破棄 | 名簿（`requireMember`）。他人の下書きは 404 | 閲覧と同じ。本人以外に影響しないので、書き込みでも毎回は問い合わせない |
+| 回答の下書きの保存・破棄 | 名簿で回答画面を開ける人（`requireSubmitter`）。対象は常にセッションの本人の行 | 閲覧と同じ。本人以外に影響しないので、書き込みでも毎回は問い合わせない |
 | フォームの複製 | 作成者と管理者だけ（`requireFormManager(..., 'view')`） | 管理者のときだけ 3 回 |
 
 - 名簿は拒否にだけ使う。許可は、閲覧と下書きを除いて Discord で確かめる。
-- 下書きの JSON エンドポイント（`/forms/drafts`、`/forms/drafts/[id]`）は SvelteKit の CSRF 検査の対象外なので、`Origin` が自分のオリジンと一致しなければ 403 にする。
+- 下書きの JSON エンドポイント（`/forms/drafts`、`/forms/drafts/[id]`、`/forms/[id]/draft`）は SvelteKit の CSRF 検査の対象外なので、`Origin` が自分のオリジンと一致しなければ 403 にする。
 - 本人への問い合わせは 1 リクエストにつき 1 回（`WeakMap` でリクエスト単位に使い回す）。同じ人への同時の問い合わせはまとめる。
 - 閲覧は名簿で許可するので、抜けた人やロールを外された人は次の全員同期まで閲覧できる。書き込みはできない。
 

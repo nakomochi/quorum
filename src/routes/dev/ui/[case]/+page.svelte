@@ -29,14 +29,17 @@
 	const entry = $derived([home, answer, results, history, created, admin].find(Boolean));
 	const setup = $derived(entry?.setup);
 
-	// The editor saves drafts through fetch. The catalogue answers in the server's place, so that
-	// nothing shown here can write to the database, and each case picks the answer it shows.
-	// Children mount first, but the editor's first save waits for its debounce.
+	// The editor and the answer page save drafts through fetch. The catalogue answers in the
+	// server's place, so that nothing shown here can write to the database, and each case picks the
+	// answer it shows. Children mount first, but the first save waits for its debounce.
+	const isDraftApi = (path: string) =>
+		path.startsWith('/forms/drafts') || /^\/forms\/[^/]+\/draft$/.test(path);
+
 	$effect(() => {
 		const passthrough = window.fetch;
 		window.fetch = (input, init) => {
 			const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-			if (!url.pathname.startsWith('/forms/drafts')) return passthrough(input, init);
+			if (!isDraftApi(url.pathname)) return passthrough(input, init);
 			const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
 			return draftApiResponse(entry?.draftApi ?? 'ok', method.toUpperCase());
 		};

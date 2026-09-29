@@ -8,6 +8,7 @@ import {
 	newFormId,
 	question,
 	response,
+	responseDraft,
 	responseRevision,
 	type Form,
 	type FrozenMember,
@@ -506,7 +507,16 @@ export async function submitResponse(
 			if (!existing) return { ok: false, reason: 'already_submitted' } as const;
 
 			responseId = existing.id;
+		}
 
+		// After the response row's lock, and still after the form row's: the order a draft save
+		// (form, then response_draft) keeps too, so the two never wait on each other in a cycle.
+		// Deleted in this transaction, so a submission that fails keeps the draft.
+		await tx
+			.delete(responseDraft)
+			.where(and(eq(responseDraft.formId, formId), eq(responseDraft.userId, user.id)));
+
+		if (!created) {
 			const [latest] = await tx
 				.select({ answers: responseRevision.answers })
 				.from(responseRevision)
@@ -866,13 +876,29 @@ export async function loadResults(target: Form): Promise<FormResults> {
 	};
 }
 
+/** `number` counts from 1 in submission order. */
+export type Revision = { number: number; createdAt: Date; answers: RevisionAnswers };
+
 export type ResponseHistory = {
 	displayName: string;
 	submittedAt: Date;
 	updatedAt: Date;
-	/** Newest first. `number` counts from 1 in submission order. */
-	revisions: { number: number; createdAt: Date; answers: RevisionAnswers }[];
+	/** Newest first. */
+	revisions: Revision[];
 };
+
+/**
+ * Every revision of one response, newest first. The caller has already tied `responseId` to the
+ * form and to whoever may read it: this reads by the id alone.
+ */
+export async function loadRevisions(responseId: number): Promise<Revision[]> {
+	const revisions = await db
+		.select({ createdAt: responseRevision.createdAt, answers: responseRevision.answers })
+		.from(responseRevision)
+		.where(eq(responseRevision.responseId, responseId))
+		.orderBy(asc(responseRevision.id));
+	return revisions.map((revision, index) => ({ number: index + 1, ...revision })).reverse();
+}
 
 /** Null when the response does not exist or belongs to another form. */
 export async function loadResponseHistory(
@@ -894,17 +920,11 @@ export async function loadResponseHistory(
 		.limit(1);
 	if (!row) return null;
 
-	const revisions = await db
-		.select({ createdAt: responseRevision.createdAt, answers: responseRevision.answers })
-		.from(responseRevision)
-		.where(eq(responseRevision.responseId, responseId))
-		.orderBy(asc(responseRevision.id));
-
 	return {
 		displayName: responderName(row),
 		submittedAt: row.submittedAt,
 		updatedAt: row.updatedAt,
-		revisions: revisions.map((revision, index) => ({ number: index + 1, ...revision })).reverse()
+		revisions: await loadRevisions(responseId)
 	};
 }
 
@@ -1056,6 +1076,10 @@ export async function closeForm(formId: string, at: CloseTime = 'now'): Promise<
 			.update(form)
 			.set({ closedAt, finalNonSubmitters: nonSubmitters, finalTargetIds: targetIds })
 			.where(and(eq(form.id, formId), isNull(form.closedAt)));
+
+		// Under the FOR UPDATE above, which a draft save's FOR SHARE waits for: no draft can be
+		// written after this and before the commit. Reopening does not bring them back.
+		await tx.delete(responseDraft).where(eq(responseDraft.formId, formId));
 
 		return { ok: true, frozen: nonSubmitters.length } as const;
 	});

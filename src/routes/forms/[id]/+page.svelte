@@ -1,20 +1,47 @@
 <script lang="ts">
+	import { onMount, tick, untrack } from 'svelte';
 	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
-	import { formatJst } from '$lib/datetime';
+	import { formatJst, formatJstTime } from '$lib/datetime';
+	import {
+		DraftAutosave,
+		discardResponseDraft,
+		responseDraftTransport,
+		type SaveStatus
+	} from '$lib/draft-autosave';
 	import {
 		describeAnswer,
 		MAX_OTHER_ANSWER,
 		MAX_TEXT_ANSWER,
 		OTHER_OPTION_ID,
-		type AnswerValue
+		type AnswerValue,
+		type RevisionAnswers
 	} from '$lib/forms';
+	import { answersFromFields, draftDiffers } from '$lib/response-draft';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	let { data, form } = $props();
 
-	const answers = $derived(data.answers as Record<number, AnswerValue | undefined>);
+	type Answers = Record<string, AnswerValue | undefined>;
+	type Revision = (typeof data.history)[number];
+
+	const submittedAnswers = $derived(data.answers as Answers);
+
+	// Read once: from here on the page tracks its draft itself, and a later load (after a refused
+	// submission) must not replace what has been typed since.
+	const initialDraft = untrack(() => data.draft);
+
+	// What the form's fields start from. Set whenever the form is opened on other answers, and
+	// `formKey` then redraws the fields, which take their values from it only when created.
+	let formSource = $state<Answers>(untrack(() => initialDraft?.answers ?? data.answers));
+	let formKey = $state(0);
+
+	// Answers saved as a draft and not sent, as far as this page knows: restored by the load, or
+	// left behind by キャンセル.
+	let unsent = $state<Answers | null>(initialDraft?.answers ?? null);
+	// Set while the notice for a draft restored on opening the page is shown.
+	let restoredAt = $state<Date | null>(initialDraft?.answers ? initialDraft.updatedAt : null);
 
 	// Both follow the latest action result, and 回答を編集 overrides them until the next one
 	// arrives: an input error or a close keeps the form open, anything else returns to the
@@ -44,7 +71,88 @@
 		return () => clearTimeout(timer);
 	});
 
-	const closed = $derived(data.closed || expired || form?.reason === 'closed');
+	// --- draft autosave ---
+
+	let saveStatus = $state<SaveStatus>(
+		initialDraft?.answers ? { kind: 'saved', at: initialDraft.updatedAt } : { kind: 'idle' }
+	);
+
+	// A save refused as closed locks the page the same way a refused submission does.
+	const closed = $derived(
+		data.closed || expired || form?.reason === 'closed' || saveStatus.kind === 'closed'
+	);
+
+	let formElement = $state<HTMLFormElement>();
+
+	function readFields(): RevisionAnswers {
+		return formElement ? answersFromFields(new FormData(formElement), data.questions) : {};
+	}
+
+	// What autosave sends. Kept up to date on every edit rather than read at save time, so that a
+	// save still due once the form has closed (キャンセル) sends what it last held.
+	let currentText = JSON.stringify(untrack(() => formSource));
+
+	function capture() {
+		if (formElement) currentText = JSON.stringify(readFields());
+	}
+
+	function newAutosave(draft: { version: number; updatedAt: Date } | null) {
+		const formId = untrack(() => data.form.id);
+		return new DraftAutosave({
+			draft: draft && { id: formId, version: draft.version, updatedAt: draft.updatedAt },
+			read: () => currentText,
+			transport: responseDraftTransport(formId),
+			onStatus: (status) => (saveStatus = status)
+		});
+	}
+
+	// Replaced once the draft is gone (sent or discarded): the next save creates it again.
+	let autosave = newAutosave(initialDraft);
+
+	onMount(() => {
+		autosave.start();
+
+		const onVisibility = () => {
+			if (document.visibilityState === 'hidden') void autosave.flush(true);
+		};
+		const onPageHide = () => void autosave.flush(true);
+		document.addEventListener('visibilitychange', onVisibility);
+		window.addEventListener('pagehide', onPageHide);
+
+		return () => {
+			document.removeEventListener('visibilitychange', onVisibility);
+			window.removeEventListener('pagehide', onPageHide);
+			autosave.leave();
+		};
+	});
+
+	$effect(() => {
+		if (closed) void autosave.stop();
+	});
+
+	function edited() {
+		capture();
+		autosave.changed();
+	}
+
+	/** Takes the fields as they are drawn, each time the form is created. */
+	function track(node: HTMLFormElement) {
+		formElement = node;
+		untrack(capture);
+		return () => {
+			if (formElement === node) formElement = undefined;
+		};
+	}
+
+	function resetDraft() {
+		autosave = newAutosave(null);
+		autosave.start();
+		unsent = null;
+		restoredAt = null;
+		saveStatus = { kind: 'idle' };
+	}
+
+	// --- opening and leaving the form ---
 
 	const submitted = $derived(data.submittedAt !== null);
 	// Held open while a save is in flight: its reload lands before its result, and the
@@ -54,6 +162,57 @@
 	const showForm = $derived(
 		(data.editable || form?.reason === 'closed') && (!submitted || editing || submitting)
 	);
+	const canEdit = $derived(data.editable && !closed);
+
+	function openForm(source: Answers) {
+		formSource = source;
+		formKey++;
+		editing = true;
+		saved = undefined;
+	}
+
+	async function loadRevision(revision: Revision) {
+		if (unsent && !confirm('未送信の変更を、この版の内容で置き換えます')) return;
+		openForm(revision.answers);
+		await tick();
+		// Saved as an unsent change like anything typed: only sending makes it a new revision.
+		edited();
+		formElement?.scrollIntoView({ block: 'start' });
+	}
+
+	function cancelEditing() {
+		const current = readFields();
+		void autosave.flush();
+		unsent = draftDiffers(current, data.answers) ? current : null;
+		editing = false;
+	}
+
+	let discarding = $state(false);
+	let discardFailed = $state(false);
+
+	async function discard() {
+		if (!confirm('未送信の変更を破棄します')) return;
+
+		discarding = true;
+		discardFailed = false;
+		await autosave.stop();
+		if (await discardResponseDraft(data.form.id)) {
+			resetDraft();
+			if (submitted) {
+				editing = false;
+			} else {
+				formSource = submittedAnswers;
+				formKey++;
+			}
+			discarding = false;
+			return;
+		}
+		discarding = false;
+		discardFailed = true;
+		autosave.resume();
+	}
+
+	// --- display ---
 
 	const heading = $derived(
 		saved === true ? '回答を送信しました' : saved === false ? '回答を更新しました' : '回答済みです'
@@ -67,28 +226,30 @@
 	);
 
 	const isChecked = (questionId: number, optionId: string) => {
-		const value = answers[questionId];
+		const value = formSource[questionId];
 		if (value?.type === 'single') return 'optionId' in value && value.optionId === optionId;
 		if (value?.type === 'multi') return value.optionIds.includes(optionId);
 		return false;
 	};
 
 	const otherValue = (questionId: number): string | undefined => {
-		const value = answers[questionId];
+		const value = formSource[questionId];
 		if (value?.type === 'single') return 'other' in value ? value.other : undefined;
 		if (value?.type === 'multi') return value.other;
 		return undefined;
 	};
 
 	const textValue = (questionId: number) => {
-		const value = answers[questionId];
+		const value = formSource[questionId];
 		if (value?.type === 'text') return value.text;
 		if (value?.type === 'date') return value.date;
 		return '';
 	};
 
-	function readable(questionId: number, options: { id: string; label: string }[] | null): string {
-		const value = answers[questionId];
+	function readable(
+		value: AnswerValue | undefined,
+		options: { id: string; label: string }[] | null
+	): string {
 		return value ? describeAnswer(value, options) : '（未回答）';
 	}
 
@@ -148,17 +309,14 @@
 		if (text) requireFilled(text, q.required);
 	}
 
-	function startEditing() {
-		editing = true;
-		saved = undefined;
-	}
-
-	const submit: SubmitFunction = ({ cancel }) => {
+	const submit: SubmitFunction = async ({ cancel }) => {
 		if (closed) {
 			cancel();
 			return;
 		}
 		submitting = true;
+		// A successful submission deletes the draft, so no save may follow it, nor land after it.
+		await autosave.stop();
 		return async ({ result, update }) => {
 			const reason = result.type === 'failure' ? result.data?.reason : undefined;
 			// The fields take their values from props, so a reset would blank them with no change in
@@ -168,6 +326,9 @@
 			// access is gone, the confirmation once another tab has submitted, the lock once closed.
 			if (reason) await invalidateAll();
 			submitting = false;
+			if (result.type === 'success') resetDraft();
+			// An input error or a passing fault leaves the draft as it was, and saving goes on.
+			else if (!reason) autosave.resume();
 			// Most outcomes are shown at the top, and the submit button sits at the bottom of the
 			// form. A close is shown beside the button instead, where the reader already is.
 			if (result.type === 'success' || (result.type === 'failure' && reason !== 'closed')) {
@@ -226,139 +387,225 @@
 		</p>
 	{/if}
 
-	{#if showForm}
-		<form method="POST" use:enhance={submit} class="flex flex-col gap-5">
-			{#each data.questions as q (q.id)}
-				<!-- The card is the wrapper, not the fieldset: a bordered fieldset lets the browser cut a
-				     notch for the legend and start its padding below it, which misaligns the heading. -->
-				<div class="card p-5">
-					<fieldset
-						class="m-0 border-0 p-0"
-						use:recheck={(fieldset) => checkQuestion(fieldset, q)}
-					>
-						<legend class="mb-3 block text-sm font-medium">
-							{q.label}
-							{#if q.required}<span class="text-danger">*</span>{/if}
-						</legend>
-						{#if q.helpText}
-							<p class="-mt-2 mb-3 text-xs text-text-muted">{q.helpText}</p>
-						{/if}
+	{#if discardFailed}
+		<p role="alert" class="alert-error">
+			下書きを破棄できませんでした。時間をおいてもう一度お試しください。
+		</p>
+	{/if}
 
-						{#if q.type === 'single' || q.type === 'multi'}
-							<div class="flex flex-col gap-2">
-								{#each q.options ?? [] as option (option.id)}
-									<label class="flex items-center gap-2 text-sm">
-										<input
-											type={q.type === 'single' ? 'radio' : 'checkbox'}
-											name="q_{q.id}"
-											value={option.id}
-											checked={isChecked(q.id, option.id)}
-											required={q.required && q.type === 'single'}
-											class="accent-accent size-4"
-										/>
-										{option.label}
-									</label>
-								{/each}
-								{#if q.allowOther}
-									<div class="flex items-center gap-2 text-sm">
-										<label class="flex shrink-0 items-center gap-2">
+	{#if showForm}
+		{#if restoredAt && !submitted && !closed}
+			<div class="card action-row px-4 py-3">
+				<p class="min-w-0 flex-1 text-sm text-text-subtle">
+					下書きを復元しました
+					<span class="whitespace-nowrap text-xs text-text-muted">
+						（{formatJst(restoredAt)} に保存）
+					</span>
+				</p>
+				<button
+					type="button"
+					class="btn-secondary shrink-0 self-start px-3 py-1.5 text-xs sm:self-auto"
+					disabled={discarding}
+					onclick={discard}
+				>
+					下書きを破棄
+				</button>
+			</div>
+		{/if}
+
+		{#key formKey}
+			<form
+				method="POST"
+				use:enhance={submit}
+				{@attach track}
+				oninput={edited}
+				onchange={edited}
+				class="flex scroll-mt-4 flex-col gap-5"
+			>
+				{#each data.questions as q (q.id)}
+					<!-- The card is the wrapper, not the fieldset: a bordered fieldset lets the browser cut a
+					     notch for the legend and start its padding below it, which misaligns the heading. -->
+					<div class="card p-5">
+						<fieldset
+							class="m-0 border-0 p-0"
+							use:recheck={(fieldset) => checkQuestion(fieldset, q)}
+						>
+							<legend class="mb-3 block text-sm font-medium">
+								{q.label}
+								{#if q.required}<span class="text-danger">*</span>{/if}
+							</legend>
+							{#if q.helpText}
+								<p class="-mt-2 mb-3 text-xs text-text-muted">{q.helpText}</p>
+							{/if}
+
+							{#if q.type === 'single' || q.type === 'multi'}
+								<div class="flex flex-col gap-2">
+									{#each q.options ?? [] as option (option.id)}
+										<label class="flex items-center gap-2 text-sm">
 											<input
 												type={q.type === 'single' ? 'radio' : 'checkbox'}
-												id={otherChoiceId(q.id)}
 												name="q_{q.id}"
-												value={OTHER_OPTION_ID}
-												checked={otherValue(q.id) !== undefined}
+												value={option.id}
+												checked={isChecked(q.id, option.id)}
 												required={q.required && q.type === 'single'}
 												class="accent-accent size-4"
 											/>
-											その他:
+											{option.label}
 										</label>
-										<input
-											type="text"
-											name="q_{q.id}_other"
-											value={otherValue(q.id) ?? ''}
-											aria-label="「{q.label}」のその他の内容"
-											maxlength={MAX_OTHER_ANSWER}
-											oninput={(event) => chooseOther(q.id, event.currentTarget.value)}
-											class="field min-w-0 flex-1 py-1"
-										/>
-									</div>
-								{/if}
-							</div>
-						{:else if q.type === 'text'}
-							<textarea
-								name="q_{q.id}"
-								rows="3"
-								aria-label={q.label}
-								required={q.required}
-								maxlength={MAX_TEXT_ANSWER}
-								class="field">{textValue(q.id)}</textarea
-							>
-						{:else}
-							<input
-								type="date"
-								name="q_{q.id}"
-								value={textValue(q.id)}
-								aria-label={q.label}
-								required={q.required}
-								class="field"
-							/>
+									{/each}
+									{#if q.allowOther}
+										<div class="flex items-center gap-2 text-sm">
+											<label class="flex shrink-0 items-center gap-2">
+												<input
+													type={q.type === 'single' ? 'radio' : 'checkbox'}
+													id={otherChoiceId(q.id)}
+													name="q_{q.id}"
+													value={OTHER_OPTION_ID}
+													checked={otherValue(q.id) !== undefined}
+													required={q.required && q.type === 'single'}
+													class="accent-accent size-4"
+												/>
+												その他:
+											</label>
+											<input
+												type="text"
+												name="q_{q.id}_other"
+												value={otherValue(q.id) ?? ''}
+												aria-label="「{q.label}」のその他の内容"
+												maxlength={MAX_OTHER_ANSWER}
+												oninput={(event) => chooseOther(q.id, event.currentTarget.value)}
+												class="field min-w-0 flex-1 py-1"
+											/>
+										</div>
+									{/if}
+								</div>
+							{:else if q.type === 'text'}
+								<textarea
+									name="q_{q.id}"
+									rows="3"
+									aria-label={q.label}
+									required={q.required}
+									maxlength={MAX_TEXT_ANSWER}
+									class="field">{textValue(q.id)}</textarea
+								>
+							{:else}
+								<input
+									type="date"
+									name="q_{q.id}"
+									value={textValue(q.id)}
+									aria-label={q.label}
+									required={q.required}
+									class="field"
+								/>
+							{/if}
+						</fieldset>
+					</div>
+				{/each}
+
+				{#if closed}
+					<p role="alert" class="alert-warning">受付を終了したため送信できません。</p>
+				{:else if saveStatus.kind === 'conflict'}
+					<div role="alert" class="alert-warning action-row">
+						<p class="min-w-0 flex-1">
+							別の画面でこの回答が送信されたか、下書きが更新・破棄されました。この画面の自動保存は停止しています。
+						</p>
+						<button
+							type="button"
+							class="btn-secondary shrink-0 self-start px-3 py-1.5 text-xs sm:self-auto"
+							onclick={() => location.reload()}
+						>
+							再読み込み
+						</button>
+					</div>
+				{/if}
+
+				<div class="flex flex-wrap items-center gap-x-4 gap-y-3">
+					<button type="submit" class="btn-primary px-5 py-2.5" disabled={submitting || closed}>
+						{submitted ? '回答を更新' : '送信'}
+					</button>
+					{#if submitted}
+						<button
+							type="button"
+							class="text-sm text-text-muted hover:underline"
+							onclick={cancelEditing}
+						>
+							キャンセル
+						</button>
+					{/if}
+					<p role="status" class="text-xs text-text-muted">
+						{#if saveStatus.kind === 'saving'}
+							保存中…
+						{:else if saveStatus.kind === 'saved'}
+							<span class="whitespace-nowrap">下書きを保存済み {formatJstTime(saveStatus.at)}</span>
+						{:else if saveStatus.kind === 'failed'}
+							<span class="text-error-fg">
+								下書きを保存できませんでした{saveStatus.tooLarge
+									? '。回答が大きすぎます。入力を短くしてください'
+									: ''}
+							</span>
 						{/if}
-					</fieldset>
+					</p>
 				</div>
-			{/each}
-
-			{#if closed}
-				<p role="alert" class="alert-warning">受付を終了したため送信できません。</p>
-			{/if}
-
-			<div class="flex items-center gap-4">
-				<button type="submit" class="btn-primary px-5 py-2.5" disabled={submitting || closed}>
-					{submitted ? '回答を更新' : '送信'}
-				</button>
-				{#if submitted}
+			</form>
+		{/key}
+	{:else if submitted}
+		<section class="card flex flex-col gap-4 p-6">
+			<div class="action-row">
+				<div class="flex min-w-0 flex-1 items-start gap-3">
+					<span class="bg-success-badge text-success shrink-0 rounded-full p-1.5">
+						<Icon name="check" />
+					</span>
+					<div class="min-w-0">
+						<h2 class="text-lg font-semibold">{heading}</h2>
+						<p class="mt-1 text-xs text-text-muted">
+							<span class="whitespace-nowrap">提出日時: {formatJst(data.submittedAt)}</span>
+							{#if updatedAt}
+								<span class="whitespace-nowrap">/ 最終更新: {updatedAt}</span>
+							{/if}
+						</p>
+						{#if closed}
+							<p class="mt-2 text-sm text-text-subtle">受付は終了しています。</p>
+						{:else if !data.editable}
+							<p class="mt-2 text-sm text-text-subtle">
+								このフォームは回答の編集が許可されていません。
+							</p>
+						{/if}
+					</div>
+				</div>
+				{#if canEdit && !unsent}
 					<button
 						type="button"
-						class="text-sm text-text-muted hover:underline"
-						onclick={() => (editing = false)}
+						class="btn-secondary inline-flex shrink-0 items-center gap-1.5 self-start px-4 py-2 sm:self-auto"
+						onclick={() => openForm(submittedAnswers)}
 					>
-						キャンセル
+						<Icon name="pencil" />
+						回答を編集
 					</button>
 				{/if}
 			</div>
-		</form>
-	{:else if submitted}
-		<section class="card action-row p-6">
-			<div class="flex min-w-0 flex-1 items-start gap-3">
-				<span class="bg-success-badge text-success shrink-0 rounded-full p-1.5">
-					<Icon name="check" />
-				</span>
-				<div class="min-w-0">
-					<h2 class="text-lg font-semibold">{heading}</h2>
-					<p class="mt-1 text-xs text-text-muted">
-						<span class="whitespace-nowrap">提出日時: {formatJst(data.submittedAt)}</span>
-						{#if updatedAt}
-							<span class="whitespace-nowrap">/ 最終更新: {updatedAt}</span>
-						{/if}
-					</p>
-					{#if closed}
-						<p class="mt-2 text-sm text-text-subtle">受付は終了しています。</p>
-					{:else if !data.editable}
-						<p class="mt-2 text-sm text-text-subtle">
-							このフォームは回答の編集が許可されていません。
-						</p>
-					{/if}
+
+			{#if canEdit && unsent}
+				<div class="alert-warning action-row">
+					<p class="min-w-0 flex-1">未送信の変更があります。</p>
+					<div class="flex shrink-0 flex-wrap gap-2">
+						<button
+							type="button"
+							class="btn-primary inline-flex items-center gap-1.5 px-4 py-2"
+							onclick={() => unsent && openForm(unsent)}
+						>
+							<Icon name="pencil" />
+							続きを編集
+						</button>
+						<button
+							type="button"
+							class="btn-secondary px-4 py-2"
+							disabled={discarding}
+							onclick={discard}
+						>
+							破棄
+						</button>
+					</div>
 				</div>
-			</div>
-			{#if data.editable && !closed}
-				<button
-					type="button"
-					class="btn-secondary inline-flex shrink-0 items-center gap-1.5 self-start px-4 py-2 sm:self-auto"
-					onclick={startEditing}
-				>
-					<Icon name="pencil" />
-					回答を編集
-				</button>
 			{/if}
 		</section>
 
@@ -367,10 +614,51 @@
 			{#each data.questions as q (q.id)}
 				<div class="card p-5">
 					<p class="text-sm font-medium">{q.label}</p>
-					<p class="mt-2 text-sm whitespace-pre-wrap text-text-subtle">{readable(q.id, q.options)}</p>
+					<p class="mt-2 text-sm whitespace-pre-wrap text-text-subtle">{readable(submittedAnswers[q.id], q.options)}</p>
 				</div>
 			{/each}
 		</section>
+
+		{#if data.history.length > 0}
+			<section class="flex flex-col gap-3">
+				<h2 class="text-sm font-medium text-text-subtle">回答履歴</h2>
+				<ol class="flex flex-col gap-3">
+					{#each data.history as revision, index (revision.number)}
+						<li class="card p-5">
+							<div class="action-row">
+								<div class="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-2">
+									<h3 class="text-sm font-semibold">{revision.number}版目</h3>
+									{#if index === 0}
+										<span class="bg-success-badge text-success rounded px-2 py-0.5 text-xs">最新</span>
+									{/if}
+									<span class="text-xs whitespace-nowrap text-text-muted tabular-nums">
+										{revision.number === 1 ? '提出' : '更新'}
+										{formatJst(revision.createdAt)}
+									</span>
+								</div>
+								{#if canEdit && index > 0}
+									<button
+										type="button"
+										class="btn-secondary shrink-0 self-start px-3 py-1.5 text-xs sm:self-auto"
+										onclick={() => loadRevision(revision)}
+									>
+										この内容を読み込む
+									</button>
+								{/if}
+							</div>
+							<dl class="mt-4 flex flex-col gap-3">
+								{#each data.questions as q (q.id)}
+									<div>
+										<dt class="text-sm font-medium">{q.label}</dt>
+										<dd class="mt-1 text-sm whitespace-pre-wrap text-text-subtle">{readable(revision.answers[q.id], q.options)}</dd>
+									</div>
+								{/each}
+							</dl>
+						</li>
+					{/each}
+				</ol>
+			</section>
+		{/if}
 	{:else}
 		<section class="card p-6">
 			<h2 class="text-lg font-semibold">受付を終了しました</h2>

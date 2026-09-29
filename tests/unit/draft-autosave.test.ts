@@ -148,6 +148,19 @@ describe('DraftAutosave', () => {
 		expect(h.statuses.at(-1)).toBe('conflict');
 	});
 
+	test('a form found closed stops saving for good, reported as closed', async () => {
+		const h = harness({ answer: () => ({ ok: false, reason: 'closed' }) });
+		h.edit('a');
+		await sleep(DEBOUNCE + 20);
+		h.edit('b');
+		await sleep(DEBOUNCE + 20);
+		h.autosave.resume();
+		await h.autosave.flush();
+
+		expect(h.requests).toHaveLength(1);
+		expect(h.statuses).toEqual(['saving', 'closed']);
+	});
+
 	test('a failure is shown and retried later', async () => {
 		let fail = true;
 		const h = harness({

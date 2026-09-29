@@ -78,6 +78,13 @@
       "when": 1790652960840,
       "tag": "0010_thin_sersi",
       "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1790657120543,
+      "tag": "0011_bouncy_silver_centurion",
+      "breakpoints": true
     }
   ]
 }

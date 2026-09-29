@@ -10,6 +10,7 @@ import {
 	jsonb,
 	pgEnum,
 	pgTable,
+	primaryKey,
 	text,
 	timestamp,
 	uniqueIndex
@@ -324,6 +325,28 @@ export const formDraft = pgTable(
 	(t) => [index('form_draft_created_by_idx').on(t.createdBy)]
 );
 
+/**
+ * A respondent's unsent answers, one row per person and form. Stored unchecked like form_draft,
+ * and read by nobody but its owner: no count, roster, reminder or history looks at it.
+ */
+export const responseDraft = pgTable(
+	'response_draft',
+	{
+		formId: text('form_id')
+			.notNull()
+			.references(() => form.id, { onDelete: 'cascade' }),
+		userId: text('user_id')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		// Typed as the answers' shape; readers must still treat it as unknown.
+		answers: jsonb('answers').$type<RevisionAnswers>().notNull(),
+		// Optimistic concurrency: every save names the version it read, 0 for none yet.
+		version: integer('version').notNull().default(1),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [primaryKey({ columns: [t.formId, t.userId] })]
+);
+
 export type User = typeof user.$inferSelect;
 export type GuildMember = typeof guildMember.$inferSelect;
 export type Form = typeof form.$inferSelect;
@@ -332,3 +355,4 @@ export type Response = typeof response.$inferSelect;
 export type Answer = typeof answer.$inferSelect;
 export type Reminder = typeof reminder.$inferSelect;
 export type FormDraft = typeof formDraft.$inferSelect;
+export type ResponseDraft = typeof responseDraft.$inferSelect;

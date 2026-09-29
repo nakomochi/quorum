@@ -25,8 +25,8 @@ import type {
 	PageData as AdminData
 } from '../../routes/admin/forms/$types';
 
-/** How the catalogue answers the editor's draft saves in place of the server. */
-export type DraftApiMode = 'ok' | 'hang' | 'fail' | 'conflict';
+/** How the catalogue answers draft saves, the editor's and the answer page's, in place of the server. */
+export type DraftApiMode = 'ok' | 'hang' | 'fail' | 'conflict' | 'closed';
 
 export type UiCase<Data, Form = null> = {
 	id: string;
@@ -54,7 +54,8 @@ export function draftApiResponse(mode: DraftApiMode, method: string): Promise<Re
 		case 'fail':
 			return Promise.resolve(json({ message: 'catalogue stub' }, 500));
 		case 'conflict':
-			return Promise.resolve(json({ reason: 'conflict' }, 409));
+		case 'closed':
+			return Promise.resolve(json({ reason: mode }, 409));
 		case 'ok':
 			if (method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }));
 			return Promise.resolve(
@@ -605,6 +606,44 @@ const OTHER_ANSWERS: AnswerData['answers'] = {
 	3: { type: 'text', text: '特になし' }
 };
 
+/** No draft and no history to show: a single revision is the submitted answer itself. */
+const NO_DRAFT: Pick<AnswerData, 'draft' | 'history'> = { draft: null, history: [] };
+
+/** The answers of `FILLED_ANSWERS` half rewritten and not sent yet. */
+const DRAFT_ANSWERS: NonNullable<AnswerData['draft']>['answers'] = {
+	1: { type: 'single', optionId: 'maybe' },
+	2: { type: 'multi', optionIds: ['d2'] },
+	3: { type: 'text', text: '仕事の都合で、初日は夜から合流するかもしれません。' }
+};
+
+const RESTORED_DRAFT: Pick<AnswerData, 'draft' | 'history'> = {
+	draft: { version: 3, updatedAt: at('2026-09-29T12:34:00'), answers: DRAFT_ANSWERS },
+	history: []
+};
+
+// The viewer's own revisions, newest first. The newest is FILLED_ANSWERS, as submitted.
+const OWN_HISTORY: AnswerData['history'] = [
+	{ number: 3, createdAt: at('2026-04-14T08:15:00'), answers: FILLED_ANSWERS },
+	{
+		number: 2,
+		createdAt: at('2026-04-13T09:05:00'),
+		answers: {
+			1: { type: 'single', optionId: 'yes' },
+			2: { type: 'multi', optionIds: ['d1'] },
+			3: { type: 'text', text: '仕事の都合次第です。' },
+			4: { type: 'date', date: '2026-05-02' }
+		}
+	},
+	{
+		number: 1,
+		createdAt: at('2026-04-12T21:40:00'),
+		answers: {
+			1: { type: 'single', optionId: 'maybe' },
+			3: { type: 'text', text: '仕事の都合次第です。' }
+		}
+	}
+];
+
 /** Fills `QUESTIONS` in the rendered form, for a state where typed input has to survive. */
 async function typeAnswers(doc: Document) {
 	const pick = (selector: string) => {
@@ -840,7 +879,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: true,
 			submittedAt: null,
 			updatedAt: null,
-			answers: {}
+			answers: {},
+			...NO_DRAFT
 		}
 	},
 	{
@@ -855,7 +895,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: true,
 			submittedAt: null,
 			updatedAt: null,
-			answers: {}
+			answers: {},
+			...NO_DRAFT
 		}
 	},
 	{
@@ -871,7 +912,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: true,
 			submittedAt: at('2026-04-12T21:40:00'),
 			updatedAt: at('2026-04-12T21:40:00'),
-			answers: OTHER_ANSWERS
+			answers: OTHER_ANSWERS,
+			...NO_DRAFT
 		},
 		form: { created: true }
 	},
@@ -887,7 +929,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: true,
 			submittedAt: at('2026-04-12T21:40:00'),
 			updatedAt: at('2026-04-14T08:15:00'),
-			answers: FILLED_ANSWERS
+			answers: FILLED_ANSWERS,
+			...NO_DRAFT
 		},
 		form: { created: false }
 	},
@@ -903,7 +946,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: true,
 			submittedAt: at('2026-04-12T21:40:00'),
 			updatedAt: at('2026-04-12T21:40:00'),
-			answers: FILLED_ANSWERS
+			answers: FILLED_ANSWERS,
+			...NO_DRAFT
 		}
 	},
 	{
@@ -918,7 +962,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: false,
 			submittedAt: at('2026-04-12T21:40:00'),
 			updatedAt: at('2026-04-12T21:40:00'),
-			answers: FILLED_ANSWERS
+			answers: FILLED_ANSWERS,
+			...NO_DRAFT
 		}
 	},
 	{
@@ -933,7 +978,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: false,
 			submittedAt: at('2026-04-12T21:40:00'),
 			updatedAt: at('2026-04-12T21:40:00'),
-			answers: OTHER_ANSWERS
+			answers: OTHER_ANSWERS,
+			...NO_DRAFT
 		}
 	},
 	{
@@ -948,7 +994,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: false,
 			submittedAt: null,
 			updatedAt: null,
-			answers: {}
+			answers: {},
+			...NO_DRAFT
 		}
 	},
 	{
@@ -963,7 +1010,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: true,
 			submittedAt: null,
 			updatedAt: null,
-			answers: {}
+			answers: {},
+			...NO_DRAFT
 		},
 		// Only an input error the browser cannot catch belongs here: a choice sent by a stale page.
 		form: { message: '「参加できますか」の選択肢が不正です' },
@@ -982,7 +1030,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: true,
 			submittedAt: null,
 			updatedAt: null,
-			answers: {}
+			answers: {},
+			...NO_DRAFT
 		},
 		setup: typeAnswers
 	},
@@ -999,7 +1048,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: false,
 			submittedAt: null,
 			updatedAt: null,
-			answers: {}
+			answers: {},
+			...NO_DRAFT
 		},
 		form: { reason: 'closed' },
 		setup: typeAnswers
@@ -1016,7 +1066,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: false,
 			submittedAt: at('2026-04-12T21:40:00'),
 			updatedAt: at('2026-04-12T21:40:00'),
-			answers: OTHER_ANSWERS
+			answers: OTHER_ANSWERS,
+			...NO_DRAFT
 		},
 		form: { reason: 'closed' }
 	},
@@ -1033,7 +1084,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: false,
 			submittedAt: at('2026-04-12T21:40:00'),
 			updatedAt: at('2026-04-12T21:40:00'),
-			answers: FILLED_ANSWERS
+			answers: FILLED_ANSWERS,
+			...NO_DRAFT
 		},
 		form: { reason: 'already_submitted' }
 	},
@@ -1049,7 +1101,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: true,
 			submittedAt: null,
 			updatedAt: null,
-			answers: {}
+			answers: {},
+			...NO_DRAFT
 		}
 	},
 	{
@@ -1064,13 +1117,169 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: true,
 			submittedAt: at('2026-04-12T21:40:00'),
 			updatedAt: at('2026-04-12T21:40:00'),
-			answers: CHECKED_ANSWERS
+			answers: CHECKED_ANSWERS,
+			...NO_DRAFT
 		},
 		setup: async (doc) => {
 			[...doc.querySelectorAll('button')]
 				.find((b) => b.textContent?.trim() === '回答を編集')
 				?.click();
 			await tick();
+		}
+	},
+	{
+		id: 'answer-draft-restored',
+		title: '下書きを復元した（未提出）',
+		data: {
+			...SESSION,
+			resultsVisible: false,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {},
+			...RESTORED_DRAFT
+		}
+	},
+	{
+		id: 'answer-draft-unsent',
+		title: '未送信の変更がある（提出済み）',
+		data: {
+			...SESSION,
+			resultsVisible: true,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-12T21:40:00'),
+			answers: FILLED_ANSWERS,
+			...RESTORED_DRAFT
+		}
+	},
+	{
+		id: 'answer-draft-saving',
+		title: '下書きの自動保存中（入力の 1.5 秒後から）',
+		data: {
+			...SESSION,
+			resultsVisible: false,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {},
+			...NO_DRAFT
+		},
+		setup: typeAnswers,
+		draftApi: 'hang'
+	},
+	{
+		id: 'answer-draft-saved',
+		title: '下書きの自動保存が完了（入力の 1.5 秒後から）',
+		data: {
+			...SESSION,
+			resultsVisible: false,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {},
+			...NO_DRAFT
+		},
+		setup: typeAnswers
+	},
+	{
+		id: 'answer-draft-failed',
+		title: '下書きの自動保存に失敗（入力の 1.5 秒後から）',
+		data: {
+			...SESSION,
+			resultsVisible: false,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {},
+			...RESTORED_DRAFT
+		},
+		setup: typeAnswers,
+		draftApi: 'fail'
+	},
+	{
+		id: 'answer-draft-conflict',
+		title: '別の画面で送信・更新されていた（409・入力の 1.5 秒後から）',
+		data: {
+			...SESSION,
+			resultsVisible: false,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {},
+			...RESTORED_DRAFT
+		},
+		setup: typeAnswers,
+		draftApi: 'conflict'
+	},
+	{
+		id: 'answer-draft-closed',
+		title: '下書きの保存で受付終了がわかった（409・入力の 1.5 秒後から）',
+		data: {
+			...SESSION,
+			resultsVisible: false,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {},
+			...NO_DRAFT
+		},
+		setup: typeAnswers,
+		draftApi: 'closed'
+	},
+	{
+		id: 'answer-history',
+		title: '回答履歴あり（3版・読み込みボタン）',
+		data: {
+			...SESSION,
+			resultsVisible: true,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-14T08:15:00'),
+			answers: FILLED_ANSWERS,
+			draft: null,
+			history: OWN_HISTORY
+		}
+	},
+	{
+		id: 'answer-history-readonly',
+		title: '回答履歴あり / 受付終了（読み込み不可）',
+		data: {
+			...SESSION,
+			resultsVisible: true,
+			form: answerForm({ closesAt: at('2026-04-20T23:59:00') }),
+			questions: QUESTIONS,
+			closed: true,
+			editable: false,
+			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-14T08:15:00'),
+			answers: FILLED_ANSWERS,
+			draft: null,
+			history: OWN_HISTORY
 		}
 	},
 	{
@@ -1085,7 +1294,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			editable: true,
 			submittedAt: null,
 			updatedAt: null,
-			answers: {}
+			answers: {},
+			...NO_DRAFT
 		}
 	}
 ];

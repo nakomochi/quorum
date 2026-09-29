@@ -2,6 +2,7 @@ import { error, type RequestEvent } from '@sveltejs/kit';
 import type { SessionUser } from './auth';
 import { requireMember } from './guards';
 import { MAX_DRAFT_BYTES } from '../form-draft';
+import { MAX_RESPONSE_DRAFT_BYTES } from '../response-draft';
 
 export const DRAFT_NOT_FOUND = '下書きが見つかりません';
 
@@ -55,15 +56,17 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
 /**
- * The body's content is not validated, since a draft may be incomplete. It only has to be JSON
- * within the size limit, with an object for `payload`.
+ * A draft body: JSON within `maxBytes`, with an object under `field`. The object's content is
+ * not validated, since a draft may be incomplete.
  */
-export async function readDraftBody(
-	request: Request
-): Promise<{ payload: Record<string, unknown>; version: unknown }> {
-	if (Number(request.headers.get('content-length')) > MAX_DRAFT_BYTES) error(413, TOO_LARGE);
+async function readDraftObject(
+	request: Request,
+	maxBytes: number,
+	field: string
+): Promise<{ content: Record<string, unknown>; version: unknown }> {
+	if (Number(request.headers.get('content-length')) > maxBytes) error(413, TOO_LARGE);
 
-	const raw = await readCapped(request, MAX_DRAFT_BYTES);
+	const raw = await readCapped(request, maxBytes);
 	if (raw === null) error(413, TOO_LARGE);
 
 	let body: unknown;
@@ -72,7 +75,25 @@ export async function readDraftBody(
 	} catch {
 		body = undefined;
 	}
-	if (!isRecord(body) || !isRecord(body.payload)) error(400, '下書きのデータを読み取れませんでした');
+	if (!isRecord(body) || !isRecord(body[field])) error(400, '下書きのデータを読み取れませんでした');
 
-	return { payload: body.payload, version: body.version };
+	return { content: body[field], version: body.version };
+}
+
+export async function readDraftBody(
+	request: Request
+): Promise<{ payload: Record<string, unknown>; version: unknown }> {
+	const { content, version } = await readDraftObject(request, MAX_DRAFT_BYTES, 'payload');
+	return { payload: content, version };
+}
+
+/** An answer draft's body. `version` is 0 for a draft that does not exist yet. */
+export async function readResponseDraftBody(
+	request: Request
+): Promise<{ answers: Record<string, unknown>; version: number }> {
+	const { content, version } = await readDraftObject(request, MAX_RESPONSE_DRAFT_BYTES, 'answers');
+	if (typeof version !== 'number' || !Number.isSafeInteger(version) || version < 0) {
+		error(400, '下書きの版が不正です');
+	}
+	return { answers: content, version };
 }

@@ -26,6 +26,7 @@ describe('migrations', () => {
 				'question',
 				'reminder',
 				'response',
+				'response_draft',
 				'response_revision',
 				'session',
 				'user',

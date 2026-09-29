@@ -1,8 +1,7 @@
-import { error, fail, redirect } from '@sveltejs/kit';
+import { fail, redirect } from '@sveltejs/kit';
 import { formatJst } from '$lib/datetime';
 import { duplicateForm } from '$lib/server/drafts';
 import {
-	canViewResults,
 	closeForm,
 	closesAtPassed,
 	isClosed,
@@ -12,14 +11,7 @@ import {
 	RosterRefreshError,
 	tallyChoices
 } from '$lib/server/forms';
-import {
-	canManageForm,
-	FORM_NOT_FOUND,
-	gateMember,
-	requireForm,
-	requireFormManager,
-	requireUser
-} from '$lib/server/guards';
+import { FORM_NOT_FOUND, requireFormManager, requireResultsViewer } from '$lib/server/guards';
 import { messageUrl } from '$lib/server/discord';
 import { lastSyncedAt, syncAllMembers, syncedGuildRoles } from '$lib/server/guild-sync';
 import { announceForm, listReminders, postCloseNotice, sendReminder } from '$lib/server/notify';
@@ -59,23 +51,7 @@ function reminderPostFailed(targets: number, remaining: number): string {
 }
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
-	requireUser(locals);
-
-	const target = await requireForm(params.id);
-
-	const manage = await canManageForm(locals, target, 'view');
-	// canManageForm already requires membership, so only a non-manager is checked here.
-	if (!manage && !(await gateMember(locals))) {
-		error(403, 'このサーバーのメンバーではありません');
-	}
-	if (!canViewResults(target, manage)) {
-		error(
-			403,
-			target.visibility === 'after_deadline'
-				? 'この結果は締切後または確定後に公開されます'
-				: 'この結果は管理者のみが閲覧できます'
-		);
-	}
+	const { target, manage } = await requireResultsViewer(locals, params.id);
 
 	// Reads the mirror only; a manager refreshes it with ?/syncRoster.
 	const questions = await loadQuestions(params.id);
@@ -164,7 +140,12 @@ export const actions: Actions = {
 			console.error('close notice after a close by hand failed', cause);
 		}
 
-		return { closed: result.frozen };
+		return {
+			notice:
+				result.frozen === 0
+					? '締め切りました。未提出者はいません。'
+					: `締め切りました。未提出者 ${result.frozen}名を確定しました。`
+		};
 	},
 
 	reopen: async ({ locals, params }) => {
@@ -174,7 +155,7 @@ export const actions: Actions = {
 			return fail(409, { message: 'このフォームはまだ確定していません' });
 		}
 
-		return { reopened: true };
+		return { notice: '受付を再開しました。' };
 	},
 
 	announce: async ({ locals, params }) => {
@@ -188,7 +169,7 @@ export const actions: Actions = {
 				: fail(502, { message: ANNOUNCE_FAILED });
 		}
 
-		return { announced: true };
+		return { notice: '告知を投稿しました。' };
 	},
 
 	remind: async ({ locals, params }) => {
@@ -203,7 +184,8 @@ export const actions: Actions = {
 			return fail(failure.status, { message: failure.message });
 		}
 
-		return { reminded: { targets: result.targets, messages: result.messages } };
+		const split = result.messages > 1 ? `（${result.messages}通に分けて送信）` : '';
+		return { notice: `未提出者 ${result.targets}名にリマインドを送信しました。${split}` };
 	},
 
 	// Posted to from the top page's menu; this page has no button for it.
@@ -238,6 +220,6 @@ export const actions: Actions = {
 			});
 		}
 
-		return { rosterSynced: true };
+		return { notice: '名簿を更新しました。' };
 	}
 };

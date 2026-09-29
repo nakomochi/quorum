@@ -13,9 +13,10 @@
 		saveWhileMounted,
 		type SaveStatus as DraftSaveStatus
 	} from '$lib/draft-autosave';
-	import type { AnswerValue, RevisionAnswers } from '$lib/forms';
+	import type { AnswerValue, InputError, RevisionAnswers } from '$lib/forms';
 	import { answersFromFields, draftDiffers } from '$lib/response-draft';
-	import AnswerForm from './AnswerForm.svelte';
+	import { toast } from '$lib/toast.svelte';
+	import AnswerForm, { questionAnchor } from './AnswerForm.svelte';
 	import AnswerHistory from './AnswerHistory.svelte';
 	import ConfirmationCard from './ConfirmationCard.svelte';
 	import { watchExpiry } from './expiry.svelte';
@@ -44,10 +45,15 @@
 	let restoredAt = $state<Date | null>(initialDraft?.answers ? initialDraft.updatedAt : null);
 
 	// Both follow the latest action result, and 回答を編集 overrides them until the next one
-	// arrives: an input error or a close keeps the form open, anything else returns to the
-	// confirmation.
-	let editing = $derived(form?.message !== undefined || form?.reason === 'closed');
+	// arrives: an input error, a passing fault or a close keeps the form open. Any other refusal
+	// carries a reason and reloads the page, which returns to the confirmation.
+	let editing = $derived(
+		form?.reason === 'closed' ||
+			(form?.reason === undefined &&
+				(form?.message !== undefined || form?.inputError !== undefined))
+	);
 	let saved = $derived(form?.created);
+	const inputError = $derived(form?.inputError ?? null);
 	let submitting = $state(false);
 
 	// The server still refuses a late submission, and that refusal ends in the same locked state.
@@ -159,13 +165,11 @@
 	}
 
 	let discarding = $state(false);
-	let discardFailed = $state(false);
 
 	async function discard() {
 		if (!confirm('未送信の変更を破棄します')) return;
 
 		discarding = true;
-		discardFailed = false;
 		await autosave.stop();
 		if (await discardResponseDraft(data.form.id)) {
 			resetDraft();
@@ -179,7 +183,7 @@
 			return;
 		}
 		discarding = false;
-		discardFailed = true;
+		toast.error('下書きを破棄できませんでした。時間をおいてもう一度お試しください。');
 		autosave.resume();
 	}
 
@@ -203,9 +207,16 @@
 			if (result.type === 'success') resetDraft();
 			// An input error or a passing fault leaves the draft as it was, and saving goes on.
 			else if (!reason) autosave.resume();
-			// Most outcomes are shown at the top, and the submit button sits at the bottom of the
-			// form. A close is shown beside the button instead, where the reader already is.
-			if (result.type === 'success' || (result.type === 'failure' && reason !== 'closed')) {
+			// The confirmation is at the top, and the submit button at the bottom of the form. A
+			// close and a form-wide input error are shown beside the button, where the reader
+			// already is, and a passing fault in a toast.
+			const at =
+				result.type === 'failure'
+					? (result.data?.inputError as InputError | undefined)?.at
+					: null;
+			if (at && 'questionId' in at) {
+				document.getElementById(questionAnchor(at.questionId))?.scrollIntoView({ block: 'center' });
+			} else if (result.type === 'success' || (reason && reason !== 'closed')) {
 				window.scrollTo({ top: 0 });
 			}
 		};
@@ -231,22 +242,6 @@
 		{/if}
 		<FormHeader form={data.form} {closed} {submitted} />
 	</div>
-
-	{#if form?.message}
-		<p role="alert" class="alert-error">
-			{form.message}
-		</p>
-	{:else if form?.reason === 'already_submitted'}
-		<p role="alert" class="alert-warning">
-			すでに提出済みの回答があり、編集は許可されていないため、今回の内容は送信されていません。
-		</p>
-	{/if}
-
-	{#if discardFailed}
-		<p role="alert" class="alert-error">
-			下書きを破棄できませんでした。時間をおいてもう一度お試しください。
-		</p>
-	{/if}
 
 	{#if showForm}
 		{#if restoredAt && !submitted && !closed}
@@ -276,6 +271,7 @@
 				{closed}
 				{submitted}
 				{submitting}
+				{inputError}
 				{submit}
 				attach={track}
 				onedit={edited}

@@ -185,6 +185,17 @@ describe('submitResponse: building answers', () => {
 		allowOther: false
 	});
 
+	/** Refused with exactly `message`, shown in the card of the question with `questionId`. */
+	async function refusedAt(pending: Promise<unknown>, message: string, questionId: number) {
+		const err = await pending.then(
+			() => null,
+			(e: unknown) => e
+		);
+		expect(err).toBeInstanceOf(FormInputError);
+		expect((err as FormInputError).message).toBe(message);
+		expect((err as FormInputError).at).toEqual({ questionId });
+	}
+
 	async function stored(formId: string) {
 		const rows = await db
 			.select({ questionId: answer.questionId, value: answer.value })
@@ -196,8 +207,12 @@ describe('submitResponse: building answers', () => {
 
 	test('a required question left blank, or only whitespace, is refused', async () => {
 		const { id, questions, who } = await formWith([text(true)]);
-		await expect(submit(id, who, [], inputs(questions, {}))).rejects.toThrow('「記述」は必須です');
-		await expect(submit(id, who, [], inputs(questions, { 0: '   ' }))).rejects.toThrow('「記述」は必須です');
+		await refusedAt(submit(id, who, [], inputs(questions, {})), 'この質問は必須です', questions[0].id);
+		await refusedAt(
+			submit(id, who, [], inputs(questions, { 0: '   ' })),
+			'この質問は必須です',
+			questions[0].id
+		);
 		expect(await counts(id)).toMatchObject({ responses: 0 });
 	});
 
@@ -234,35 +249,49 @@ describe('submitResponse: building answers', () => {
 
 	test('"その他" chosen but empty, or too long, is refused', async () => {
 		const { id, questions, who } = await formWith([choice('single', true)]);
-		await expect(
-			submit(id, who, [], inputs(questions, { 0: { values: [OTHER_OPTION_ID], other: '  ' } }))
-		).rejects.toThrow('その他の内容を入力してください');
-		await expect(
-			submit(id, who, [], inputs(questions, { 0: { values: [OTHER_OPTION_ID], other: 'x'.repeat(MAX_OTHER_ANSWER + 1) } }))
-		).rejects.toThrow(`その他は${MAX_OTHER_ANSWER}文字以内`);
+		await refusedAt(
+			submit(id, who, [], inputs(questions, { 0: { values: [OTHER_OPTION_ID], other: '  ' } })),
+			'「その他」の内容を入力してください',
+			questions[0].id
+		);
+		await refusedAt(
+			submit(id, who, [], inputs(questions, { 0: { values: [OTHER_OPTION_ID], other: 'x'.repeat(MAX_OTHER_ANSWER + 1) } })),
+			`「その他」は${MAX_OTHER_ANSWER}文字以内で入力してください`,
+			questions[0].id
+		);
 	});
 
 	test('"その他" sent to a question that does not offer it is refused', async () => {
 		const { id, questions, who } = await formWith([choice('single', false), choice('multi', false)]);
-		await expect(
-			submit(id, who, [], inputs(questions, { 0: { values: [OTHER_OPTION_ID], other: 'x' } }))
-		).rejects.toBeInstanceOf(FormInputError);
-		await expect(
-			submit(id, who, [], inputs(questions, { 1: { values: ['a', OTHER_OPTION_ID], other: 'x' } }))
-		).rejects.toThrow('「複数」の選択肢が不正です');
+		await refusedAt(
+			submit(id, who, [], inputs(questions, { 0: { values: [OTHER_OPTION_ID], other: 'x' } })),
+			'選択肢が不正です',
+			questions[0].id
+		);
+		await refusedAt(
+			submit(id, who, [], inputs(questions, { 1: { values: ['a', OTHER_OPTION_ID], other: 'x' } })),
+			'選択肢が不正です',
+			questions[1].id
+		);
 		expect(await counts(id)).toMatchObject({ responses: 0 });
 	});
 
 	test('an option id the question does not have is refused', async () => {
 		const { id, questions, who } = await formWith([choice('single', false), choice('multi', false)]);
-		await expect(submit(id, who, [], inputs(questions, { 0: 'zzz' }))).rejects.toThrow('「単一」の選択肢が不正です');
-		await expect(submit(id, who, [], inputs(questions, { 1: ['a', 'zzz'] }))).rejects.toThrow('「複数」の選択肢が不正です');
+		await refusedAt(submit(id, who, [], inputs(questions, { 0: 'zzz' })), '選択肢が不正です', questions[0].id);
+		await refusedAt(
+			submit(id, who, [], inputs(questions, { 1: ['a', 'zzz'] })),
+			'選択肢が不正です',
+			questions[1].id
+		);
 	});
 
 	test('text is capped at its maximum length', async () => {
 		const { id, questions, who } = await formWith([text(false)]);
-		await expect(submit(id, who, [], inputs(questions, { 0: 'x'.repeat(MAX_TEXT_ANSWER + 1) }))).rejects.toThrow(
-			`${MAX_TEXT_ANSWER}文字以内`
+		await refusedAt(
+			submit(id, who, [], inputs(questions, { 0: 'x'.repeat(MAX_TEXT_ANSWER + 1) })),
+			`${MAX_TEXT_ANSWER}文字以内で入力してください`,
+			questions[0].id
 		);
 		expect(await submit(id, who, [], inputs(questions, { 0: 'x'.repeat(MAX_TEXT_ANSWER) }))).toMatchObject({ ok: true });
 	});
@@ -280,7 +309,13 @@ describe('submitResponse: building answers', () => {
 		const answers = (last: string) =>
 			inputs(questions, { 0: full, 1: full, 2: full, 3: full, 4: last, 5: { values: ['a'], other } });
 
-		await expect(submit(id, who, [], answers('x'.repeat(rest + 1)))).rejects.toThrow('回答が大きすぎます');
+		const tooLarge = await submit(id, who, [], answers('x'.repeat(rest + 1))).catch((e: unknown) => e);
+		expect(tooLarge).toBeInstanceOf(FormInputError);
+		// Nothing to point at but the form as a whole.
+		expect((tooLarge as FormInputError).detail).toEqual({
+			message: '回答が大きすぎます。入力を短くしてください',
+			at: null
+		});
 		expect(await counts(id)).toMatchObject({ responses: 0 });
 		expect(await submit(id, who, [], answers('x'.repeat(rest)))).toMatchObject({ ok: true });
 	});
@@ -289,8 +324,8 @@ describe('submitResponse: building answers', () => {
 		const { id, questions, who } = await formWith([
 			{ type: 'date', label: '日付', helpText: null, required: false, options: null, allowOther: false }
 		]);
-		await expect(submit(id, who, [], inputs(questions, { 0: '2026/09/29' }))).rejects.toThrow('日付が不正です');
-		await expect(submit(id, who, [], inputs(questions, { 0: '2026-13-01' }))).rejects.toThrow('日付が不正です');
+		await refusedAt(submit(id, who, [], inputs(questions, { 0: '2026/09/29' })), '日付が不正です', questions[0].id);
+		await refusedAt(submit(id, who, [], inputs(questions, { 0: '2026-13-01' })), '日付が不正です', questions[0].id);
 		expect(await submit(id, who, [], inputs(questions, { 0: '2026-09-29' }))).toMatchObject({ ok: true });
 		expect(await stored(id)).toEqual([{ type: 'date', date: '2026-09-29' }]);
 	});

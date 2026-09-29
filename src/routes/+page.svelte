@@ -6,7 +6,7 @@
 	import { FORM_STATUS_LABELS, type FormStatus } from '$lib/forms';
 	import Icon, { type IconName } from '$lib/icons/Icon.svelte';
 
-	let { data, form } = $props();
+	let { data } = $props();
 
 	const deadlineItem = (value: Date | null): MetaItem =>
 		value ? { label: '締切', value: displayJst(value) } : { value: '締切なし' };
@@ -144,9 +144,6 @@
 			{#if data.drafts.length > 0}
 				<section>
 					<h2 class="section-title">下書き {data.drafts.length}件</h2>
-					{#if form?.message}
-						<p role="alert" class="alert-error mt-2">{form.message}</p>
-					{/if}
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each data.drafts as row (row.id)}
 							<li class="card flex items-center gap-2 pr-3">

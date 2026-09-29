@@ -8,6 +8,7 @@
 		QUESTION_TYPES,
 		type QuestionType
 	} from '$lib/forms';
+	import FieldError from '$lib/components/FieldError.svelte';
 	import Icon from '$lib/icons/Icon.svelte';
 	import { newOption, type EditorQuestion } from './editor';
 	import type { HistoryControls } from './history.svelte';
@@ -20,12 +21,16 @@
 		/** How many questions the list holds. */
 		count: number;
 		history: HistoryControls;
+		/** Why the server refused this question. */
+		error: string | null;
 		/** Swaps the question with its neighbour: -1 above, 1 below. */
 		onmove: (delta: number) => void;
 		onremove: () => void;
 	};
 
-	let { question = $bindable(), index, count, history, onmove, onremove }: Props = $props();
+	let { question = $bindable(), index, count, history, error, onmove, onremove }: Props = $props();
+
+	const errorId = $derived(`question-${question.id}-error`);
 
 	function onTypeChange(type: QuestionType) {
 		history.step(() => {
@@ -79,11 +84,16 @@
 	</div>
 </div>
 
+<!-- The message may concern any part of the question, so it heads the fields rather than one of them. -->
+<FieldError id={errorId} message={error} />
+
 <div class="grid gap-3 sm:grid-cols-[1fr_10rem]">
 	<input
 		bind:value={question.label}
 		data-question-label
 		aria-label="質問 {index + 1} の質問文"
+		aria-invalid={error ? true : undefined}
+		aria-describedby={error ? errorId : undefined}
 		placeholder="質問文"
 		required
 		maxlength={MAX_LABEL}

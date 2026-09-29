@@ -17,13 +17,26 @@ import { looksLikeGuildAdmin } from '$lib/server/permissions';
 import { loadResponseDraft } from '$lib/server/response-drafts';
 import type { Actions, PageServerLoad } from './$types';
 
-const STATUS: Record<SubmitFailure | 'not_member', number> = {
+type RefusalReason = SubmitFailure | 'not_member';
+
+const STATUS: Record<RefusalReason, number> = {
 	not_found: 404,
 	not_member: 403,
 	forbidden: 403,
 	closed: 409,
 	already_submitted: 409
 };
+
+const ALREADY_SUBMITTED =
+	'すでに提出済みの回答があり、編集は許可されていないため、今回の内容は送信されていません。';
+
+/**
+ * Every refusal but an input error, in one type: inferred apart, a shape with a message and a
+ * reason would be folded into the one with a message only, and drop out of the page's types.
+ */
+type Refusal = { reason?: RefusalReason; message?: string };
+
+const refuse = (status: number, refusal: Refusal) => fail(status, refusal);
 
 /**
  * The draft as the page may use it, or null when there is nothing it could do with one. A draft
@@ -132,7 +145,7 @@ export const actions: Actions = {
 		const live = await confirmMember(locals);
 		// Not a changed situation but a passing fault: the typed answers stay for another try.
 		if (live.status === 'unavailable') {
-			return fail(503, {
+			return refuse(503, {
 				message:
 					'Discord に接続できないため、今は送信できません。時間をおいてもう一度送信してください。'
 			});
@@ -140,7 +153,7 @@ export const actions: Actions = {
 
 		// Every refusal means the page is out of date. The client reloads it, and the reload is
 		// what explains the refusal, so only the reason goes back.
-		if (live.status === 'absent') return fail(STATUS.not_member, { reason: 'not_member' });
+		if (live.status === 'absent') return refuse(STATUS.not_member, { reason: 'not_member' });
 
 		const questions = await loadQuestions(params.id);
 		const data = await request.formData();
@@ -153,10 +166,19 @@ export const actions: Actions = {
 				{ roleIds: live.roleIds },
 				inputs
 			);
-			if (!result.ok) return fail(STATUS[result.reason], { reason: result.reason });
+			if (!result.ok) {
+				// The reload shows the other submission; this says why the typed answers went unsent.
+				if (result.reason === 'already_submitted') {
+					return refuse(STATUS.already_submitted, {
+						reason: result.reason,
+						message: ALREADY_SUBMITTED
+					});
+				}
+				return refuse(STATUS[result.reason], { reason: result.reason });
+			}
 			return { created: result.created };
 		} catch (err) {
-			if (err instanceof FormInputError) return fail(400, { message: err.message });
+			if (err instanceof FormInputError) return fail(400, { inputError: err.detail });
 			throw err;
 		}
 	}

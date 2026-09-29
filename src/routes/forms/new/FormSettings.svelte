@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { untrack } from 'svelte';
+	import FieldError from '$lib/components/FieldError.svelte';
 	import type { EditorState } from '$lib/form-draft';
-	import { MAX_DESCRIPTION, MAX_TITLE } from '$lib/forms';
+	import { MAX_DESCRIPTION, MAX_TITLE, type FormField, type InputError } from '$lib/forms';
 	import type { PageData } from './$types';
 
 	type Props = {
@@ -12,6 +13,8 @@
 		initial: EditorState | null;
 		roles: PageData['roles'];
 		channels: PageData['channels'];
+		/** The last submission's rejected input, drawn under the field it names. */
+		inputError: InputError | null;
 		deadline: string;
 		closesAt: string;
 		/** Set once the admin types a closesAt of their own. */
@@ -22,6 +25,7 @@
 		initial,
 		roles,
 		channels,
+		inputError,
 		deadline = $bindable(),
 		closesAt = $bindable(),
 		closesAtTouched = $bindable()
@@ -62,116 +66,174 @@
 		deadline = value;
 		if (!closesAtTouched) closesAt = value;
 	}
+
+	const errorOf = (name: FormField) =>
+		inputError?.at && 'field' in inputError.at && inputError.at.field === name
+			? inputError.message
+			: null;
+
+	const errorId = (name: FormField) => `${name}-error`;
+
+	/** Spread onto a field: marks it invalid and ties it to its message while it has one. */
+	const described = (name: FormField) =>
+		errorOf(name)
+			? { 'aria-invalid': true, 'aria-describedby': errorId(name) }
+			: {};
 </script>
 
-<section class="card flex flex-col gap-4 p-5">
-	<label class="block">
-		<span class="text-sm font-medium">タイトル</span>
-		<input
-			name="title"
-			bind:value={title}
-			required
-			maxlength={MAX_TITLE}
-			class="field mt-1"
-		/>
-	</label>
+<!-- Under the field it names, outside the label so that it is not read as part of the field's name. -->
+{#snippet error(name: FormField)}
+	<FieldError id={errorId(name)} message={errorOf(name)} class="mt-1" />
+{/snippet}
 
-	<label class="block">
-		<span class="text-sm font-medium">説明</span>
-		<textarea
-			name="description"
-			bind:value={description}
-			rows="3"
-			maxlength={MAX_DESCRIPTION}
-			class="field mt-1"
-		></textarea>
-	</label>
+<section class="card flex flex-col gap-4 p-5">
+	<div>
+		<label class="block">
+			<span class="text-sm font-medium">タイトル</span>
+			<input
+				name="title"
+				bind:value={title}
+				required
+				maxlength={MAX_TITLE}
+				{...described('title')}
+				class="field mt-1"
+			/>
+		</label>
+		{@render error('title')}
+	</div>
+
+	<div>
+		<label class="block">
+			<span class="text-sm font-medium">説明</span>
+			<textarea
+				name="description"
+				bind:value={description}
+				rows="3"
+				maxlength={MAX_DESCRIPTION}
+				{...described('description')}
+				class="field mt-1"
+			></textarea>
+		</label>
+		{@render error('description')}
+	</div>
 
 	<div class="grid gap-4 sm:grid-cols-2">
-		<label class="block">
-			<span class="text-sm font-medium">対象ロール</span>
-			<select
-				name="targetRoleId"
-				required
-				bind:value={targetRoleId}
-				{@attach validity(() => (roleMissing ? ROLE_MISSING : ''))}
-				class="field mt-1"
-			>
+		<div>
+			<label class="block">
+				<span class="text-sm font-medium">対象ロール</span>
+				<select
+					name="targetRoleId"
+					required
+					bind:value={targetRoleId}
+					{@attach validity(() => (roleMissing ? ROLE_MISSING : ''))}
+					{...described('targetRoleId')}
+					class="field mt-1"
+				>
+					{#if roleMissing}
+						<!-- Keeps the stored id, so a reload shows the notice again instead of a default. -->
+						<option value={targetRoleId} hidden>選択してください</option>
+					{/if}
+					<option value="">選択してください</option>
+					{#each roles as role (role.id)}
+						<option value={role.id}>{role.name}</option>
+					{/each}
+				</select>
 				{#if roleMissing}
-					<!-- Keeps the stored id, so a reload shows the notice again instead of a default. -->
-					<option value={targetRoleId} hidden>選択してください</option>
+					<span class="mt-1 block text-xs text-warning">{ROLE_MISSING}</span>
 				{/if}
-				<option value="">選択してください</option>
-				{#each roles as role (role.id)}
-					<option value={role.id}>{role.name}</option>
-				{/each}
-			</select>
-			{#if roleMissing}
-				<span class="mt-1 block text-xs text-warning">{ROLE_MISSING}</span>
-			{/if}
-		</label>
+			</label>
+			{@render error('targetRoleId')}
+		</div>
 
-		<label class="block">
-			<span class="text-sm font-medium">告知チャンネル</span>
-			<!-- An empty value means no announcement, so a missing channel cannot fall back to it. -->
-			<select
-				name="announcementChannelId"
-				bind:value={announcementChannelId}
-				{@attach validity(() => (channelMissing ? CHANNEL_MISSING : ''))}
-				class="field mt-1"
-			>
+		<div>
+			<label class="block">
+				<span class="text-sm font-medium">告知チャンネル</span>
+				<!-- An empty value means no announcement, so a missing channel cannot fall back to it. -->
+				<select
+					name="announcementChannelId"
+					bind:value={announcementChannelId}
+					{@attach validity(() => (channelMissing ? CHANNEL_MISSING : ''))}
+					{...described('announcementChannelId')}
+					class="field mt-1"
+				>
+					{#if channelMissing}
+						<option value={announcementChannelId} hidden>選択してください</option>
+					{/if}
+					<option value="">告知しない</option>
+					{#each channels as channel (channel.id)}
+						<option value={channel.id}>#{channel.name}</option>
+					{/each}
+				</select>
 				{#if channelMissing}
-					<option value={announcementChannelId} hidden>選択してください</option>
+					<span class="mt-1 block text-xs text-warning">{CHANNEL_MISSING}</span>
 				{/if}
-				<option value="">告知しない</option>
-				{#each channels as channel (channel.id)}
-					<option value={channel.id}>#{channel.name}</option>
-				{/each}
-			</select>
-			{#if channelMissing}
-				<span class="mt-1 block text-xs text-warning">{CHANNEL_MISSING}</span>
-			{/if}
-		</label>
+			</label>
+			{@render error('announcementChannelId')}
+		</div>
 
-		<label class="block">
-			<span class="text-sm font-medium">提出できる人</span>
-			<select name="submitScope" bind:value={submitScope} class="field mt-1">
-				<option value="everyone">サーバーのメンバー全員</option>
-				<option value="target_role">対象ロールの人のみ</option>
-			</select>
-		</label>
+		<div>
+			<label class="block">
+				<span class="text-sm font-medium">提出できる人</span>
+				<select
+					name="submitScope"
+					bind:value={submitScope}
+					{...described('submitScope')}
+					class="field mt-1"
+				>
+					<option value="everyone">サーバーのメンバー全員</option>
+					<option value="target_role">対象ロールの人のみ</option>
+				</select>
+			</label>
+			{@render error('submitScope')}
+		</div>
 
-		<label class="block">
-			<span class="text-sm font-medium">結果の公開範囲</span>
-			<select name="visibility" bind:value={visibility} class="field mt-1">
-				<option value="public">公開</option>
-				<option value="admin_only">管理者のみ</option>
-				<option value="after_deadline">締切後または確定後に公開</option>
-			</select>
-		</label>
+		<div>
+			<label class="block">
+				<span class="text-sm font-medium">結果の公開範囲</span>
+				<select
+					name="visibility"
+					bind:value={visibility}
+					{...described('visibility')}
+					class="field mt-1"
+				>
+					<option value="public">公開</option>
+					<option value="admin_only">管理者のみ</option>
+					<option value="after_deadline">締切後または確定後に公開</option>
+				</select>
+			</label>
+			{@render error('visibility')}
+		</div>
 
-		<label class="block">
-			<span class="text-sm font-medium">締切（告知用）</span>
-			<input
-				type="datetime-local"
-				name="deadline"
-				value={deadline}
-				oninput={(event) => onDeadlineInput(event.currentTarget.value)}
-				class="field mt-1"
-			/>
-		</label>
+		<div>
+			<label class="block">
+				<span class="text-sm font-medium">締切（告知用）</span>
+				<input
+					type="datetime-local"
+					name="deadline"
+					value={deadline}
+					oninput={(event) => onDeadlineInput(event.currentTarget.value)}
+					{...described('deadline')}
+					class="field mt-1"
+				/>
+			</label>
+			{@render error('deadline')}
+		</div>
 
-		<label class="block">
-			<span class="text-sm font-medium">受付終了</span>
-			<input
-				type="datetime-local"
-				name="closesAt"
-				bind:value={closesAt}
-				oninput={() => (closesAtTouched = true)}
-				class="field mt-1"
-			/>
-			<span class="mt-1 block text-xs text-text-muted">空欄なら自動では締め切りません。</span>
-		</label>
+		<div>
+			<label class="block">
+				<span class="text-sm font-medium">受付終了</span>
+				<input
+					type="datetime-local"
+					name="closesAt"
+					bind:value={closesAt}
+					oninput={() => (closesAtTouched = true)}
+					{...described('closesAt')}
+					class="field mt-1"
+				/>
+				<span class="mt-1 block text-xs text-text-muted">空欄なら自動では締め切りません。</span>
+			</label>
+			{@render error('closesAt')}
+		</div>
 	</div>
 
 	<label class="flex items-center gap-2 text-sm">

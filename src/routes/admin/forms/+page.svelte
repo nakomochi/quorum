@@ -2,7 +2,7 @@
 	import { enhance } from '$app/forms';
 	import { displayJst } from '$lib/display-date';
 
-	let { data, form } = $props();
+	let { data } = $props();
 
 	let syncing = $state(false);
 </script>
@@ -26,15 +26,6 @@
 					まだ同期していません
 				{/if}
 			</p>
-			{#if form}
-				{#if 'message' in form}
-					<p role="alert" class="text-danger mt-1">{form.message}</p>
-				{:else}
-					<p role="status" class="text-success mt-1">
-						{form.present}名を同期しました（退会 {form.markedLeft}名）
-					</p>
-				{/if}
-			{/if}
 		</div>
 		<form
 			method="POST"

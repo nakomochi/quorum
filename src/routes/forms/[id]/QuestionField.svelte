@@ -6,6 +6,7 @@
 		type AnswerValue
 	} from '$lib/forms';
 	import { untrack } from 'svelte';
+	import FieldError from '$lib/components/FieldError.svelte';
 	import type { PageData } from './$types';
 
 	type Props = {
@@ -17,9 +18,15 @@
 		 * open them on other answers.
 		 */
 		value: AnswerValue | undefined;
+		/** Why the server refused this answer. */
+		error: string | null;
+		/** The card's id. */
+		id: string;
 	};
 
-	let { question, value }: Props = $props();
+	let { question, value, error, id }: Props = $props();
+
+	const errorId = $derived(`${id}-error`);
 
 	function initialChoices(): string[] {
 		if (value?.type === 'single') return ['optionId' in value ? value.optionId : OTHER_OPTION_ID];
@@ -130,8 +137,12 @@
 
 <!-- The card is the wrapper, not the fieldset: a bordered fieldset lets the browser cut a
      notch for the legend and start its padding below it, which misaligns the heading. -->
-<div class="card p-5">
-	<fieldset class="m-0 border-0 p-0" use:recheck={checkQuestion}>
+<div {id} class="card scroll-mt-4 p-5">
+	<fieldset
+		class="m-0 border-0 p-0"
+		aria-describedby={error ? errorId : undefined}
+		use:recheck={checkQuestion}
+	>
 		<legend class="mb-3 block text-sm font-medium">
 			{question.label}
 			{#if question.required}<span class="text-danger">*</span>{/if}
@@ -139,6 +150,7 @@
 		{#if question.helpText}
 			<p class="-mt-2 mb-3 text-xs text-text-muted">{question.helpText}</p>
 		{/if}
+		<FieldError id={errorId} message={error} class="-mt-1 mb-3" />
 
 		{#if question.type === 'single' || question.type === 'multi'}
 			<div class="flex flex-col gap-2">
@@ -171,6 +183,8 @@
 				name="q_{question.id}"
 				rows="3"
 				aria-label={question.label}
+				aria-invalid={error ? true : undefined}
+				aria-describedby={error ? errorId : undefined}
 				required={question.required}
 				maxlength={MAX_TEXT_ANSWER}
 				bind:value={text}
@@ -182,6 +196,8 @@
 				name="q_{question.id}"
 				bind:value={text}
 				aria-label={question.label}
+				aria-invalid={error ? true : undefined}
+				aria-describedby={error ? errorId : undefined}
 				required={question.required}
 				class="field"
 			/>

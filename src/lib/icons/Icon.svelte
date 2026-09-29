@@ -31,6 +31,8 @@
 		],
 		lock: ['M7 11V7a5 5 0 0 1 10 0v4'],
 		'circle-plus': ['M8 12h8', 'M12 8v8'],
+		'circle-alert': ['M12 8v4', 'M12 16h.01'],
+		'circle-check': ['m9 12 2 2 4-4'],
 		copy: ['M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2']
 	} as const;
 
@@ -40,6 +42,8 @@
 	const circles: Partial<Record<IconName, [number, number, number?][]>> = {
 		clock: [[12, 12, 10]],
 		'circle-plus': [[12, 12, 10]],
+		'circle-alert': [[12, 12, 10]],
+		'circle-check': [[12, 12, 10]],
 		ellipsis: [
 			[12, 12],
 			[19, 12],

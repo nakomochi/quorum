@@ -8,11 +8,13 @@
 		question: EditorQuestion;
 		/** The question's place in the list, counted from 0. */
 		index: number;
+		/** Why the server refused this question. */
+		error: string | null;
 		/** Opens the card for editing. */
 		onselect: () => void;
 	};
 
-	let { question, index, onselect }: Props = $props();
+	let { question, index, error, onselect }: Props = $props();
 </script>
 
 <!-- A closed card, drawn about as a respondent sees it. Like QuestionCard, it fills the frame the
@@ -36,6 +38,12 @@
 		<span>質問 {index + 1}</span>
 		<span>{QUESTION_TYPE_LABELS[question.type]}</span>
 	</span>
+
+	<!-- Plain text, not an alert: a button's content is read as its name, roles and all dropped.
+	     A submission that fails here opens the card, where the message is an alert. -->
+	{#if error}
+		<span class="text-danger text-xs">{error}</span>
+	{/if}
 
 	<span class="flex flex-col gap-1">
 		<span class="text-sm font-medium">

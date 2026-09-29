@@ -3,6 +3,7 @@
 	import { enhance } from '$app/forms';
 	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
+	import FieldError from '$lib/components/FieldError.svelte';
 	import SaveStatus from '$lib/components/SaveStatus.svelte';
 	import {
 		DraftAutosave,
@@ -11,6 +12,7 @@
 		type SaveStatus as DraftSaveStatus
 	} from '$lib/draft-autosave';
 	import { draftPayload, questionsField } from '$lib/form-draft';
+	import type { InputError } from '$lib/forms';
 	import {
 		cloneQuestions,
 		fromSaved,
@@ -103,10 +105,18 @@
 	let formElement: HTMLFormElement;
 	let questionList: ReturnType<typeof QuestionList>;
 
-	/** The server names a question by its place, counted from 1: "質問3: …". */
-	function questionInError(message: unknown): number | null {
-		const match = typeof message === 'string' ? /^質問(\d+):/.exec(message) : null;
-		return match ? Number(match[1]) - 1 : null;
+	// Shown until the next result. A 503 has no place on the form and goes to a toast instead.
+	const inputError = $derived(form?.inputError ?? null);
+	const formError = $derived(inputError && !inputError.at ? inputError.message : null);
+
+	/** Opens the question the server refused, or brings the refused field into view. */
+	async function showInputError(error: InputError | undefined) {
+		const at = error?.at;
+		if (!at) return;
+		if ('question' in at) await questionList.reveal(at.question);
+		else if ('field' in at) {
+			formElement.querySelector(`[name="${at.field}"]`)?.scrollIntoView({ block: 'center' });
+		}
 	}
 
 	/**
@@ -157,12 +167,6 @@
 		<h1 class="page-title">フォームを作成</h1>
 	</header>
 
-	{#if form?.message}
-		<p role="alert" class="alert-error">
-			{form.message}
-		</p>
-	{/if}
-
 	<!-- use:enhance keeps the question editor's state when the server answers with fail(). -->
 	<form
 		method="POST"
@@ -185,8 +189,7 @@
 				await update();
 				if (result.type !== 'redirect') autosave.resume();
 				if (result.type === 'failure') {
-					const index = questionInError(result.data?.message);
-					if (index !== null) await questionList.reveal(index);
+					await showInputError(result.data?.inputError as InputError | undefined);
 				}
 			};
 		}}
@@ -201,12 +204,13 @@
 			{initial}
 			roles={data.roles}
 			channels={data.channels}
+			{inputError}
 			bind:deadline
 			bind:closesAt
 			bind:closesAtTouched
 		/>
 
-		<QuestionList bind:this={questionList} bind:questions {history} />
+		<QuestionList bind:this={questionList} bind:questions {history} {inputError} />
 
 		<SaveStatus
 			status={saveStatus}
@@ -215,6 +219,7 @@
 			tooLargeHint="フォームが大きすぎます。質問や選択肢を減らしてください"
 			conflictMessage="別の画面でこの下書きが更新されたか、作成・破棄されました。この画面の自動保存は停止しています。"
 		>
+			<FieldError message={formError} class="w-full" />
 			<button type="submit" class="btn-primary px-5 py-2.5">作成する</button>
 		</SaveStatus>
 	</form>

@@ -1,12 +1,17 @@
 <script lang="ts">
+	import { onMount, untrack } from 'svelte';
+	import { replaceState } from '$app/navigation';
+	import { page } from '$app/state';
 	import AdminPanel from '$lib/components/AdminPanel.svelte';
 	import ContextLink from '$lib/components/ContextLink.svelte';
 	import MetaLine from '$lib/components/MetaLine.svelte';
 	import { displayJst } from '$lib/display-date';
 	import { describeAnswer, VISIBILITY_LABELS, type AnswerValue } from '$lib/forms';
 	import Icon from '$lib/icons/Icon.svelte';
+	import { resultTable, toHtml, toMarkdown } from '$lib/results-table';
+	import { toast } from '$lib/toast.svelte';
 
-	let { data, form } = $props();
+	let { data } = $props();
 
 	type Row = (typeof data.submitted)[number];
 	type Option = { id: string; label: string };
@@ -38,6 +43,45 @@
 	});
 
 	let syncingRoster = $state(false);
+
+	// Once per visit, not per load: the creation page's redirect set it, and the query goes with it,
+	// so a reload does not say it again. After a tick of the clock: the router refuses the URL
+	// change until it has started, which it does only after the page has mounted.
+	onMount(() => {
+		if (!untrack(() => data.announceFailed)) return;
+		toast.error(
+			'フォームは作成しましたが、Discord への告知の投稿に失敗しました。管理パネルの「告知を投稿する」から再投稿できます。'
+		);
+		if (!page.url.searchParams.has('announce')) return;
+		const timer = setTimeout(() => {
+			const url = new URL(page.url);
+			url.searchParams.delete('announce');
+			replaceState(url, page.state);
+		});
+		return () => clearTimeout(timer);
+	});
+
+	// Both copies at once: a spreadsheet or document pastes the HTML as cells, and a plain text box
+	// (a chat, a Markdown editor) takes the Markdown.
+	async function copyTable() {
+		const table = resultTable(data.questions, data.submitted, data.outsiders);
+		try {
+			if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
+				await navigator.clipboard.write([
+					new ClipboardItem({
+						'text/html': new Blob([toHtml(table)], { type: 'text/html' }),
+						'text/plain': new Blob([toMarkdown(table)], { type: 'text/plain' })
+					})
+				]);
+			} else {
+				await navigator.clipboard.writeText(toMarkdown(table));
+			}
+			toast.success('表をコピーしました');
+		} catch (cause) {
+			console.error('copying the results table failed', cause);
+			toast.error('コピーできませんでした');
+		}
+	}
 
 	function confirmReopen(event: SubmitEvent) {
 		const message = data.reopenClearsClosesAt
@@ -151,34 +195,6 @@
 		<p role="alert" class="alert-warning">
 			対象ロールが Discord で削除されています。対象者は0名として扱われます。
 		</p>
-	{/if}
-
-	{#if data.announceFailed}
-		<p role="alert" class="alert-error">
-			フォームは作成しましたが、Discord への告知の投稿に失敗しました。下の「告知を投稿する」から再投稿できます。
-		</p>
-	{/if}
-
-	{#if form?.message}
-		<p role="alert" class="alert-error">{form.message}</p>
-	{:else if form?.reminded}
-		<p role="status" class="alert-success">
-			未提出者 {form.reminded.targets}名にリマインドを送信しました。{form.reminded.messages > 1
-				? `（${form.reminded.messages}通に分けて送信）`
-				: ''}
-		</p>
-	{:else if form?.announced}
-		<p role="status" class="alert-success">告知を投稿しました。</p>
-	{:else if form?.closed !== undefined}
-		<p role="status" class="alert-success">
-			{form.closed === 0
-				? '締め切りました。未提出者はいません。'
-				: `締め切りました。未提出者 ${form.closed}名を確定しました。`}
-		</p>
-	{:else if form?.reopened}
-		<p role="status" class="alert-success">受付を再開しました。</p>
-	{:else if form?.rosterSynced}
-		<p role="status" class="alert-success">名簿を更新しました。</p>
 	{/if}
 
 	<section class="card divide-border grid grid-cols-3 divide-x">
@@ -354,7 +370,21 @@
 	{/if}
 
 	<section class="flex flex-col gap-2">
-		<h2 class="section-title">回答一覧（{data.submitted.length}名）</h2>
+		<!-- Both take the outsiders' responses too, marked in a column of their own. -->
+		<div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+			<h2 class="section-title">回答一覧（{data.submitted.length}名）</h2>
+			{#if answerTotal > 0}
+				<div class="flex flex-wrap gap-2">
+					<button type="button" class="btn-secondary btn-sm" onclick={copyTable}>
+						表としてコピー
+					</button>
+					<!-- `download` keeps the router from treating it as a page. -->
+					<a href="/forms/{data.form.id}/results/csv" download class="btn-secondary btn-sm">
+						CSV をダウンロード
+					</a>
+				</div>
+			{/if}
+		</div>
 		{#if data.submitted.length === 0}
 			<p class="text-sm text-text-muted">対象者からの回答はまだありません。</p>
 		{:else}

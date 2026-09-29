@@ -40,7 +40,10 @@ import {
 	utf8Bytes,
 	VISIBILITIES,
 	type AnswerValue,
+	type FormField,
 	type FormStatus,
+	type InputError,
+	type InputErrorAt,
 	type QuestionType,
 	type RevisionAnswers,
 	type SubmitScope,
@@ -51,11 +54,19 @@ const MAX_SNOWFLAKE = 32;
 
 const DATE_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
-/** Rejected user input. Carries a message that is safe to show back on the form. */
+/** Rejected user input. Carries a message that is safe to show back on the form, and where. */
 export class FormInputError extends Error {
-	constructor(message: string) {
+	readonly at: InputErrorAt | null;
+
+	constructor(message: string, at: InputErrorAt | null = null) {
 		super(message);
 		this.name = 'FormInputError';
+		this.at = at;
+	}
+
+	/** What an action returns. */
+	get detail(): InputError {
+		return { message: this.message, at: this.at };
 	}
 }
 
@@ -102,69 +113,73 @@ export async function selectableRoles(): Promise<DiscordRole[]> {
 		.sort((a, b) => b.position - a.position);
 }
 
-function requireText(value: FormDataEntryValue | null, field: string, max: number): string {
+/** `name` is the field as posted, and where the error is shown; `label` names it in the message. */
+function requireText(data: FormData, name: FormField, label: string, max: number): string {
+	const value = data.get(name);
 	const text = typeof value === 'string' ? value.trim() : '';
-	if (!text) throw new FormInputError(`${field}を入力してください`);
-	if (text.length > max) throw new FormInputError(`${field}は${max}文字以内で入力してください`);
+	if (!text) throw new FormInputError(`${label}を入力してください`, { field: name });
+	if (text.length > max) {
+		throw new FormInputError(`${label}は${max}文字以内で入力してください`, { field: name });
+	}
 	return text;
 }
 
-function optionalText(value: FormDataEntryValue | null, field: string, max: number): string | null {
+function optionalText(data: FormData, name: FormField, label: string, max: number): string | null {
+	const value = data.get(name);
 	const text = typeof value === 'string' ? value.trim() : '';
 	if (!text) return null;
-	if (text.length > max) throw new FormInputError(`${field}は${max}文字以内で入力してください`);
+	if (text.length > max) {
+		throw new FormInputError(`${label}は${max}文字以内で入力してください`, { field: name });
+	}
 	return text;
 }
 
 function pickEnum<T extends string>(
-	value: FormDataEntryValue | null,
+	data: FormData,
+	name: FormField,
 	allowed: readonly T[],
-	field: string,
+	label: string,
 	fallback?: T
 ): T {
+	const value = data.get(name);
 	if (typeof value !== 'string' || value === '') {
 		if (fallback !== undefined) return fallback;
-		throw new FormInputError(`${field}を選択してください`);
+		throw new FormInputError(`${label}を選択してください`, { field: name });
 	}
 	if (!(allowed as readonly string[]).includes(value)) {
-		throw new FormInputError(`${field}の値が不正です`);
+		throw new FormInputError(`${label}の値が不正です`, { field: name });
 	}
 	return value as T;
 }
 
-function optionalDate(value: FormDataEntryValue | null, field: string): Date | null {
+function optionalDate(data: FormData, name: FormField, label: string): Date | null {
+	const value = data.get(name);
 	if (typeof value !== 'string' || value.trim() === '') return null;
 	const date = parseJstLocal(value);
-	if (!date) throw new FormInputError(`${field}の日時が不正です`);
+	if (!date) throw new FormInputError(`${label}の日時が不正です`, { field: name });
 	return date;
 }
 
+// The messages name no question: they are shown inside the question's own card.
 function parseOptions(raw: unknown, type: QuestionType, index: number): QuestionOption[] | null {
 	if (!hasOptions(type)) return null;
+	const invalid = (message: string) => new FormInputError(message, { question: index });
 	if (!Array.isArray(raw) || raw.length === 0) {
-		throw new FormInputError(`質問${index + 1}: 選択肢を1つ以上追加してください`);
+		throw invalid('選択肢を1つ以上追加してください');
 	}
-	if (raw.length > MAX_OPTIONS) {
-		throw new FormInputError(`質問${index + 1}: 選択肢は${MAX_OPTIONS}個までです`);
-	}
+	if (raw.length > MAX_OPTIONS) throw invalid(`選択肢は${MAX_OPTIONS}個までです`);
 
 	const seen = new Set<string>();
 	return raw.map((entry) => {
 		const option = entry as Partial<QuestionOption>;
 		const id = typeof option.id === 'string' ? option.id.trim() : '';
 		const label = typeof option.label === 'string' ? option.label.trim() : '';
-		if (!id) throw new FormInputError(`質問${index + 1}: 選択肢の id がありません`);
-		if (id === OTHER_OPTION_ID) {
-			throw new FormInputError(`質問${index + 1}: 選択肢の id「${OTHER_OPTION_ID}」は使えません`);
-		}
-		if (id.length > MAX_OPTION_ID) {
-			throw new FormInputError(`質問${index + 1}: 選択肢の id が長すぎます`);
-		}
-		if (seen.has(id)) throw new FormInputError(`質問${index + 1}: 選択肢の id が重複しています`);
-		if (!label) throw new FormInputError(`質問${index + 1}: 選択肢のラベルを入力してください`);
-		if (label.length > MAX_OPTION_LABEL) {
-			throw new FormInputError(`質問${index + 1}: 選択肢は${MAX_OPTION_LABEL}文字以内です`);
-		}
+		if (!id) throw invalid('選択肢の id がありません');
+		if (id === OTHER_OPTION_ID) throw invalid(`選択肢の id「${OTHER_OPTION_ID}」は使えません`);
+		if (id.length > MAX_OPTION_ID) throw invalid('選択肢の id が長すぎます');
+		if (seen.has(id)) throw invalid('選択肢の id が重複しています');
+		if (!label) throw invalid('選択肢のラベルを入力してください');
+		if (label.length > MAX_OPTION_LABEL) throw invalid(`選択肢は${MAX_OPTION_LABEL}文字以内です`);
 		seen.add(id);
 		return { id, label };
 	});
@@ -191,22 +206,19 @@ export function parseQuestions(raw: FormDataEntryValue | null): QuestionDraft[] 
 
 	return parsed.map((entry, index) => {
 		const draft = entry as Record<string, unknown>;
+		const invalid = (message: string) => new FormInputError(message, { question: index });
 
 		const type = draft.type;
 		if (typeof type !== 'string' || !(QUESTION_TYPES as readonly string[]).includes(type)) {
-			throw new FormInputError(`質問${index + 1}: 種類が不正です`);
+			throw invalid('種類が不正です');
 		}
 
 		const label = typeof draft.label === 'string' ? draft.label.trim() : '';
-		if (!label) throw new FormInputError(`質問${index + 1}: 質問文を入力してください`);
-		if (label.length > MAX_LABEL) {
-			throw new FormInputError(`質問${index + 1}: 質問文は${MAX_LABEL}文字以内です`);
-		}
+		if (!label) throw invalid('質問文を入力してください');
+		if (label.length > MAX_LABEL) throw invalid(`質問文は${MAX_LABEL}文字以内です`);
 
 		const helpText = typeof draft.helpText === 'string' ? draft.helpText.trim() : '';
-		if (helpText.length > MAX_HELP_TEXT) {
-			throw new FormInputError(`質問${index + 1}: 補足は${MAX_HELP_TEXT}文字以内です`);
-		}
+		if (helpText.length > MAX_HELP_TEXT) throw invalid(`補足は${MAX_HELP_TEXT}文字以内です`);
 
 		return {
 			type: type as QuestionType,
@@ -232,25 +244,28 @@ export function parseCreateFormPayload(data: FormData): CreateFormInput {
 		throw new FormInputError('フォームが大きすぎます。質問や選択肢を減らしてください');
 	}
 
-	const deadline = optionalDate(data.get('deadline'), '締切');
-	const closesAt = optionalDate(data.get('closesAt'), '受付終了');
+	const deadline = optionalDate(data, 'deadline', '締切');
+	const closesAt = optionalDate(data, 'closesAt', '受付終了');
 
 	// closesAt < deadline stays legal: closing before the announced date is a valid choice.
 	if (closesAt && closesAt.getTime() <= Date.now()) {
-		throw new FormInputError('受付終了は現在より後の日時を指定してください');
+		throw new FormInputError('受付終了は現在より後の日時を指定してください', {
+			field: 'closesAt'
+		});
 	}
 
 	return {
-		title: requireText(data.get('title'), 'タイトル', MAX_TITLE),
-		description: optionalText(data.get('description'), '説明', MAX_DESCRIPTION),
-		targetRoleId: requireText(data.get('targetRoleId'), '対象ロール', MAX_SNOWFLAKE),
-		submitScope: pickEnum(data.get('submitScope'), SUBMIT_SCOPES, '提出できる人', 'everyone'),
-		visibility: pickEnum(data.get('visibility'), VISIBILITIES, '結果の公開範囲', 'public'),
+		title: requireText(data, 'title', 'タイトル', MAX_TITLE),
+		description: optionalText(data, 'description', '説明', MAX_DESCRIPTION),
+		targetRoleId: requireText(data, 'targetRoleId', '対象ロール', MAX_SNOWFLAKE),
+		submitScope: pickEnum(data, 'submitScope', SUBMIT_SCOPES, '提出できる人', 'everyone'),
+		visibility: pickEnum(data, 'visibility', VISIBILITIES, '結果の公開範囲', 'public'),
 		deadline,
 		closesAt,
 		allowEdit: data.get('allowEdit') !== null,
 		announcementChannelId: optionalText(
-			data.get('announcementChannelId'),
+			data,
+			'announcementChannelId',
 			'告知チャンネル',
 			MAX_SNOWFLAKE
 		),
@@ -357,18 +372,22 @@ export async function loadQuestions(formId: string): Promise<Question[]> {
 		.orderBy(asc(question.position), asc(question.id));
 }
 
+// The messages name no question: they are shown inside the question's own card.
+const invalidAnswer = (q: Question, message: string) =>
+	new FormInputError(message, { questionId: q.id });
+
 function requireOption(q: Question, optionId: string) {
 	if (!q.options?.some((option) => option.id === optionId)) {
-		throw new FormInputError(`「${q.label}」の選択肢が不正です`);
+		throw invalidAnswer(q, '選択肢が不正です');
 	}
 }
 
 function otherText(q: Question, raw: string | null): string {
-	if (!q.allowOther) throw new FormInputError(`「${q.label}」の選択肢が不正です`);
+	if (!q.allowOther) throw invalidAnswer(q, '選択肢が不正です');
 	const text = raw?.trim() ?? '';
-	if (!text) throw new FormInputError(`「${q.label}」のその他の内容を入力してください`);
+	if (!text) throw invalidAnswer(q, '「その他」の内容を入力してください');
 	if (text.length > MAX_OTHER_ANSWER) {
-		throw new FormInputError(`「${q.label}」のその他は${MAX_OTHER_ANSWER}文字以内で入力してください`);
+		throw invalidAnswer(q, `「その他」は${MAX_OTHER_ANSWER}文字以内で入力してください`);
 	}
 	return text;
 }
@@ -399,7 +418,7 @@ function buildAnswer(q: Question, input: AnswerInput): AnswerValue | null {
 			const text = values[0];
 			if (!text) break;
 			if (text.length > MAX_TEXT_ANSWER) {
-				throw new FormInputError(`「${q.label}」は${MAX_TEXT_ANSWER}文字以内で入力してください`);
+				throw invalidAnswer(q, `${MAX_TEXT_ANSWER}文字以内で入力してください`);
 			}
 			return { type: 'text', text };
 		}
@@ -407,13 +426,13 @@ function buildAnswer(q: Question, input: AnswerInput): AnswerValue | null {
 			const date = values[0];
 			if (!date) break;
 			if (!DATE_PATTERN.test(date) || Number.isNaN(new Date(date).getTime())) {
-				throw new FormInputError(`「${q.label}」の日付が不正です`);
+				throw invalidAnswer(q, '日付が不正です');
 			}
 			return { type: 'date', date };
 		}
 	}
 
-	if (q.required) throw new FormInputError(`「${q.label}」は必須です`);
+	if (q.required) throw invalidAnswer(q, 'この質問は必須です');
 	return null;
 }
 

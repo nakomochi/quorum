@@ -64,13 +64,13 @@ export const actions: Actions = {
 			// a bot role, or an id from another guild.
 			const roles = await selectableRoles();
 			if (!roles.some((role) => role.id === input.targetRoleId)) {
-				return fail(400, { message: '対象ロールが不正です' });
+				throw new FormInputError('対象ロールが不正です', { field: 'targetRoleId' });
 			}
 
 			if (input.announcementChannelId) {
 				const channels = await listGuildChannels();
 				if (!channels.some((channel) => channel.id === input.announcementChannelId)) {
-					return fail(400, { message: '告知チャンネルが不正です' });
+					throw new FormInputError('告知チャンネルが不正です', { field: 'announcementChannelId' });
 				}
 			}
 
@@ -99,7 +99,7 @@ export const actions: Actions = {
 			redirect(303, '/');
 		} catch (err) {
 			// redirect() signals by throwing, so only FormInputError may be swallowed here.
-			if (err instanceof FormInputError) return fail(400, { message: err.message });
+			if (err instanceof FormInputError) return fail(400, { inputError: err.detail });
 			throw err;
 		}
 	}

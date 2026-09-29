@@ -102,6 +102,26 @@ export function sameAnswers(a: RevisionAnswers, b: RevisionAnswers): boolean {
 	return [...keys].every((key) => sameAnswer(a[key], b[key]));
 }
 
+/** The creation form's fields, by the name they are posted under. */
+export type FormField =
+	| 'title'
+	| 'description'
+	| 'targetRoleId'
+	| 'announcementChannelId'
+	| 'submitScope'
+	| 'visibility'
+	| 'deadline'
+	| 'closesAt';
+
+/**
+ * Where rejected input is shown: a creation field, a question by its place in the posted list
+ * (counted from 0), or an answered question by its id. Null for the form as a whole.
+ */
+export type InputErrorAt = { field: FormField } | { question: number } | { questionId: number };
+
+/** What an action sends back for rejected input, drawn beside what it concerns. */
+export type InputError = { message: string; at: InputErrorAt | null };
+
 type ChoiceLabel = { id: string; label: string };
 
 export function describeAnswer(value: AnswerValue, options: ChoiceLabel[] | null): string {

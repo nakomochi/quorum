@@ -9,6 +9,8 @@
 		RESULTS_CASES
 	} from '$lib/dev/fixtures';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
+	import ToastItem from '$lib/components/ToastItem.svelte';
+	import { toastOf } from '$lib/toast.svelte';
 	// The real pages, not copies: a markup change must show up here without being mirrored.
 	import HomePage from '../../../+page.svelte';
 	import AnswerPage from '../../../forms/[id]/+page.svelte';
@@ -28,6 +30,10 @@
 
 	const entry = $derived([home, answer, results, history, created, admin].find(Boolean));
 	const setup = $derived(entry?.setup);
+
+	// The root layout's Toaster reads the real action result, which the catalogue never has. The
+	// case's own result is drawn in its place, the same way, and stays put.
+	const resultToast = $derived(toastOf(entry?.form));
 
 	// The editor and the answer page save drafts through fetch. The catalogue answers in the
 	// server's place, so that nothing shown here can write to the database, and each case picks the
@@ -69,15 +75,23 @@
 {/if}
 
 {#if home}
-	<HomePage data={home.data} form={home.form ?? null} />
+	<HomePage data={home.data} />
 {:else if answer}
 	<AnswerPage data={answer.data} form={answer.form ?? null} />
 {:else if results}
-	<ResultsPage data={results.data} form={results.form ?? null} />
+	<ResultsPage data={results.data} />
 {:else if history}
 	<HistoryPage data={history.data} />
 {:else if created}
 	<NewFormPage data={created.data} form={created.form ?? null} />
 {:else if admin}
-	<AdminFormsPage data={admin.data} form={admin.form ?? null} />
+	<AdminFormsPage data={admin.data} />
+{/if}
+
+{#if resultToast}
+	<div class="toast-region">
+		<div class="pointer-events-auto">
+			<ToastItem kind={resultToast.kind} text={resultToast.text} />
+		</div>
+	</div>
 {/if}

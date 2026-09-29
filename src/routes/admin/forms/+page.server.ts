@@ -56,7 +56,7 @@ export const actions: Actions = {
 
 		try {
 			const result = await syncAllMembers();
-			return { present: result.present, markedLeft: result.markedLeft };
+			return { notice: `${result.present}名を同期しました（退会 ${result.markedLeft}名）` };
 		} catch {
 			// syncAllMembers throws on a Discord outage or an empty member list; neither should
 			// take the management page down.

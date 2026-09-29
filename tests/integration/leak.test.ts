@@ -9,8 +9,11 @@ import { closeForm } from '$lib/server/forms';
 import { announceForm, sendReminder } from '$lib/server/notify';
 import { load as layoutLoad } from '../../src/routes/+layout.server';
 import { load as topLoad } from '../../src/routes/+page.server';
-import { load as formLoad } from '../../src/routes/forms/[id]/+page.server';
-import { load as resultsLoad } from '../../src/routes/forms/[id]/results/+page.server';
+import { actions as formActions, load as formLoad } from '../../src/routes/forms/[id]/+page.server';
+import {
+	actions as resultsActions,
+	load as resultsLoad
+} from '../../src/routes/forms/[id]/results/+page.server';
 import { CHANNEL_ID, discord, GUILD_ID, OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
 import {
 	createUsers,
@@ -369,6 +372,39 @@ describe('what a member receives', () => {
 		const pending = await makeForm(creator, { visibility: 'after_deadline', deadline: new Date(Date.now() + 86_400_000) });
 
 		expect(await httpStatus(resultsLoad(event(viewer, { id: pending.id })))).toBe(403);
+	});
+
+	test('results page actions answer with a sentence and nothing else', async () => {
+		const { creator, open, secrets } = await scene();
+		const run = (name: 'announce' | 'remind' | 'syncRoster' | 'close' | 'reopen') =>
+			resultsActions[name]({ locals: sessionLocals(creator), params: { id: open.id } } as never);
+
+		for (const name of ['announce', 'remind', 'syncRoster', 'close', 'reopen'] as const) {
+			const result = await run(name);
+			expect(Object.keys(result as object)).toEqual(['notice']);
+			expectNoLeak(result, [...secrets, SECRET_NAME]);
+		}
+	});
+
+	test('an input error on the answer page names the question by the id the page already has', async () => {
+		const { viewer, open, secrets } = await scene();
+		// The first question is required and left blank.
+		const request = new Request(`http://forms.test/forms/${open.id}`, {
+			method: 'POST',
+			body: new FormData()
+		});
+
+		const result = (await formActions.default({
+			locals: sessionLocals(viewer),
+			params: { id: open.id },
+			request
+		} as never)) as { status: number; data: unknown };
+
+		expect(result.status).toBe(400);
+		expect(result.data).toEqual({
+			inputError: { message: 'この質問は必須です', at: { questionId: open.questions[0].id } }
+		});
+		expectNoLeak(result.data, [...secrets, SECRET_NAME, viewer.discordId]);
 	});
 
 	test('the creator does see the manager fields', async () => {

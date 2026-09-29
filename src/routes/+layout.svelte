@@ -4,6 +4,7 @@
 	import { page } from '$app/state';
 	import favicon from '$lib/assets/favicon.svg';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
+	import Toaster from '$lib/components/Toaster.svelte';
 	import { markHydrated } from '$lib/display-date';
 
 	let { data, children } = $props();
@@ -25,4 +26,5 @@
 		<SiteHeader user={data.user} member={data.member} isAdmin={data.isAdmin} />
 	{/if}
 	{@render children()}
+	<Toaster />
 </div>

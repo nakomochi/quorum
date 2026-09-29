@@ -220,17 +220,33 @@ main {
 		@apply disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
 	}
 
-	.alert-error {
-		@apply border-error-line bg-error-surface text-error-fg rounded-lg border px-4 py-3 text-sm;
-	}
-
-	.alert-success {
-		@apply border-success-line bg-success-surface text-success-fg rounded-lg border px-4 py-3 text-sm;
-	}
-
 	/* Something changed that the reader has to know about, but nothing they did was wrong. */
 	.alert-warning {
 		@apply border-warning-line bg-warning-surface text-warning rounded-lg border px-4 py-3 text-sm;
+	}
+
+	/* Where toasts stack: across the bottom on a phone, in the bottom-right corner from `sm`. The
+	   gaps between them let clicks through to the page. */
+	.toast-region {
+		@apply pointer-events-none fixed inset-x-4 bottom-4 z-30 flex flex-col gap-2;
+		@apply sm:inset-x-auto sm:right-6 sm:bottom-6 sm:w-96;
+	}
+
+	/* An operation's result over the page. The tint is layered on the page colour, since the dark
+	   surfaces are translucent. `.toast-success` or `.toast-error` picks it. */
+	.toast {
+		@apply flex items-start gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg;
+		background: linear-gradient(var(--toast-tint), var(--toast-tint)), var(--color-bg);
+	}
+
+	.toast-success {
+		--toast-tint: var(--color-success-surface);
+		@apply border-success-line text-success-fg;
+	}
+
+	.toast-error {
+		--toast-tint: var(--color-error-surface);
+		@apply border-error-line text-error-fg;
 	}
 
 	.field {

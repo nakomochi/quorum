@@ -1,7 +1,7 @@
 import { error, redirect } from '@sveltejs/kit';
 import type { SessionUser } from './auth';
 import type { Form, GuildMember } from './db/schema';
-import { activeMember, canSubmit, loadForm } from './forms';
+import { activeMember, canSubmit, canViewResults, loadForm } from './forms';
 import { reconcileMember, type Reconciled } from './guild-sync';
 import { isGuildAdmin, looksLikeGuildAdmin } from './permissions';
 
@@ -181,6 +181,35 @@ export async function requireForm(formId: string): Promise<Form> {
 	const target = await loadForm(formId);
 	if (!target) error(404, FORM_NOT_FOUND);
 	return target;
+}
+
+/**
+ * Whoever may read a form's results: its managers, and the members its visibility admits. The
+ * results page and its CSV both go through here, so the two cannot drift apart.
+ */
+export async function requireResultsViewer(
+	locals: App.Locals,
+	formId: string
+): Promise<{ target: Form; manage: boolean }> {
+	requireUser(locals);
+
+	const target = await requireForm(formId);
+
+	const manage = await canManageForm(locals, target, 'view');
+	// canManageForm already requires membership, so only a non-manager is checked here.
+	if (!manage && !(await gateMember(locals))) {
+		error(403, 'このサーバーのメンバーではありません');
+	}
+	if (!canViewResults(target, manage)) {
+		error(
+			403,
+			target.visibility === 'after_deadline'
+				? 'この結果は締切後または確定後に公開されます'
+				: 'この結果は管理者のみが閲覧できます'
+		);
+	}
+
+	return { target, manage };
 }
 
 /** 404 for a missing form, then 403 for anyone who may not manage it. */

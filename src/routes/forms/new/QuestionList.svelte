@@ -2,7 +2,7 @@
 	import { tick, untrack } from 'svelte';
 	import { flip } from 'svelte/animate';
 	import { dragHandleZone, type DndEvent } from 'svelte-dnd-action';
-	import { MAX_QUESTIONS } from '$lib/forms';
+	import { MAX_QUESTIONS, type InputError } from '$lib/forms';
 	import Icon from '$lib/icons/Icon.svelte';
 	import { duplicateQuestion, FLIP_MS, newQuestion, type EditorQuestion } from './editor';
 	import type { HistoryControls } from './history.svelte';
@@ -13,9 +13,17 @@
 	type Props = {
 		questions: EditorQuestion[];
 		history: HistoryControls;
+		/** The last submission's rejected input, drawn in the card of the question it names. */
+		inputError: InputError | null;
 	};
 
-	let { questions = $bindable(), history }: Props = $props();
+	let { questions = $bindable(), history, inputError }: Props = $props();
+
+	// By place, as the server counted the list it was sent. Left there until the next result.
+	const errorOf = (index: number) =>
+		inputError?.at && 'question' in inputError.at && inputError.at.question === index
+			? inputError.message
+			: null;
 
 	// The open card. Kept out of the history: undo and redo change the form, not where the admin is
 	// looking. Held by id, so a question that undo or redo takes away closes with it, and opens
@@ -130,6 +138,7 @@
 						{index}
 						count={questions.length}
 						{history}
+						error={errorOf(index)}
 						onmove={(delta) => move(index, delta)}
 						onremove={() => remove(index)}
 					/>
@@ -140,7 +149,12 @@
 						onduplicate={() => insert(index, duplicateQuestion(q))}
 					/>
 				{:else}
-					<QuestionPreview question={q} {index} onselect={() => open(q.id, 'focus')} />
+					<QuestionPreview
+						question={q}
+						{index}
+						error={errorOf(index)}
+						onselect={() => open(q.id, 'focus')}
+					/>
 				{/if}
 			</div>
 		{/each}

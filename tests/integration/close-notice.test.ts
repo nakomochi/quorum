@@ -25,6 +25,9 @@ const ANNOUNCEMENT_ID = '900000000000000001';
 
 const IDLE_TICK = { reminded: [], closed: [], closePosted: [], failed: [] };
 
+/** What the close action answers with one target member left unsubmitted. */
+const CLOSED_ONE = { notice: '締め切りました。未提出者 1名を確定しました。' };
+
 type PostBody = {
 	content: string;
 	allowed_mentions: unknown;
@@ -56,7 +59,7 @@ describe('posting a close to Discord', () => {
 		const { id } = await makeForm(creator, { title: '春合宿', announcementChannelId: CHANNEL_ID });
 		await patchForm(id, { announcementMessageId: ANNOUNCEMENT_ID });
 
-		expect(await closeByHand(creator, id)).toEqual({ closed: 1 });
+		expect(await closeByHand(creator, id)).toEqual(CLOSED_ONE);
 
 		const posts = discord.posts();
 		expect(posts).toHaveLength(1);
@@ -94,8 +97,8 @@ describe('posting a close to Discord', () => {
 		const silent = await makeForm(creator);
 		const optedOut = await makeForm(creator, { announcementChannelId: CHANNEL_ID, announceClose: false });
 
-		expect(await closeByHand(creator, silent.id)).toEqual({ closed: 1 });
-		expect(await closeByHand(creator, optedOut.id)).toEqual({ closed: 1 });
+		expect(await closeByHand(creator, silent.id)).toEqual(CLOSED_ONE);
+		expect(await closeByHand(creator, optedOut.id)).toEqual(CLOSED_ONE);
 		expect(await postCloseNotice(silent.id)).toEqual({ ok: false, reason: 'skipped' });
 		expect(await postCloseNotice(optedOut.id)).toEqual({ ok: false, reason: 'skipped' });
 
@@ -110,7 +113,7 @@ describe('posting a close to Discord', () => {
 
 		const { value } = await quietly(() => closeByHand(creator, id));
 
-		expect(value).toEqual({ closed: 1 });
+		expect(value).toEqual(CLOSED_ONE);
 		const closed = await formRow(id);
 		expect(closed.closedAt).not.toBeNull();
 		expect(closed.closeNoticeClaimedAt).toBeNull();

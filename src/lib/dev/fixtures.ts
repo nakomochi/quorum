@@ -976,6 +976,12 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 		data: { ...SESSION, member: false, pending: [], submitted: [], created: [], drafts: [] }
 	},
 	{
+		id: 'home-discard-failed',
+		title: 'メンバー / 下書きの破棄に失敗（エラーのトースト）',
+		data: HOME_WITH_DRAFTS,
+		form: { message: '下書きが見つかりません。すでに破棄されたか、作成済みです' }
+	},
+	{
 		id: 'home-drafts-menu',
 		title: 'メンバー / 下書きのメニューを開いた（破棄）',
 		data: HOME_WITH_DRAFTS,
@@ -1224,7 +1230,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-error',
-		title: '入力エラー（サーバーの検証で拒否）',
+		title: '入力エラー（サーバーの検証で拒否・質問のカードに表示）',
 		data: {
 			...SESSION,
 			resultsVisible: false,
@@ -1239,7 +1245,48 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			...NO_DRAFT
 		},
 		// Only an input error the browser cannot catch belongs here: a choice sent by a stale page.
-		form: { message: '「参加できますか」の選択肢が不正です' },
+		form: { inputError: { message: '選択肢が不正です', at: { questionId: 1 } } },
+		setup: typeAnswers
+	},
+	{
+		id: 'answer-error-form',
+		title: '回答全体の入力エラー（送信ボタンの上に表示）',
+		data: {
+			...SESSION,
+			resultsVisible: false,
+			resultsManagersOnly: false,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {},
+			...NO_DRAFT
+		},
+		form: { inputError: { message: '回答が大きすぎます。入力を短くしてください', at: null } },
+		setup: typeAnswers
+	},
+	{
+		id: 'answer-unavailable',
+		title: 'Discord に接続できず送信できなかった（エラーのトースト・入力あり）',
+		data: {
+			...SESSION,
+			resultsVisible: false,
+			resultsManagersOnly: false,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {},
+			...NO_DRAFT
+		},
+		form: {
+			message:
+				'Discord に接続できないため、今は送信できません。時間をおいてもう一度送信してください。'
+		},
 		setup: typeAnswers
 	},
 	{
@@ -1302,7 +1349,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	{
 		// Opened before another tab submitted, then sent: the reload shows the other tab's answer.
 		id: 'answer-already-submitted',
-		title: '送信したら別の画面で提出済みだった（編集不可）',
+		title: '送信したら別の画面で提出済みだった（編集不可・エラーのトースト）',
 		data: {
 			...SESSION,
 			resultsVisible: true,
@@ -1316,7 +1363,11 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			answers: FILLED_ANSWERS,
 			...NO_DRAFT
 		},
-		form: { reason: 'already_submitted' }
+		form: {
+			reason: 'already_submitted',
+			message:
+				'すでに提出済みの回答があり、編集は許可されていないため、今回の内容は送信されていません。'
+		}
 	},
 	{
 		id: 'answer-checks',
@@ -1756,7 +1807,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-reminders',
-		title: 'リマインド送信履歴あり',
+		title: 'リマインド送信履歴あり（送信直後・成功のトースト）',
 		data: {
 			...SESSION,
 			form: resultsForm(),
@@ -1776,7 +1827,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			outsiders: [],
 			nonSubmitters: MANY_NON_SUBMITTERS
 		},
-		form: { reminded: { targets: 42, messages: 1 } }
+		form: { notice: '未提出者 42名にリマインドを送信しました。' }
 	},
 	{
 		id: 'results-reminded-split',
@@ -1786,7 +1837,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			targetCount: 121,
 			nonSubmitters: Array.from({ length: 118 }, (_, i) => member(i + 3))
 		}),
-		form: { reminded: { targets: 118, messages: 3 } }
+		form: { notice: '未提出者 118名にリマインドを送信しました。（3通に分けて送信）' }
 	},
 	{
 		id: 'results-closed-now',
@@ -1798,7 +1849,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: null,
 			frozen: true
 		}),
-		form: { closed: 3 }
+		form: { notice: '締め切りました。未提出者 3名を確定しました。' }
 	},
 	{
 		id: 'results-closed-now-none',
@@ -1811,13 +1862,13 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			targetCount: SUBMITTED.length,
 			nonSubmitters: []
 		}),
-		form: { closed: 0 }
+		form: { notice: '締め切りました。未提出者はいません。' }
 	},
 	{
 		id: 'results-reopened',
 		title: '「受付を再開する」の直後',
 		data: rosterResults({ reminders: REMINDERS }),
-		form: { reopened: true }
+		form: { notice: '受付を再開しました。' }
 	},
 	{
 		id: 'results-reminder-links',
@@ -1872,7 +1923,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-announce-failed',
-		title: '告知失敗（未投稿）',
+		title: '告知失敗（未投稿・開いたときにエラーのトースト）',
 		data: {
 			...SESSION,
 			form: resultsForm(),
@@ -1924,7 +1975,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	{
 		// With the role gone nobody is in the roster, so every response counts as an outsider's.
 		id: 'results-role-deleted',
-		title: '対象ロールが削除済み',
+		title: '対象ロールが削除済み（リマインドの失敗はエラーのトースト）',
 		data: {
 			...SESSION,
 			form: resultsForm(),
@@ -1973,7 +2024,14 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-roster-refreshed',
 		title: '「名簿を更新」が成功',
 		data: rosterResults(),
-		form: { rosterSynced: true }
+		form: { notice: '名簿を更新しました。' }
+	},
+	{
+		id: 'results-phone',
+		title: 'スマホ幅（成功のトースト・回答一覧の見出しと表のコピー・CSV のボタン）',
+		data: rosterResults(),
+		form: { notice: '告知を投稿しました。' },
+		width: '375px'
 	},
 	{
 		id: 'results-roster-syncing',
@@ -2203,9 +2261,46 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 	},
 	{
 		id: 'new-error',
-		title: '検証エラー表示',
+		title: '入力エラー（受付終了の欄の下に表示）',
 		data: FRESH_EDITOR,
-		form: { message: '受付終了は現在より後の日時を指定してください' }
+		form: {
+			inputError: {
+				message: '受付終了は現在より後の日時を指定してください',
+				at: { field: 'closesAt' }
+			}
+		}
+	},
+	{
+		id: 'new-question-error-open',
+		title: '質問の入力エラー（開いているカード）',
+		data: draftData(),
+		form: { inputError: { message: '選択肢の id が重複しています', at: { question: 0 } } }
+	},
+	{
+		id: 'new-question-error-closed',
+		title: '質問の入力エラー（閉じたカード）',
+		data: draftData(),
+		form: { inputError: { message: '質問文は500文字以内です', at: { question: 1 } } }
+	},
+	{
+		id: 'new-error-form',
+		title: 'フォーム全体の入力エラー（作成ボタンの上に表示）',
+		data: draftData(),
+		form: {
+			inputError: {
+				message: 'フォームが大きすぎます。質問や選択肢を減らしてください',
+				at: null
+			}
+		}
+	},
+	{
+		id: 'new-unavailable',
+		title: 'Discord に接続できず作成できなかった（エラーのトースト）',
+		data: draftData(),
+		form: {
+			message:
+				'Discord に接続できないため、今は作成できません。時間をおいてもう一度作成してください。'
+		}
 	},
 	{
 		id: 'new-draft',
@@ -2316,6 +2411,30 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 				})
 			]
 		}
+	},
+	{
+		id: 'admin-synced',
+		title: '同期が成功（成功のトースト）',
+		data: {
+			...ADMIN_SESSION,
+			syncedAt: at('2026-04-09T08:30:00'),
+			forms: [
+				adminRow({ id: 'pending000001', title: '春合宿の参加確認', submitted: 12, targetCount: 18 })
+			]
+		},
+		form: { notice: '42名を同期しました（退会 1名）' }
+	},
+	{
+		id: 'admin-sync-failed',
+		title: '同期が失敗（エラーのトースト）',
+		data: {
+			...ADMIN_SESSION,
+			syncedAt: at('2026-04-09T08:30:00'),
+			forms: [
+				adminRow({ id: 'pending000001', title: '春合宿の参加確認', submitted: 12, targetCount: 18 })
+			]
+		},
+		form: { message: 'Discord からメンバー一覧を取得できませんでした' }
 	},
 	{
 		id: 'admin-unsynced',

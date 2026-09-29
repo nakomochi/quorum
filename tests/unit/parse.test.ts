@@ -1,11 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	MAX_DESCRIPTION,
 	MAX_FORM_BYTES,
 	MAX_LABEL,
 	MAX_OPTIONS,
 	MAX_QUESTIONS,
 	MAX_TITLE,
-	OTHER_OPTION_ID
+	OTHER_OPTION_ID,
+	type InputErrorAt
 } from '$lib/forms';
 import { FormInputError, parseCreateFormPayload, parseQuestions } from '$lib/server/forms';
 import { formOfSize, formTextBytes } from '../helpers/sizes';
@@ -17,31 +19,45 @@ const single = (options: unknown, extra: Record<string, unknown> = {}) => ({
 	...extra
 });
 
-const rejects = (fn: () => unknown, message: string | RegExp) => {
+/** Checks the message and, when given, where the error is to be shown. */
+const rejects = (fn: () => unknown, message: string | RegExp, at?: InputErrorAt | null) => {
 	expect(fn).toThrow(FormInputError);
 	expect(fn).toThrow(message);
+	if (at === undefined) return;
+	try {
+		fn();
+	} catch (err) {
+		expect((err as FormInputError).at).toEqual(at);
+	}
 };
 
 describe('parseQuestions', () => {
-	test('rejects a missing, unreadable or empty payload', () => {
-		rejects(() => parseQuestions(null), '質問を1つ以上追加してください');
-		rejects(() => parseQuestions('   '), '質問を1つ以上追加してください');
-		rejects(() => parseQuestions('{'), '質問データを読み取れませんでした');
-		rejects(() => parseQuestions('[]'), '質問を1つ以上追加してください');
-		rejects(() => parseQuestions('{"type":"text"}'), '質問を1つ以上追加してください');
+	test('rejects a missing, unreadable or empty payload, as the form’s own error', () => {
+		rejects(() => parseQuestions(null), '質問を1つ以上追加してください', null);
+		rejects(() => parseQuestions('   '), '質問を1つ以上追加してください', null);
+		rejects(() => parseQuestions('{'), '質問データを読み取れませんでした', null);
+		rejects(() => parseQuestions('[]'), '質問を1つ以上追加してください', null);
+		rejects(() => parseQuestions('{"type":"text"}'), '質問を1つ以上追加してください', null);
 	});
 
 	test('caps the number of questions', () => {
 		const many = Array.from({ length: MAX_QUESTIONS + 1 }, () => ({ type: 'text', label: 'q' }));
-		rejects(() => parseQuestions(JSON.stringify(many)), `質問は${MAX_QUESTIONS}件までです`);
+		rejects(() => parseQuestions(JSON.stringify(many)), `質問は${MAX_QUESTIONS}件までです`, null);
 	});
 
 	test('rejects an unknown type and a blank or overlong label', () => {
-		rejects(() => parseQuestions(JSON.stringify([{ type: 'file', label: 'q' }])), '質問1: 種類が不正です');
-		rejects(() => parseQuestions(JSON.stringify([{ type: 'text', label: '  ' }])), '質問1: 質問文を入力してください');
+		rejects(() => parseQuestions(JSON.stringify([{ type: 'file', label: 'q' }])), /^種類が不正です$/, {
+			question: 0
+		});
+		rejects(
+			() => parseQuestions(JSON.stringify([{ type: 'text', label: '  ' }])),
+			/^質問文を入力してください$/,
+			{ question: 0 }
+		);
 		rejects(
 			() => parseQuestions(JSON.stringify([{ type: 'text', label: 'x'.repeat(MAX_LABEL + 1) }])),
-			`質問1: 質問文は${MAX_LABEL}文字以内です`
+			`質問文は${MAX_LABEL}文字以内です`,
+			{ question: 0 }
 		);
 	});
 
@@ -82,7 +98,9 @@ describe('parseQuestions', () => {
 	});
 
 	test('validates choice options', () => {
-		rejects(() => parseQuestions(JSON.stringify([single([])])), '質問1: 選択肢を1つ以上追加してください');
+		rejects(() => parseQuestions(JSON.stringify([single([])])), /^選択肢を1つ以上追加してください$/, {
+			question: 0
+		});
 		rejects(() => parseQuestions(JSON.stringify([single(undefined)])), '選択肢を1つ以上追加してください');
 		rejects(
 			() => parseQuestions(JSON.stringify([single([{ id: 'a', label: 'A' }, { id: 'a', label: 'B' }])])),
@@ -94,10 +112,23 @@ describe('parseQuestions', () => {
 		rejects(() => parseQuestions(JSON.stringify([single(tooMany)])), `選択肢は${MAX_OPTIONS}個までです`);
 	});
 
-	test('numbers the failing question in the message', () => {
+	test('locates the failing question by its place in the list', () => {
 		rejects(
 			() => parseQuestions(JSON.stringify([{ type: 'text', label: 'ok' }, single([])])),
-			'質問2: 選択肢を1つ以上追加してください'
+			'選択肢を1つ以上追加してください',
+			{ question: 1 }
+		);
+		rejects(
+			() =>
+				parseQuestions(
+					JSON.stringify([
+						{ type: 'text', label: 'ok' },
+						single([{ id: 'a', label: 'A' }]),
+						single([{ id: 'a', label: 'A' }, { id: 'a', label: 'B' }])
+					])
+				),
+			'選択肢の id が重複しています',
+			{ question: 2 }
 		);
 	});
 });
@@ -149,23 +180,43 @@ describe('parseCreateFormPayload', () => {
 		expect(parsed.deadline?.toISOString()).toBe('2099-01-02T00:00:00.000Z');
 	});
 
-	test('rejects values outside the enums', () => {
-		rejects(() => parseCreateFormPayload(payload({ visibility: 'everyone' })), '結果の公開範囲の値が不正です');
-		rejects(() => parseCreateFormPayload(payload({ submitScope: 'admins' })), '提出できる人の値が不正です');
+	test('rejects values outside the enums, at their fields', () => {
+		rejects(() => parseCreateFormPayload(payload({ visibility: 'everyone' })), '結果の公開範囲の値が不正です', {
+			field: 'visibility'
+		});
+		rejects(() => parseCreateFormPayload(payload({ submitScope: 'admins' })), '提出できる人の値が不正です', {
+			field: 'submitScope'
+		});
 	});
 
 	test('requires a title and a target role within their limits', () => {
-		rejects(() => parseCreateFormPayload(payload({ title: '  ' })), 'タイトルを入力してください');
+		rejects(() => parseCreateFormPayload(payload({ title: '  ' })), 'タイトルを入力してください', {
+			field: 'title'
+		});
 		rejects(
 			() => parseCreateFormPayload(payload({ title: 'x'.repeat(MAX_TITLE + 1) })),
-			`タイトルは${MAX_TITLE}文字以内で入力してください`
+			`タイトルは${MAX_TITLE}文字以内で入力してください`,
+			{ field: 'title' }
 		);
-		rejects(() => parseCreateFormPayload(payload({ targetRoleId: '' })), '対象ロールを入力してください');
+		rejects(() => parseCreateFormPayload(payload({ targetRoleId: '' })), '対象ロールを入力してください', {
+			field: 'targetRoleId'
+		});
+		rejects(
+			() => parseCreateFormPayload(payload({ description: 'x'.repeat(MAX_DESCRIPTION + 1) })),
+			`説明は${MAX_DESCRIPTION}文字以内で入力してください`,
+			{ field: 'description' }
+		);
 	});
 
 	test('rejects malformed dates and a closes_at that has already passed', () => {
-		rejects(() => parseCreateFormPayload(payload({ deadline: '2099-02-30T10:00' })), '締切の日時が不正です');
-		rejects(() => parseCreateFormPayload(payload({ closesAt: '2000-01-01T00:00' })), '受付終了は現在より後の日時を指定してください');
+		rejects(() => parseCreateFormPayload(payload({ deadline: '2099-02-30T10:00' })), '締切の日時が不正です', {
+			field: 'deadline'
+		});
+		rejects(
+			() => parseCreateFormPayload(payload({ closesAt: '2000-01-01T00:00' })),
+			'受付終了は現在より後の日時を指定してください',
+			{ field: 'closesAt' }
+		);
 	});
 
 	test('allows closing before the announced deadline', () => {
@@ -183,7 +234,7 @@ describe('parseCreateFormPayload', () => {
 
 			const over = { ...exact, title: `${exact.title}a` };
 			expect(formTextBytes(over)).toBe(MAX_FORM_BYTES + 1);
-			rejects(() => parseCreateFormPayload(payload(over)), 'フォームが大きすぎます');
+			rejects(() => parseCreateFormPayload(payload(over)), 'フォームが大きすぎます', null);
 		}
 	});
 });

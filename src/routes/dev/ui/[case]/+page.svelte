@@ -2,6 +2,7 @@
 	import {
 		ADMIN_CASES,
 		ANSWER_CASES,
+		draftApiResponse,
 		HISTORY_CASES,
 		HOME_CASES,
 		NEW_CASES,
@@ -28,6 +29,22 @@
 	const entry = $derived([home, answer, results, history, created, admin].find(Boolean));
 	const setup = $derived(entry?.setup);
 
+	// The editor saves drafts through fetch. The catalogue answers in the server's place, so that
+	// nothing shown here can write to the database, and each case picks the answer it shows.
+	// Children mount first, but the editor's first save waits for its debounce.
+	$effect(() => {
+		const passthrough = window.fetch;
+		window.fetch = (input, init) => {
+			const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+			if (!url.pathname.startsWith('/forms/drafts')) return passthrough(input, init);
+			const method = init?.method ?? (input instanceof Request ? input.method : 'GET');
+			return draftApiResponse(entry?.draftApi ?? 'ok', method.toUpperCase());
+		};
+		return () => {
+			window.fetch = passthrough;
+		};
+	});
+
 	$effect(() => {
 		setup?.(document);
 	});
@@ -48,7 +65,7 @@
 {/if}
 
 {#if home}
-	<HomePage data={home.data} />
+	<HomePage data={home.data} form={home.form ?? null} />
 {:else if answer}
 	<AnswerPage data={answer.data} form={answer.form ?? null} />
 {:else if results}

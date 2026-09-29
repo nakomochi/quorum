@@ -1,5 +1,6 @@
 import { nanoid } from 'nanoid';
 import { sql } from 'drizzle-orm';
+import type { FormDraftPayload } from '../../form-draft';
 import type { AnswerValue, RevisionAnswers } from '../../forms';
 import {
 	boolean,
@@ -299,6 +300,30 @@ export const reminder = pgTable(
 	]
 );
 
+/**
+ * The form editor's saved state, kept apart from `form` so that nothing reading forms has to
+ * exclude unpublished ones. The payload is stored unchecked: a draft may be incomplete.
+ */
+export const formDraft = pgTable(
+	'form_draft',
+	{
+		id: text('id')
+			.primaryKey()
+			.$defaultFn(() => newFormId()),
+		createdBy: text('created_by')
+			.notNull()
+			.references(() => user.id, { onDelete: 'cascade' }),
+		// For editing a published form later. Always null for now.
+		formId: text('form_id').references(() => form.id, { onDelete: 'set null' }),
+		// Typed as the current format; readers must still treat it as unknown.
+		payload: jsonb('payload').$type<FormDraftPayload>().notNull(),
+		// Optimistic concurrency: every save names the version it read.
+		version: integer('version').notNull().default(1),
+		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
+	},
+	(t) => [index('form_draft_created_by_idx').on(t.createdBy)]
+);
+
 export type User = typeof user.$inferSelect;
 export type GuildMember = typeof guildMember.$inferSelect;
 export type Form = typeof form.$inferSelect;
@@ -306,3 +331,4 @@ export type Question = typeof question.$inferSelect;
 export type Response = typeof response.$inferSelect;
 export type Answer = typeof answer.$inferSelect;
 export type Reminder = typeof reminder.$inferSelect;
+export type FormDraft = typeof formDraft.$inferSelect;

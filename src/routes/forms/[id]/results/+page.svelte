@@ -105,17 +105,31 @@
 			</a>
 		</nav>
 
-		<header>
-			<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
-			<p class="mt-1 text-sm text-text-muted">回答状況</p>
-			<p class="mt-2 text-xs text-text-muted">
-				<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
-				<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt, '指定なし')}</span>
-				{#if data.manage && data.form.visibility}
-					<span class="whitespace-nowrap">/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}</span>
-				{/if}
-			</p>
-		</header>
+		<div class="flex items-start justify-between gap-4">
+			<header class="min-w-0">
+				<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
+				<p class="mt-1 text-sm text-text-muted">回答状況</p>
+				<p class="mt-2 text-xs text-text-muted">
+					<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
+					<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt, '指定なし')}</span>
+					{#if data.manage && data.form.visibility}
+						<span class="whitespace-nowrap">/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}</span>
+					{/if}
+				</p>
+			</header>
+			{#if data.manage}
+				<!-- Starts a new draft from this form's content; the form itself is left as it is. -->
+				<form method="POST" action="?/duplicate" class="shrink-0">
+					<button
+						type="submit"
+						class="btn-secondary px-3 py-1.5 text-xs"
+						title="この内容を下書きにして新しいフォームを作ります"
+					>
+						複製
+					</button>
+				</form>
+			{/if}
+		</div>
 	</div>
 
 	{#if data.roleDeleted}

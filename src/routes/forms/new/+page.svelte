@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { nanoid } from 'nanoid';
-	import { tick } from 'svelte';
+	import { onMount, tick, untrack } from 'svelte';
 	import { flip } from 'svelte/animate';
 	import {
 		dragHandle,
@@ -9,6 +9,16 @@
 		type DndEvent
 	} from 'svelte-dnd-action';
 	import { enhance } from '$app/forms';
+	import { goto, replaceState } from '$app/navigation';
+	import { page } from '$app/state';
+	import { formatJstTime } from '$lib/datetime';
+	import {
+		DraftAutosave,
+		discardDraft,
+		fetchTransport,
+		type SaveStatus
+	} from '$lib/draft-autosave';
+	import { draftPayload, questionsField, type DraftQuestion } from '$lib/form-draft';
 	import {
 		hasOptions,
 		MAX_DESCRIPTION,
@@ -55,7 +65,15 @@
 	// Ctrl+Z has to keep working.
 	const NATIVE_UNDO = ['title', 'description'];
 
+	const ROLE_MISSING = '元のロールが見つかりません。選び直してください';
+	const CHANNEL_MISSING = '元のチャンネルが見つかりません。選び直してください';
+
 	let { data, form } = $props();
+
+	// Read once: the editor owns its state from here on, and a later load (after a refused
+	// submission) must not overwrite what has been typed since.
+	const restored = untrack(() => data.draft);
+	const initial = restored?.state ?? null;
 
 	const newOption = () => ({ id: nanoid(10), label: '' });
 
@@ -71,11 +89,40 @@
 		};
 	}
 
-	let questions = $state<Draft[]>([newQuestion()]);
-	let deadline = $state('');
-	let closesAt = $state('');
+	// A choice question always keeps one option to type into, as the editor's own buttons do.
+	const fromSaved = (q: DraftQuestion): Draft => ({
+		...q,
+		id: nanoid(8),
+		options:
+			hasOptions(q.type) && q.options.length === 0
+				? [newOption()]
+				: q.options.map((option) => ({ ...option }))
+	});
+
+	let questions = $state<Draft[]>(
+		initial && initial.questions.length > 0 ? initial.questions.map(fromSaved) : [newQuestion()]
+	);
+	let deadline = $state(initial?.deadline ?? '');
+	let closesAt = $state(initial?.closesAt ?? '');
 	// closesAt defaults to the announced deadline until the admin types their own value.
-	let closesAtTouched = $state(false);
+	let closesAtTouched = $state(initial?.closesAtTouched ?? false);
+
+	// Controlled so that a stored id missing from today's options can be told apart from a choice.
+	let targetRoleId = $state(initial?.targetRoleId ?? '');
+	let announcementChannelId = $state(initial?.announcementChannelId ?? '');
+
+	const roleMissing = $derived(
+		targetRoleId !== '' && !data.roles.some((role) => role.id === targetRoleId)
+	);
+	const channelMissing = $derived(
+		announcementChannelId !== '' &&
+			!data.channels.some((channel) => channel.id === announcementChannelId)
+	);
+
+	/** Blocks the submission, with the reason in the browser's own bubble, until it is resolved. */
+	const validity = (message: () => string) => (node: HTMLSelectElement) => {
+		node.setCustomValidity(message());
+	};
 
 	const cloneQuestions = (items: Draft[]): Draft[] =>
 		items.map((q) => ({ ...q, options: q.options.map((option) => ({ ...option })) }));
@@ -91,6 +138,7 @@
 	// character) from becoming a history step nobody asked for.
 	const serialise = () => JSON.stringify([questions, deadline, closesAt, closesAtTouched]);
 
+	// A restored draft starts with an empty history too.
 	let past = $state.raw<Snapshot[]>([]);
 	let future = $state.raw<Snapshot[]>([]);
 	let baseline = snapshot();
@@ -152,18 +200,7 @@
 		apply(next);
 	}
 
-	const payload = $derived(
-		JSON.stringify(
-			questions.map((q) => ({
-				type: q.type,
-				label: q.label,
-				helpText: q.helpText,
-				required: q.required,
-				options: hasOptions(q.type) ? q.options : null,
-				allowOther: hasOptions(q.type) && q.allowOther
-			}))
-		)
-	);
+	const payload = $derived(questionsField(questions));
 
 	function onDeadlineInput(value: string) {
 		deadline = value;
@@ -245,6 +282,87 @@
 		window.addEventListener('keydown', onKeydown);
 		return () => window.removeEventListener('keydown', onKeydown);
 	});
+
+	// --- draft autosave ---
+
+	let formElement: HTMLFormElement;
+
+	/**
+	 * The whole form as FormData sees it, rather than the undo snapshot: the title, description
+	 * and settings live in the inputs. closesAtTouched is the one piece of state no field carries.
+	 */
+	function readEditor(): string {
+		const fields: Record<string, string[]> = {};
+		for (const [name, value] of new FormData(formElement)) {
+			if (typeof value === 'string') (fields[name] ??= []).push(value);
+		}
+		return JSON.stringify(draftPayload(fields, closesAtTouched));
+	}
+
+	let draftId = $state<string | null>(restored?.id ?? null);
+	let saveStatus = $state<SaveStatus>(
+		restored ? { kind: 'saved', at: restored.updatedAt } : { kind: 'idle' }
+	);
+
+	const autosave = new DraftAutosave({
+		draft: restored && { id: restored.id, version: restored.version, updatedAt: restored.updatedAt },
+		read: readEditor,
+		transport: fetchTransport,
+		onStatus: (status) => (saveStatus = status),
+		onCreated: (id) => {
+			draftId = id;
+			// Replaced, not pushed: a reload opens the draft again, and Back still leaves the editor.
+			const url = new URL(page.url);
+			url.searchParams.set('draft', id);
+			replaceState(url, page.state);
+		}
+	});
+
+	onMount(() => {
+		autosave.start();
+
+		const onVisibility = () => {
+			if (document.visibilityState === 'hidden') void autosave.flush(true);
+		};
+		const onPageHide = () => void autosave.flush(true);
+		document.addEventListener('visibilitychange', onVisibility);
+		window.addEventListener('pagehide', onPageHide);
+
+		return () => {
+			document.removeEventListener('visibilitychange', onVisibility);
+			window.removeEventListener('pagehide', onPageHide);
+			// A link inside the app unmounts the editor without hiding the page.
+			autosave.leave();
+		};
+	});
+
+	// Reordering, adding, removing, undo and redo fire no input event of their own.
+	let savedKey = untrack(() => stateKey);
+	$effect(() => {
+		const key = stateKey;
+		if (key === savedKey || midDrag()) return;
+		savedKey = key;
+		autosave.changed();
+	});
+
+	let discarding = $state(false);
+	let discardFailed = $state(false);
+
+	async function discard() {
+		const id = autosave.id;
+		if (!id || !confirm('この下書きを削除します')) return;
+
+		discarding = true;
+		discardFailed = false;
+		await autosave.stop();
+		if (await discardDraft(id)) {
+			await goto('/');
+			return;
+		}
+		discarding = false;
+		discardFailed = true;
+		autosave.resume();
+	}
 </script>
 
 <main class="mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-8 pb-12">
@@ -259,19 +377,42 @@
 	{/if}
 
 	<!-- use:enhance keeps the question editor's state when the server answers with fail(). -->
-	<form method="POST" use:enhance onfocusin={rememberField} class="flex flex-col gap-6">
+	<form
+		method="POST"
+		bind:this={formElement}
+		use:enhance={async ({ formData }) => {
+			// Nothing may be saved once the form exists: the draft is deleted with its creation.
+			await autosave.stop();
+			if (autosave.id) formData.set('draftId', autosave.id);
+			return async ({ result, update }) => {
+				await update();
+				if (result.type !== 'redirect') autosave.resume();
+			};
+		}}
+		onfocusin={rememberField}
+		oninput={() => autosave.changed()}
+		onchange={() => autosave.changed()}
+		class="flex flex-col gap-6"
+	>
 		<input type="hidden" name="questions" value={payload} />
 
 		<section class="card flex flex-col gap-4 p-5">
 			<label class="block">
 				<span class="text-sm font-medium">タイトル</span>
-				<input name="title" required maxlength={MAX_TITLE} class="field mt-1" />
+				<input
+					name="title"
+					value={initial?.title ?? ''}
+					required
+					maxlength={MAX_TITLE}
+					class="field mt-1"
+				/>
 			</label>
 
 			<label class="block">
 				<span class="text-sm font-medium">説明</span>
 				<textarea
 					name="description"
+					value={initial?.description ?? ''}
 					rows="3"
 					maxlength={MAX_DESCRIPTION}
 					class="field mt-1"
@@ -281,27 +422,52 @@
 			<div class="grid gap-4 sm:grid-cols-2">
 				<label class="block">
 					<span class="text-sm font-medium">対象ロール</span>
-					<select name="targetRoleId" required class="field mt-1">
+					<select
+						name="targetRoleId"
+						required
+						bind:value={targetRoleId}
+						{@attach validity(() => (roleMissing ? ROLE_MISSING : ''))}
+						class="field mt-1"
+					>
+						{#if roleMissing}
+							<!-- Keeps the stored id, so a reload shows the notice again instead of a default. -->
+							<option value={targetRoleId} hidden>選択してください</option>
+						{/if}
 						<option value="">選択してください</option>
 						{#each data.roles as role (role.id)}
 							<option value={role.id}>{role.name}</option>
 						{/each}
 					</select>
+					{#if roleMissing}
+						<span class="mt-1 block text-xs text-warning">{ROLE_MISSING}</span>
+					{/if}
 				</label>
 
 				<label class="block">
 					<span class="text-sm font-medium">告知チャンネル</span>
-					<select name="announcementChannelId" class="field mt-1">
+					<!-- An empty value means no announcement, so a missing channel cannot fall back to it. -->
+					<select
+						name="announcementChannelId"
+						bind:value={announcementChannelId}
+						{@attach validity(() => (channelMissing ? CHANNEL_MISSING : ''))}
+						class="field mt-1"
+					>
+						{#if channelMissing}
+							<option value={announcementChannelId} hidden>選択してください</option>
+						{/if}
 						<option value="">告知しない</option>
 						{#each data.channels as channel (channel.id)}
 							<option value={channel.id}>#{channel.name}</option>
 						{/each}
 					</select>
+					{#if channelMissing}
+						<span class="mt-1 block text-xs text-warning">{CHANNEL_MISSING}</span>
+					{/if}
 				</label>
 
 				<label class="block">
 					<span class="text-sm font-medium">提出できる人</span>
-					<select name="submitScope" class="field mt-1">
+					<select name="submitScope" value={initial?.submitScope ?? 'everyone'} class="field mt-1">
 						<option value="everyone">サーバーのメンバー全員</option>
 						<option value="target_role">対象ロールの人のみ</option>
 					</select>
@@ -309,7 +475,7 @@
 
 				<label class="block">
 					<span class="text-sm font-medium">結果の公開範囲</span>
-					<select name="visibility" class="field mt-1">
+					<select name="visibility" value={initial?.visibility ?? 'public'} class="field mt-1">
 						<option value="public">公開</option>
 						<option value="admin_only">管理者のみ</option>
 						<option value="after_deadline">締切後またはクローズ後に公開</option>
@@ -341,7 +507,12 @@
 			</div>
 
 			<label class="flex items-center gap-2 text-sm">
-				<input type="checkbox" name="allowEdit" checked class="size-4" />
+				<input
+					type="checkbox"
+					name="allowEdit"
+					checked={initial?.allowEdit ?? true}
+					class="size-4"
+				/>
 				回答の編集を許可する
 			</label>
 		</section>
@@ -552,9 +723,48 @@
 			</div>
 		</section>
 
-		<div class="flex items-center gap-4">
+		{#if saveStatus.kind === 'conflict'}
+			<div role="alert" class="alert-warning action-row">
+				<p class="min-w-0 flex-1">
+					別の画面でこの下書きが更新されたか、作成・破棄されました。この画面の自動保存は停止しています。
+				</p>
+				<button
+					type="button"
+					class="btn-secondary shrink-0 px-3 py-1.5 text-xs"
+					onclick={() => location.reload()}
+				>
+					再読み込み
+				</button>
+			</div>
+		{/if}
+
+		{#if discardFailed}
+			<p role="alert" class="alert-error">
+				下書きを破棄できませんでした。時間をおいてもう一度お試しください。
+			</p>
+		{/if}
+
+		<div class="flex flex-wrap items-center gap-x-4 gap-y-3">
 			<button type="submit" class="btn-primary px-5 py-2.5">作成する</button>
-			<a href="/" class="text-sm text-text-muted hover:underline">キャンセル</a>
+			{#if draftId}
+				<button
+					type="button"
+					class="btn-secondary px-4 py-2.5"
+					disabled={discarding}
+					onclick={discard}
+				>
+					下書きを破棄
+				</button>
+			{/if}
+			<p role="status" class="text-xs text-text-muted">
+				{#if saveStatus.kind === 'saving'}
+					保存中…
+				{:else if saveStatus.kind === 'saved'}
+					<span class="whitespace-nowrap">保存済み {formatJstTime(saveStatus.at)}</span>
+				{:else if saveStatus.kind === 'failed'}
+					<span class="text-error-fg">保存できませんでした</span>
+				{/if}
+			</p>
 		</div>
 	</form>
 </main>

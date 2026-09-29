@@ -25,7 +25,8 @@ const TABLES = [
 	'response',
 	'answer',
 	'response_revision',
-	'reminder'
+	'reminder',
+	'form_draft'
 ];
 
 export async function resetTables() {

@@ -9,7 +9,7 @@
 import { tick } from 'svelte';
 import { formatJst } from '../datetime';
 import { hasOptions } from '../forms';
-import type { PageData as HomeData } from '../../routes/$types';
+import type { ActionData as HomeAction, PageData as HomeData } from '../../routes/$types';
 import type {
 	ActionData as AnswerAction,
 	PageData as AnswerData
@@ -25,6 +25,9 @@ import type {
 	PageData as AdminData
 } from '../../routes/admin/forms/$types';
 
+/** How the catalogue answers the editor's draft saves in place of the server. */
+export type DraftApiMode = 'ok' | 'hang' | 'fail' | 'conflict';
+
 export type UiCase<Data, Form = null> = {
 	id: string;
 	title: string;
@@ -32,7 +35,36 @@ export type UiCase<Data, Form = null> = {
 	form?: Form;
 	/** Drives the rendered page into a state that only interaction can reach. */
 	setup?: (doc: Document) => Promise<void>;
+	/** Defaults to 'ok'. */
+	draftApi?: DraftApiMode;
 };
+
+/** Fixed so that the status line reads the same on every run. */
+const DRAFT_SAVED_AT = new Date('2026-09-29T12:36:00+09:00');
+
+export function draftApiResponse(mode: DraftApiMode, method: string): Promise<Response> {
+	const json = (body: unknown, status: number) =>
+		new Response(JSON.stringify(body), {
+			status,
+			headers: { 'content-type': 'application/json' }
+		});
+	switch (mode) {
+		case 'hang':
+			return new Promise(() => {});
+		case 'fail':
+			return Promise.resolve(json({ message: 'catalogue stub' }, 500));
+		case 'conflict':
+			return Promise.resolve(json({ reason: 'conflict' }, 409));
+		case 'ok':
+			if (method === 'DELETE') return Promise.resolve(new Response(null, { status: 204 }));
+			return Promise.resolve(
+				json(
+					{ id: 'fixturedraft', version: 4, updatedAt: DRAFT_SAVED_AT.toISOString() },
+					method === 'POST' ? 201 : 200
+				)
+			);
+	}
+}
 
 type SessionUser = NonNullable<HomeData['user']>;
 type PendingRow = HomeData['pending'][number];
@@ -677,16 +709,24 @@ const UNSYNCED_ROSTER: Partial<ResultsData> = {
 
 // --- cases ---
 
-export const HOME_CASES: UiCase<HomeData>[] = [
+export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 	{
 		id: 'home-anonymous',
 		title: '未ログイン',
-		data: { user: null, member: false, isAdmin: false, pending: [], submitted: [], created: [] }
+		data: {
+			user: null,
+			member: false,
+			isAdmin: false,
+			pending: [],
+			submitted: [],
+			created: [],
+			drafts: []
+		}
 	},
 	{
 		id: 'home-empty',
 		title: 'メンバー / フォーム0件',
-		data: { ...SESSION, pending: [], submitted: [], created: [] }
+		data: { ...SESSION, pending: [], submitted: [], created: [], drafts: [] }
 	},
 	{
 		id: 'home-member',
@@ -724,6 +764,22 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 					responseCount: 3,
 					deadline: null
 				})
+			],
+			drafts: []
+		}
+	},
+	{
+		id: 'home-drafts',
+		title: 'メンバー / 下書きあり（無題・長いタイトルを含む）',
+		data: {
+			...SESSION,
+			pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })],
+			submitted: [],
+			created: [createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 })],
+			drafts: [
+				{ id: 'draft0000001', title: '秋合宿の参加確認', updatedAt: at('2026-09-29T12:34:00') },
+				{ id: 'draft0000002', title: null, updatedAt: at('2026-09-28T21:05:00') },
+				{ id: 'draft0000003', title: LONG_TITLE, updatedAt: at('2026-09-20T08:00:00') }
 			]
 		}
 	},
@@ -748,13 +804,14 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 					responseCount: 20 - i * 3,
 					deadline: fromNow(-24 * 10 * (i + 1))
 				})
-			)
+			),
+			drafts: []
 		}
 	},
 	{
 		id: 'home-outsider',
 		title: '非メンバー',
-		data: { ...SESSION, member: false, pending: [], submitted: [], created: [] }
+		data: { ...SESSION, member: false, pending: [], submitted: [], created: [], drafts: [] }
 	},
 	{
 		id: 'home-admin',
@@ -764,7 +821,8 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 			user: { ...USER, name: 'とてもながい表示名のサーバー運営アカウント' },
 			pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認' })],
 			submitted: [],
-			created: [createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 })]
+			created: [createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 })],
+			drafts: []
 		}
 	}
 ];
@@ -1509,22 +1567,117 @@ const CHANNELS: NewData['channels'] = [
 	{ id: '900000000000000022', name: 'staff-only' }
 ];
 
+type DraftState = NonNullable<NewData['draft']>['state'];
+
+const DRAFT_STATE: DraftState = {
+	title: '秋合宿の参加確認',
+	description: '11月の合宿について、参加可否を教えてください。',
+	targetRoleId: ROLE_ID,
+	announcementChannelId: CHANNEL_ID,
+	submitScope: 'target_role',
+	visibility: 'after_deadline',
+	deadline: '2026-10-31T23:59',
+	closesAt: '2026-11-01T12:00',
+	allowEdit: true,
+	closesAtTouched: true,
+	questions: [
+		{
+			type: 'single',
+			label: '参加できますか',
+			helpText: '確定した予定でお答えください。',
+			required: true,
+			options: [
+				{ id: 'yes', label: '参加する' },
+				{ id: 'no', label: '参加しない' }
+			],
+			allowOther: true
+		},
+		{
+			type: 'text',
+			label: '連絡事項',
+			helpText: '',
+			required: false,
+			options: [],
+			allowOther: false
+		}
+	]
+};
+
+const draftData = (state: DraftState = DRAFT_STATE): NewData => ({
+	...SESSION,
+	roles: ROLES,
+	channels: CHANNELS,
+	draft: { id: 'fixturedraft', version: 3, updatedAt: at('2026-09-29T12:34:00'), state }
+});
+
+const FRESH_EDITOR: NewData = { ...SESSION, roles: ROLES, channels: CHANNELS, draft: null };
+
+/** One keystroke's worth of change; the editor saves it after its debounce. */
+async function editTitle(doc: Document) {
+	const title = doc.querySelector<HTMLInputElement>('input[name="title"]');
+	if (!title) return;
+	title.value = `${title.value}（改訂）`;
+	title.dispatchEvent(new Event('input', { bubbles: true }));
+	await tick();
+}
+
 export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 	{
 		id: 'new-default',
 		title: 'ロール / チャンネルあり',
-		data: { ...SESSION, roles: ROLES, channels: CHANNELS }
+		data: FRESH_EDITOR
 	},
 	{
 		id: 'new-error',
 		title: '検証エラー表示',
-		data: { ...SESSION, roles: ROLES, channels: CHANNELS },
+		data: FRESH_EDITOR,
 		form: { message: '受付終了は現在より後の日時を指定してください' }
+	},
+	{
+		id: 'new-draft',
+		title: '下書きを開いた（保存済みの時刻・破棄ボタン）',
+		data: draftData()
+	},
+	{
+		id: 'new-draft-saving',
+		title: '自動保存中（入力の 1.5 秒後から）',
+		data: draftData(),
+		setup: editTitle,
+		draftApi: 'hang'
+	},
+	{
+		id: 'new-draft-saved',
+		title: '最初の自動保存が完了（入力の 1.5 秒後から）',
+		data: FRESH_EDITOR,
+		setup: editTitle
+	},
+	{
+		id: 'new-draft-failed',
+		title: '自動保存に失敗（入力の 1.5 秒後から）',
+		data: draftData(),
+		setup: editTitle,
+		draftApi: 'fail'
+	},
+	{
+		id: 'new-draft-conflict',
+		title: '別の画面で更新されていた（409・入力の 1.5 秒後から）',
+		data: draftData(),
+		setup: editTitle,
+		draftApi: 'conflict'
+	},
+	{
+		id: 'new-draft-missing',
+		title: '元のロール・チャンネルが見つからない',
+		data: draftData({
+			...DRAFT_STATE,
+			targetRoleId: '900000000000000099',
+			announcementChannelId: '900000000000000098'
+		})
 	},
 	{
 		id: 'new-other',
 		title: '「その他」を追加した質問',
-		data: { ...SESSION, roles: ROLES, channels: CHANNELS },
+		data: FRESH_EDITOR,
 		setup: async (doc) => {
 			const fill = (label: string, value: string) => {
 				const input = doc.querySelector<HTMLInputElement>(`[aria-label="${label}"]`);

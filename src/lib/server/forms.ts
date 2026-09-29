@@ -3,6 +3,7 @@ import { db } from './db';
 import {
 	answer,
 	form,
+	formDraft,
 	guildMember,
 	newFormId,
 	question,
@@ -239,10 +240,24 @@ export function parseCreateFormPayload(data: FormData): CreateFormInput {
 	};
 }
 
-export async function createForm(input: CreateFormInput, createdBy: string): Promise<string> {
+/**
+ * `draftId` names the editor's draft, removed in the same transaction so that a created form never
+ * leaves its draft behind and a failed creation never loses it. Someone else's draft is untouched.
+ */
+export async function createForm(
+	input: CreateFormInput,
+	createdBy: string,
+	draftId: string | null = null
+): Promise<string> {
 	const id = newFormId();
 
 	await db.transaction(async (tx) => {
+		if (draftId) {
+			await tx
+				.delete(formDraft)
+				.where(and(eq(formDraft.id, draftId), eq(formDraft.createdBy, createdBy)));
+		}
+
 		await tx.insert(form).values({
 			id,
 			title: input.title,

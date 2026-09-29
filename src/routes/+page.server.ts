@@ -1,10 +1,11 @@
-import { error, redirect } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { auth } from '$lib/server/auth';
+import { deleteDraft, listDrafts } from '$lib/server/drafts';
 import { listFormsCreatedBy, listFormsForMember } from '$lib/server/forms';
-import { gateMember } from '$lib/server/guards';
+import { gateMember, requireMember } from '$lib/server/guards';
 import type { Actions, PageServerLoad } from './$types';
 
-const ANONYMOUS = { member: false, pending: [], submitted: [], created: [] };
+const ANONYMOUS = { member: false, pending: [], submitted: [], created: [], drafts: [] };
 
 /**
  * The header's flags come from the root layout. `member` is decided again here, by gateMember
@@ -18,12 +19,13 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const member = await gateMember(locals);
 	if (!member) return ANONYMOUS;
 
-	const [forms, created] = await Promise.all([
+	const [forms, created, drafts] = await Promise.all([
 		listFormsForMember(member, user.id),
-		listFormsCreatedBy(user.id)
+		listFormsCreatedBy(user.id),
+		listDrafts(user.id)
 	]);
 
-	return { member: true, created, ...forms };
+	return { member: true, created, drafts, ...forms };
 };
 
 export const actions: Actions = {
@@ -40,6 +42,18 @@ export const actions: Actions = {
 		}
 
 		redirect(303, result.url);
+	},
+
+	// Judged by the mirror like saving a draft: it affects nobody but its author.
+	discardDraft: async ({ locals, request }) => {
+		const { user } = await requireMember(locals);
+
+		const id = (await request.formData()).get('id');
+		if (typeof id !== 'string' || !(await deleteDraft(id, user.id))) {
+			return fail(404, { message: '下書きが見つかりません。すでに破棄されたか、作成済みです' });
+		}
+
+		return { discarded: true };
 	},
 
 	// Posted to from the shared header on every page.

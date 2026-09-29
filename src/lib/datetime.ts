@@ -11,6 +11,11 @@ const displayFormat = new Intl.DateTimeFormat('ja-JP', {
 	timeZone: 'Asia/Tokyo'
 });
 
+const timeFormat = new Intl.DateTimeFormat('ja-JP', {
+	timeStyle: 'short',
+	timeZone: 'Asia/Tokyo'
+});
+
 const inputFormat =new Intl.DateTimeFormat('en-CA', {
 	timeZone: 'Asia/Tokyo',
 	year: 'numeric',
@@ -40,6 +45,11 @@ export function parseJstLocal(value: string): Date | null {
 
 export function formatJst(value: Date | null, fallback = '—'): string {
 	return value ? displayFormat.format(value) : fallback;
+}
+
+/** Hours and minutes only, for something that happened moments ago. */
+export function formatJstTime(value: Date): string {
+	return timeFormat.format(value);
 }
 
 /** JST value for an `<input type="datetime-local">`. */

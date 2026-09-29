@@ -1,8 +1,9 @@
 <script lang="ts">
+	import { enhance } from '$app/forms';
 	import { formatJst } from '$lib/datetime';
 	import Icon from '$lib/icons/Icon.svelte';
 
-	let { data } = $props();
+	let { data, form } = $props();
 
 	const deadlineText = (value: Date | null) => (value ? `締切 ${formatJst(value)}` : '締切なし');
 
@@ -121,6 +122,50 @@
 							{allSubmitted ? '一部だけ表示' : `すべて表示（${data.submitted.length} 件）`}
 						</button>
 					{/if}
+				</section>
+			{/if}
+
+			{#if data.drafts.length > 0}
+				<section>
+					<h2 class="text-text-subtle text-sm font-medium">下書き {data.drafts.length} 件</h2>
+					{#if form?.message}
+						<p role="alert" class="alert-error mt-2">{form.message}</p>
+					{/if}
+					<ul class="mt-2 flex flex-col gap-2">
+						{#each data.drafts as row (row.id)}
+							<li class="card flex items-center gap-2 pr-3">
+								<a
+									href="/forms/new?draft={row.id}"
+									class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+								>
+									<span class="flex min-w-0 items-center gap-2 {row.title ? 'font-medium' : 'text-text-muted'}">
+										<Icon name="pencil" class="text-text-muted size-4 shrink-0" />
+										{row.title ?? '無題のフォーム'}
+									</span>
+									<span class="text-text-muted shrink-0 text-xs whitespace-nowrap tabular-nums">
+										更新 {formatJst(row.updatedAt)}
+									</span>
+								</a>
+								<form
+									method="POST"
+									action="?/discardDraft"
+									use:enhance={({ cancel }) => {
+										if (!confirm('この下書きを削除します')) cancel();
+									}}
+									class="shrink-0"
+								>
+									<input type="hidden" name="id" value={row.id} />
+									<button
+										type="submit"
+										class="btn-secondary px-3 py-1.5 text-xs"
+										aria-label="「{row.title ?? '無題のフォーム'}」の下書きを破棄"
+									>
+										破棄
+									</button>
+								</form>
+							</li>
+						{/each}
+					</ul>
 				</section>
 			{/if}
 

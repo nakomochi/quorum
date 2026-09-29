@@ -20,6 +20,7 @@ describe('migrations', () => {
 				'account',
 				'answer',
 				'form',
+				'form_draft',
 				'guild_member',
 				'guild_sync',
 				'question',

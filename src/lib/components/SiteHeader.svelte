@@ -11,9 +11,10 @@
 </script>
 
 <header class="border-border border-b">
+	<!-- Full width: the logo sits at the left edge and the controls at the right, whatever width
+	     the page below uses for its content. -->
 	<div
-		class="mx-auto flex max-w-4xl flex-wrap items-center justify-between gap-x-4 gap-y-3 px-6 py-3
-			sm:flex-nowrap"
+		class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 px-6 py-3 sm:flex-nowrap"
 	>
 		<a href="/" class="shrink-0 text-lg font-semibold hover:underline">form-discord</a>
 		<!-- Wraps only on phones, and then as two groups so the avatar never parts from ログアウト.

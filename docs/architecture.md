@@ -6,7 +6,7 @@
 
 ```mermaid
 flowchart LR
-  Browser -->|load / form action| App[SvelteKit]
+  Browser -->|load / form action / 下書きの保存| App[SvelteKit]
   Coolify[Coolify Scheduled Tasks] -->|scripts/cron.js| Cron["/internal/cron/[job]"]
   Cron --> App
   App -->|Drizzle| Postgres[(Postgres)]
@@ -37,6 +37,8 @@ erDiagram
   user ||--o{ account : ""
   user ||--o{ form : "created_by"
   user ||--o{ response : ""
+  user ||--o{ form_draft : "created_by"
+  form |o--o{ form_draft : "form_id"
   form ||--o{ question : ""
   form ||--o{ response : ""
   form ||--o{ reminder : ""
@@ -57,6 +59,7 @@ erDiagram
 | `response` / `answer` | 最新の回答。1 人 1 フォーム 1 件 |
 | `response_revision` | 送信のたびに回答全体を 1 版として残す。同じ内容の再送では増えない |
 | `reminder` | リマインドの送信記録。自動は締切ごとに 1 件（部分ユニーク `reminder_auto_once_uq`） |
+| `form_draft` | 作成画面の下書き。エディタの入力を `payload`（jsonb）に検証せずに持つ。`version` で古い画面からの上書きを 409 で止める。作成が成功すると同じトランザクションで消す。フォームの複製もこの行を作る |
 
 ロックの順序:
 
@@ -65,6 +68,8 @@ erDiagram
 | 回答の送信 `submitResponse` | `form` を `FOR SHARE` → `response` を INSERT（重複は DO NOTHING）→ 編集なら `response` を `FOR UPDATE` → `answer` の入れ直し・`response_revision` の追加 |
 | クローズ `closeForm` | `form` を `FOR UPDATE` → 名簿と回答を読む → `form` を UPDATE |
 | 全員同期 `runFullSync` | advisory lock → `guild_member` の upsert・離脱の UPDATE → `guild_sync` の upsert |
+| フォームの作成 `createForm` | `form_draft` の DELETE → `form` と `question` の INSERT。`form` の行のロックは取らない |
+| 下書きの保存 `updateDraft` | `form_draft` の条件付き UPDATE だけ。ほかの行には触れない |
 
 - 送信のトランザクションで `form` の行に書き込まない。`FOR SHARE` の後に同じ行を UPDATE すると、同時に来た初回の回答どうしがデッドロックする。
 - トランザクションの中で Discord などの外部 I/O を待たない。全員同期とクローズは、Discord からの取得をトランザクションの前に済ませる。
@@ -110,8 +115,11 @@ flowchart TD
 | 管理者としての管理操作 | 名簿で管理者でなければその場で拒否し、管理者なら Discord で確かめる（`isGuildAdmin`） | 名簿で管理者のときだけ 3 回 |
 | 管理画面（`requireAdmin`） | Discord 上の権限 | 毎回 3 回 |
 | 管理者向けリンクの表示 | 名簿（`looksLikeGuildAdmin`） | なし |
+| 下書きの保存・破棄 | 名簿（`requireMember`）。他人の下書きは 404 | 閲覧と同じ。本人以外に影響しないので、書き込みでも毎回は問い合わせない |
+| フォームの複製 | 作成者と管理者だけ（`requireFormManager(..., 'view')`） | 管理者のときだけ 3 回 |
 
-- 名簿は拒否にだけ使う。許可は、閲覧を除いて Discord で確かめる。
+- 名簿は拒否にだけ使う。許可は、閲覧と下書きを除いて Discord で確かめる。
+- 下書きの JSON エンドポイント（`/forms/drafts`、`/forms/drafts/[id]`）は SvelteKit の CSRF 検査の対象外なので、`Origin` が自分のオリジンと一致しなければ 403 にする。
 - 本人への問い合わせは 1 リクエストにつき 1 回（`WeakMap` でリクエスト単位に使い回す）。同じ人への同時の問い合わせはまとめる。
 - 閲覧は名簿で許可するので、抜けた人やロールを外された人は次の全員同期まで閲覧できる。書き込みはできない。
 

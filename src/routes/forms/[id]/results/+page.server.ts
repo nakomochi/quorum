@@ -1,5 +1,6 @@
-import { error, fail } from '@sveltejs/kit';
+import { error, fail, redirect } from '@sveltejs/kit';
 import { formatJst } from '$lib/datetime';
+import { duplicateForm } from '$lib/server/drafts';
 import {
 	canViewResults,
 	closeForm,
@@ -177,6 +178,15 @@ export const actions: Actions = {
 		}
 
 		return { reminded: { targets: result.targets, messages: result.messages } };
+	},
+
+	// Only reads the form, so viewing rights are enough: the copy is a draft of the manager's own.
+	duplicate: async ({ locals, params }) => {
+		const { user, target } = await requireFormManager(locals, params.id, 'view');
+
+		const draft = await duplicateForm(target, user.id);
+
+		redirect(303, `/forms/new?draft=${draft.id}`);
 	},
 
 	syncRoster: async ({ locals, params }) => {

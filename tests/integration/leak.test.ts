@@ -1,5 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { isHttpError } from '@sveltejs/kit';
+import { draftPayload } from '$lib/form-draft';
+import { createDraft } from '$lib/server/drafts';
 import { closeForm } from '$lib/server/forms';
 import { load as layoutLoad } from '../../src/routes/+layout.server';
 import { load as topLoad } from '../../src/routes/+page.server';
@@ -26,7 +28,8 @@ const FORBIDDEN_KEYS = [
 	'createdBy',
 	'targetRoleId',
 	'submitScope',
-	'discordId'
+	'discordId',
+	'payload'
 ];
 
 const SECRET_NAME = '秘密の未提出者';
@@ -117,6 +120,36 @@ describe('what a member receives', () => {
 		expect(data).toMatchObject({ member: true, created: [] });
 		expect((data as { pending: { id: string }[] }).pending.map((f) => f.id)).toContain(open.id);
 		expectNoLeak(data, [...secrets, SECRET_NAME]);
+		expect(discord.count()).toBe(0);
+	});
+
+	test('top page: drafts as id, title and time only, and only the viewer’s own', async () => {
+		const { viewer, other, secrets } = await scene();
+		const own = await createDraft(
+			viewer.id,
+			draftPayload(
+				{
+					title: ['  自分の下書き  '],
+					description: ['下書きの本文は一覧に出さない'],
+					targetRoleId: [TARGET_ROLE],
+					announcementChannelId: [CHANNEL_ID]
+				},
+				false
+			)
+		);
+		const untitled = await createDraft(viewer.id, draftPayload({ title: [''] }, false));
+		await createDraft(other.id, draftPayload({ title: ['他人の下書き'] }, false));
+
+		const data = (await topLoad(event(viewer))) as { drafts: unknown[] };
+
+		expect(data.drafts).toEqual(
+			expect.arrayContaining([
+				{ id: own.id, title: '自分の下書き', updatedAt: own.updatedAt },
+				{ id: untitled.id, title: null, updatedAt: untitled.updatedAt }
+			])
+		);
+		expect(data.drafts).toHaveLength(2);
+		expectNoLeak(data, [...secrets, SECRET_NAME, '下書きの本文は一覧に出さない', '他人の下書き']);
 		expect(discord.count()).toBe(0);
 	});
 

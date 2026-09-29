@@ -71,6 +71,13 @@
       "when": 1790574722329,
       "tag": "0009_fearless_stryfe",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1790652960840,
+      "tag": "0010_thin_sersi",
+      "breakpoints": true
     }
   ]
 }

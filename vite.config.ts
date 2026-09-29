@@ -24,6 +24,8 @@ export default defineConfig({
 			typescript: {
 				config: (config) => {
 					config.include.push('../drizzle.config.ts');
+					// No bun:test typings are installed; `bun run test` is what checks the tests.
+					config.include = config.include.filter((path: string) => !path.startsWith('../tests/'));
 				}
 			}
 		})

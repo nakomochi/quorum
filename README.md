@@ -15,6 +15,17 @@ bun run dev           # http://localhost:5173
 
 `docker-compose.yml` は**開発用の Postgres 専用**。本番では使わない（本番の DB は Coolify 側で建てる）。
 
+## 開発
+
+```sh
+bun run db:start
+bun run test
+```
+
+テストは `.env` の `DATABASE_URL` と同じサーバーに実行ごとの一時 DB（`formdiscord_test_*`）を作り、
+`drizzle/` のマイグレーションを当ててから走り、終わったら消す。開発用 DB の中身には触れない。
+中断などで残った一時 DB は次の実行で消える。Discord への通信はすべてスタブで、外には出ない。
+
 ## 自動リマインド / 自動クローズ
 
 アプリ内にタイマーは持たない。外部 cron（本番は Coolify Scheduled Tasks）が

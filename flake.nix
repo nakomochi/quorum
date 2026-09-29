@@ -1,5 +1,5 @@
 {
-  description = "form-discord: Discord-authenticated form and attendance app";
+  description = "Quorum: Discord-authenticated form and attendance app";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";
@@ -22,7 +22,7 @@
           ];
 
           shellHook = ''
-            echo "form-discord devshell"
+            echo "Quorum devshell"
             echo "  bun $(bun --version) / node $(node --version)"
             echo "  docker compose up -d   # start postgres"
             echo "  bun install && bun run dev"

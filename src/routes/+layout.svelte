@@ -10,7 +10,11 @@
 	const catalogue = $derived(page.route.id?.startsWith('/dev/ui') ?? false);
 </script>
 
-<svelte:head><link rel="icon" href={favicon} /></svelte:head>
+<!-- A page's own <title> replaces this one: Svelte keeps only the deepest title. -->
+<svelte:head>
+	<title>Quorum</title>
+	<link rel="icon" href={favicon} />
+</svelte:head>
 
 <div class="bg-bg text-text min-h-screen">
 	{#if data.user && !catalogue}

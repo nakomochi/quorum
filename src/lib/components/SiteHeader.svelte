@@ -23,7 +23,7 @@
 	<!-- Full width: the logo sits at the left edge and the controls at the right, whatever width
 	     the page below uses for its content. -->
 	<div class="flex items-center justify-between gap-4 px-6 py-3">
-		<a href="/" class="min-w-0 truncate text-lg font-semibold hover:underline">form-discord</a>
+		<a href="/" class="min-w-0 truncate text-lg font-semibold hover:underline">Quorum</a>
 		<div class="flex shrink-0 items-center gap-3">
 			{#if member}
 				<a href="/forms/new" class="btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs">

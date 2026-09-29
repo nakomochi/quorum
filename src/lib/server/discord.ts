@@ -3,7 +3,7 @@ import { env } from '$env/dynamic/private';
 const API_BASE = 'https://discord.com/api/v10';
 
 // Discord requires a descriptive User-Agent on every REST call.
-const USER_AGENT = 'DiscordBot (https://github.com/form-discord, 0.0.1)';
+const USER_AGENT = 'DiscordBot (https://github.com/nakomochi/quorum, 0.0.1)';
 
 const MEMBER_PAGE_SIZE = 1000;
 const MAX_RATE_LIMIT_RETRIES = 5;

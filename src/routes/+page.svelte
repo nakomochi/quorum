@@ -240,7 +240,7 @@
 		{/if}
 	{:else}
 		<header>
-			<h1 class="text-2xl font-semibold tracking-tight">form-discord</h1>
+			<h1 class="text-2xl font-semibold tracking-tight">Quorum</h1>
 			<p class="text-text-muted mt-1 text-sm">Discord 認証つきフォーム / 出欠管理</p>
 		</header>
 

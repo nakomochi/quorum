@@ -18,7 +18,7 @@ export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
 export const VISIBILITY_LABELS: Record<Visibility, string> = {
 	public: '全員に公開',
 	admin_only: '管理者のみ',
-	after_deadline: '締切後またはクローズ後に公開'
+	after_deadline: '締切後または確定後に公開'
 };
 
 export const hasOptions = (type: QuestionType) => type === 'single' || type === 'multi';

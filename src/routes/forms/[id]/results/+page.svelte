@@ -31,7 +31,7 @@
 
 	function confirmReopen(event: SubmitEvent) {
 		const message = data.reopenClearsClosesAt
-			? '対象者と未提出者の確定を破棄して受付を再開します。受付終了日時を過ぎているため、その設定は解除され、以後は手動でクローズするまで回答を受け付けます。元に戻せません。'
+			? '対象者と未提出者の確定を破棄して受付を再開します。受付終了日時を過ぎているため、その設定は解除され、以後は手動で締め切るまで回答を受け付けます。元に戻せません。'
 			: '対象者と未提出者の確定を破棄して受付を再開します。元に戻せません。';
 		if (!confirm(message)) event.preventDefault();
 	}
@@ -108,8 +108,7 @@
 		<div class="flex items-start justify-between gap-4">
 			<header class="min-w-0">
 				<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
-				<p class="mt-1 text-sm text-text-muted">回答状況</p>
-				<p class="mt-2 text-xs text-text-muted">
+				<p class="mt-1.5 text-xs text-text-muted">
 					<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
 					<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt, '指定なし')}</span>
 					{#if data.manage && data.form.visibility}
@@ -148,13 +147,15 @@
 		<p role="alert" class="alert-error">{form.message}</p>
 	{:else if form?.reminded}
 		<p role="status" class="alert-success">
-			リマインドを送信しました。未提出者 {form.reminded.targets}名を {form.reminded.messages}通に分けてメンションしました。
+			未提出者 {form.reminded.targets}名にリマインドを送信しました。{form.reminded.messages > 1
+				? `（${form.reminded.messages}通に分けて送信）`
+				: ''}
 		</p>
 	{:else if form?.announced}
 		<p role="status" class="alert-success">告知を投稿しました。</p>
 	{:else if form?.closed !== undefined}
 		<p role="status" class="alert-success">
-			クローズしました。未提出者 {form.closed}名を確定しました。
+			締め切りました。未提出者 {form.closed}名を確定しました。
 		</p>
 	{:else if form?.reopened}
 		<p role="status" class="alert-success">
@@ -189,9 +190,9 @@
 		<section class="card action-row px-5 py-4">
 			<p class="min-w-0 flex-1 text-sm text-text-subtle">
 				{#if data.form.closedAt}
-					<span class="whitespace-nowrap">{formatJst(data.form.closedAt)}</span> にクローズしました。対象者と未提出者は確定済みで、メンバー情報が更新されても変わりません。
+					<span class="whitespace-nowrap">{formatJst(data.form.closedAt)}</span> に締め切りました。対象者と未提出者は確定済みで、メンバー情報が更新されても変わりません。
 				{:else}
-					クローズすると Discord から最新のメンバー一覧を取得し、未提出者を確定して提出を締め切ります。
+					締め切ると、Discord から最新のメンバー一覧を取得して未提出者を確定します。以後の提出は受け付けません。
 				{/if}
 			</p>
 			{#if data.form.closedAt}
@@ -200,7 +201,7 @@
 				</form>
 			{:else}
 				<form method="POST" action="?/close" class="shrink-0">
-					<button type="submit" class="btn-primary px-4 py-2">クローズして確定する</button>
+					<button type="submit" class="btn-primary px-4 py-2">締め切って確定する</button>
 				</form>
 			{/if}
 		</section>
@@ -243,15 +244,31 @@
 				{#if data.reminders.length === 0}
 					<p class="text-xs text-text-muted">リマインドの送信履歴はありません。</p>
 				{:else}
-					<ul class="flex flex-col gap-1 text-xs text-text-muted">
-						{#each data.reminders as entry (entry.id)}
-							<li class="flex flex-wrap gap-x-3">
-								<span class="whitespace-nowrap tabular-nums">送信 {formatJst(entry.sentAt)}</span>
-								<span>{REMINDER_KIND[entry.kind]}</span>
-								<span class="tabular-nums">{entry.targetCount}名 / {entry.messageCount}通</span>
-							</li>
-						{/each}
-					</ul>
+					<!-- A table so that each column lines up across the rows; the counts align right. -->
+					<table class="text-xs text-text-muted">
+						<caption class="sr-only">リマインドの送信履歴</caption>
+						<thead class="text-left text-text-subtle">
+							<tr>
+								<th scope="col" class="pr-4 pb-1 font-medium">送信日時</th>
+								<th scope="col" class="pr-4 pb-1 font-medium">種類</th>
+								<th scope="col" class="pb-1 text-right font-medium">対象</th>
+								<th scope="col" class="pb-1"><span class="sr-only">通数</span></th>
+							</tr>
+						</thead>
+						<tbody class="tabular-nums">
+							{#each data.reminders as entry (entry.id)}
+								<tr>
+									<td class="pr-4 py-0.5 whitespace-nowrap">{formatJst(entry.sentAt)}</td>
+									<td class="pr-4 py-0.5 whitespace-nowrap">{REMINDER_KIND[entry.kind]}</td>
+									<td class="py-0.5 text-right whitespace-nowrap">{entry.targetCount}名</td>
+									<!-- A single message is the usual case and goes unsaid. -->
+									<td class="py-0.5 whitespace-nowrap">
+										{entry.messageCount > 1 ? `（${entry.messageCount}通）` : ''}
+									</td>
+								</tr>
+							{/each}
+						</tbody>
+					</table>
 				{/if}
 			</div>
 		</section>

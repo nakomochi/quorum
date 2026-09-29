@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
+	import Menu, { type MenuItem } from '$lib/components/Menu.svelte';
 	import { formatJst } from '$lib/datetime';
 	import Icon from '$lib/icons/Icon.svelte';
 
@@ -34,6 +34,18 @@
 	const submitted = $derived(allSubmitted ? data.submitted : data.submitted.slice(0, PREVIEW));
 	const created = $derived(allCreated ? data.created : data.created.slice(0, PREVIEW));
 </script>
+
+{#snippet rowMenu(label: string, items: MenuItem[])}
+	<Menu
+		{label}
+		{items}
+		triggerClass="text-text-muted hover:bg-surface-raised hover:text-text-subtle focus-visible:ring-accent/60 rounded-lg p-2 outline-none focus-visible:ring-2"
+	>
+		{#snippet trigger()}
+			<Icon name="ellipsis" />
+		{/snippet}
+	</Menu>
+{/snippet}
 
 <!-- Signed in, the shared header sits above; signed out there is none, and the login is centred. -->
 <main
@@ -146,23 +158,17 @@
 										更新 {formatJst(row.updatedAt)}
 									</span>
 								</a>
-								<form
-									method="POST"
-									action="?/discardDraft"
-									use:enhance={({ cancel }) => {
-										if (!confirm('この下書きを削除します')) cancel();
-									}}
-									class="shrink-0"
-								>
-									<input type="hidden" name="id" value={row.id} />
-									<button
-										type="submit"
-										class="btn-secondary px-3 py-1.5 text-xs"
-										aria-label="「{row.title ?? '無題のフォーム'}」の下書きを破棄"
-									>
-										破棄
-									</button>
-								</form>
+								{@render rowMenu(`「${row.title ?? '無題のフォーム'}」の下書きの操作`, [
+									{
+										kind: 'post',
+										label: '破棄',
+										action: '?/discardDraft',
+										fields: { id: row.id },
+										confirm: 'この下書きを削除します',
+										enhance: true,
+										danger: true
+									}
+								])}
 							</li>
 						{/each}
 					</ul>
@@ -176,10 +182,10 @@
 					</h2>
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each created as row (row.id)}
-							<li class="card">
+							<li class="card flex items-center gap-2 pr-3">
 								<a
 									href="/forms/{row.id}/results"
-									class="flex flex-col gap-1 px-5 py-4 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
+									class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5 sm:flex-row sm:items-center sm:justify-between sm:gap-4"
 								>
 									<span class="min-w-0 font-medium">{row.title}</span>
 									<!-- Inline text rather than flex: a line may break after a ・ but never before
@@ -190,6 +196,10 @@
 										<span class="whitespace-nowrap tabular-nums">{row.responseCount} 件の回答</span>
 									</span>
 								</a>
+								<!-- The results page's own action: it redirects to the new draft. -->
+								{@render rowMenu(`「${row.title}」の操作`, [
+									{ kind: 'post', label: '複製', action: `/forms/${row.id}/results?/duplicate` }
+								])}
 							</li>
 						{/each}
 					</ul>

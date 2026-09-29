@@ -478,7 +478,7 @@
 					<select name="visibility" value={initial?.visibility ?? 'public'} class="field mt-1">
 						<option value="public">公開</option>
 						<option value="admin_only">管理者のみ</option>
-						<option value="after_deadline">締切後またはクローズ後に公開</option>
+						<option value="after_deadline">締切後または確定後に公開</option>
 					</select>
 				</label>
 
@@ -502,7 +502,7 @@
 						oninput={() => (closesAtTouched = true)}
 						class="field mt-1"
 					/>
-					<span class="mt-1 block text-xs text-text-muted">空欄なら自動クローズしません。</span>
+					<span class="mt-1 block text-xs text-text-muted">空欄なら自動では締め切りません。</span>
 				</label>
 			</div>
 

@@ -576,10 +576,13 @@ const NON_SUBMITTERS = [3, 4, 5].map(member);
 
 const MANY_NON_SUBMITTERS = Array.from({ length: 42 }, (_, i) => member(i + 3));
 
+// One to three digits and one to three messages, so that the columns can be seen to line up.
 const REMINDERS: ReminderEntry[] = [
-	{ id: 3, kind: 'manual', sentAt: at('2026-04-28T19:00:00'), targetCount: 42, messageCount: 1 },
-	{ id: 2, kind: 'auto', sentAt: at('2026-04-27T09:00:00'), targetCount: 51, messageCount: 2 },
-	{ id: 1, kind: 'manual', sentAt: at('2026-04-20T12:30:00'), targetCount: 60, messageCount: 2 }
+	{ id: 5, kind: 'manual', sentAt: at('2026-04-29T21:15:00'), targetCount: 7, messageCount: 1 },
+	{ id: 4, kind: 'manual', sentAt: at('2026-04-28T19:00:00'), targetCount: 42, messageCount: 1 },
+	{ id: 3, kind: 'auto', sentAt: at('2026-04-27T09:00:00'), targetCount: 51, messageCount: 2 },
+	{ id: 2, kind: 'manual', sentAt: at('2026-04-20T12:30:00'), targetCount: 60, messageCount: 2 },
+	{ id: 1, kind: 'manual', sentAt: at('2026-04-14T08:00:00'), targetCount: 118, messageCount: 3 }
 ];
 
 // Relative for the same reason as `fromNow`: the page locks itself once closesAt passes, so a
@@ -643,6 +646,15 @@ const OWN_HISTORY: AnswerData['history'] = [
 		}
 	}
 ];
+
+/** Opens one of the page's menus the way a click does. `index` counts from the end when negative. */
+const openMenu =
+	(scope: 'header' | 'main', index = 0) =>
+	async (doc: Document) => {
+		const triggers = [...doc.querySelectorAll<HTMLButtonElement>(`${scope} [aria-haspopup="menu"]`)];
+		triggers.at(index)?.click();
+		await tick();
+	};
 
 /** Fills `QUESTIONS` in the rendered form, for a state where typed input has to survive. */
 async function typeAnswers(doc: Document) {
@@ -746,6 +758,27 @@ const UNSYNCED_ROSTER: Partial<ResultsData> = {
 	nonSubmitters: []
 };
 
+const HOME_WITH_DRAFTS: HomeData = {
+	...SESSION,
+	pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })],
+	submitted: [],
+	created: [createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 })],
+	drafts: [
+		{ id: 'draft0000001', title: '秋合宿の参加確認', updatedAt: at('2026-09-29T12:34:00') },
+		{ id: 'draft0000002', title: null, updatedAt: at('2026-09-28T21:05:00') },
+		{ id: 'draft0000003', title: LONG_TITLE, updatedAt: at('2026-09-20T08:00:00') }
+	]
+};
+
+const ADMIN_HOME: HomeData = {
+	...ADMIN_SESSION,
+	user: { ...USER, name: 'とてもながい表示名のサーバー運営アカウント' },
+	pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認' })],
+	submitted: [],
+	created: [createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 })],
+	drafts: []
+};
+
 // --- cases ---
 
 export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
@@ -810,17 +843,7 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 	{
 		id: 'home-drafts',
 		title: 'メンバー / 下書きあり（無題・長いタイトルを含む）',
-		data: {
-			...SESSION,
-			pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })],
-			submitted: [],
-			created: [createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 })],
-			drafts: [
-				{ id: 'draft0000001', title: '秋合宿の参加確認', updatedAt: at('2026-09-29T12:34:00') },
-				{ id: 'draft0000002', title: null, updatedAt: at('2026-09-28T21:05:00') },
-				{ id: 'draft0000003', title: LONG_TITLE, updatedAt: at('2026-09-20T08:00:00') }
-			]
-		}
+		data: HOME_WITH_DRAFTS
 	},
 	{
 		id: 'home-long-lists',
@@ -853,16 +876,33 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 		data: { ...SESSION, member: false, pending: [], submitted: [], created: [], drafts: [] }
 	},
 	{
+		id: 'home-drafts-menu',
+		title: 'メンバー / 下書きのメニューを開いた（破棄）',
+		data: HOME_WITH_DRAFTS,
+		setup: openMenu('main', 0)
+	},
+	{
+		id: 'home-created-menu',
+		title: 'メンバー / 作成したフォームのメニューを開いた（複製）',
+		data: HOME_WITH_DRAFTS,
+		setup: openMenu('main', -1)
+	},
+	{
+		id: 'home-account-menu',
+		title: 'メンバー / アバターのメニューを開いた（ログアウト）',
+		data: HOME_WITH_DRAFTS,
+		setup: openMenu('header')
+	},
+	{
 		id: 'home-admin',
-		title: '運営（管理リンクあり）',
-		data: {
-			...ADMIN_SESSION,
-			user: { ...USER, name: 'とてもながい表示名のサーバー運営アカウント' },
-			pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認' })],
-			submitted: [],
-			created: [createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 })],
-			drafts: []
-		}
+		title: '運営（フォーム管理はアバターのメニュー）',
+		data: ADMIN_HOME
+	},
+	{
+		id: 'home-admin-menu',
+		title: '運営 / アバターのメニューを開いた（長い表示名・フォーム管理）',
+		data: ADMIN_HOME,
+		setup: openMenu('header')
 	}
 ];
 
@@ -1441,7 +1481,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-closed',
-		title: 'クローズ済み（凍結表示・リマインド不可）',
+		title: '確定済み（凍結表示・リマインド不可）',
 		data: {
 			...SESSION,
 			form: resultsForm({ closedAt: at('2026-05-01T00:05:00') }),
@@ -1465,7 +1505,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-expired',
-		title: '受付終了日時を過ぎた / 自動クローズ前',
+		title: '受付終了日時を過ぎた / 自動で確定する前',
 		data: {
 			...SESSION,
 			form: resultsForm(),
@@ -1509,6 +1549,28 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			nonSubmitters: MANY_NON_SUBMITTERS
 		},
 		form: { reminded: { targets: 42, messages: 1 } }
+	},
+	{
+		id: 'results-reminded-split',
+		title: 'リマインド送信直後（2通以上に分けて送信）',
+		data: rosterResults({
+			reminders: REMINDERS,
+			targetCount: 121,
+			nonSubmitters: Array.from({ length: 118 }, (_, i) => member(i + 3))
+		}),
+		form: { reminded: { targets: 118, messages: 3 } }
+	},
+	{
+		id: 'results-closed-now',
+		title: '「締め切って確定する」の直後',
+		data: rosterResults({
+			form: resultsForm({ closedAt: at('2026-04-29T22:00:00') }),
+			closed: true,
+			// A frozen roster does not depend on the mirror, so the load leaves this out.
+			rosterSyncedAt: null,
+			frozen: true
+		}),
+		form: { closed: 3 }
 	},
 	{
 		id: 'results-empty',

@@ -63,7 +63,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		error(
 			403,
 			target.visibility === 'after_deadline'
-				? 'この結果は締切後またはクローズ後に公開されます'
+				? 'この結果は締切後または確定後に公開されます'
 				: 'この結果は管理者のみが閲覧できます'
 		);
 	}
@@ -131,14 +131,14 @@ export const actions: Actions = {
 			if (!(err instanceof RosterRefreshError)) throw err;
 			return fail(502, {
 				message:
-					'Discord からメンバー一覧を取得できませんでした。古い情報で確定させないため、クローズしていません。'
+					'Discord からメンバー一覧を取得できませんでした。古い情報で確定させないため、締め切っていません。'
 			});
 		}
 
 		if (!result.ok) {
 			return result.reason === 'not_found'
 				? fail(404, { message: FORM_NOT_FOUND })
-				: fail(409, { message: 'このフォームはすでにクローズされています' });
+				: fail(409, { message: 'このフォームはすでに締め切って確定済みです' });
 		}
 
 		return { closed: result.frozen };
@@ -148,7 +148,7 @@ export const actions: Actions = {
 		await requireFormManager(locals, params.id, 'act');
 
 		if (!(await reopenForm(params.id))) {
-			return fail(409, { message: 'このフォームはクローズされていません' });
+			return fail(409, { message: 'このフォームはまだ確定していません' });
 		}
 
 		return { reopened: true };
@@ -195,7 +195,7 @@ export const actions: Actions = {
 		// Closing froze the non-submitters, so a refresh would change nothing on this page.
 		if (target.closedAt !== null) {
 			return fail(409, {
-				message: 'このフォームはクローズ済みのため、名簿を更新しても未提出者は変わりません'
+				message: 'このフォームは確定済みのため、名簿を更新しても未提出者は変わりません'
 			});
 		}
 

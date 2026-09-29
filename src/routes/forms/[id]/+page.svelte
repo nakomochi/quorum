@@ -192,8 +192,8 @@
 		await autosave.stop();
 		return async ({ result, update }) => {
 			const reason = result.type === 'failure' ? result.data?.reason : undefined;
-			// The fields take their values from props, so a reset would blank them with no change in
-			// data to draw them again. The same keeps them through the reload below.
+			// A reset would put the fields back to what the form was opened with while it is still
+			// shown, dropping what was typed.
 			await update({ reset: false });
 			// A refusal means the page is out of date, and the reload shows why: the error page once
 			// access is gone, the confirmation once another tab has submitted, the lock once closed.

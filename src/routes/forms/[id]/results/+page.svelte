@@ -133,7 +133,7 @@
 
 	{#if data.roleDeleted}
 		<p role="alert" class="alert-warning">
-			対象ロールが Discord で削除されています。対象者は0人として扱われます。
+			対象ロールが Discord で削除されています。対象者は0名として扱われます。
 		</p>
 	{/if}
 
@@ -287,7 +287,7 @@
 
 	{#if data.tallies.length > 0}
 		<section class="flex flex-col gap-3">
-			<h2 class="section-title">集計（回答 {answerTotal}件）</h2>
+			<h2 class="section-title">集計（回答者 {answerTotal}名）</h2>
 			{#each data.tallies as tally (tally.questionId)}
 				<div class="card p-5">
 					<p class="text-sm font-medium">{tally.label}</p>

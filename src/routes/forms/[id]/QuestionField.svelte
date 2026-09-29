@@ -9,7 +9,11 @@
 
 	type Props = {
 		question: PageData['questions'][number];
-		/** What the fields start from. They take it only when they are created. */
+		/**
+		 * What the fields start from, as defaultValue/defaultChecked: a value/checked attribute is
+		 * written again whenever the template reruns (a reload of the data), and after hydration
+		 * that overwrites what has been typed.
+		 */
 		value: AnswerValue | undefined;
 	};
 
@@ -109,7 +113,7 @@
 							type={question.type === 'single' ? 'radio' : 'checkbox'}
 							name="q_{question.id}"
 							value={option.id}
-							checked={isChecked(option.id)}
+							defaultChecked={isChecked(option.id)}
 							required={question.required && question.type === 'single'}
 							class="accent-accent size-4"
 						/>
@@ -124,7 +128,7 @@
 								id={otherChoiceId}
 								name="q_{question.id}"
 								value={OTHER_OPTION_ID}
-								checked={otherValue() !== undefined}
+								defaultChecked={otherValue() !== undefined}
 								required={question.required && question.type === 'single'}
 								class="accent-accent size-4"
 							/>
@@ -133,7 +137,7 @@
 						<input
 							type="text"
 							name="q_{question.id}_other"
-							value={otherValue() ?? ''}
+							defaultValue={otherValue() ?? ''}
 							aria-label="「{question.label}」のその他の内容"
 							maxlength={MAX_OTHER_ANSWER}
 							oninput={(event) => chooseOther(event.currentTarget.value)}
@@ -149,13 +153,14 @@
 				aria-label={question.label}
 				required={question.required}
 				maxlength={MAX_TEXT_ANSWER}
-				class="field">{textValue()}</textarea
-			>
+				defaultValue={textValue()}
+				class="field"
+			></textarea>
 		{:else}
 			<input
 				type="date"
 				name="q_{question.id}"
-				value={textValue()}
+				defaultValue={textValue()}
 				aria-label={question.label}
 				required={question.required}
 				class="field"

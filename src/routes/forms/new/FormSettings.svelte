@@ -5,7 +5,11 @@
 	import type { PageData } from './$types';
 
 	type Props = {
-		/** The restored draft's values, or null for a new form. The fields take them only once. */
+		/**
+		 * The restored draft's values, or null for a new form. The uncontrolled fields take them as
+		 * defaultValue/defaultChecked: a value/checked attribute is written again whenever the
+		 * template reruns, and after hydration that overwrites what has been typed.
+		 */
 		initial: EditorState | null;
 		roles: PageData['roles'];
 		channels: PageData['channels'];
@@ -55,7 +59,7 @@
 		<span class="text-sm font-medium">タイトル</span>
 		<input
 			name="title"
-			value={initial?.title ?? ''}
+			defaultValue={initial?.title ?? ''}
 			required
 			maxlength={MAX_TITLE}
 			class="field mt-1"
@@ -66,7 +70,7 @@
 		<span class="text-sm font-medium">説明</span>
 		<textarea
 			name="description"
-			value={initial?.description ?? ''}
+			defaultValue={initial?.description ?? ''}
 			rows="3"
 			maxlength={MAX_DESCRIPTION}
 			class="field mt-1"
@@ -121,7 +125,11 @@
 
 		<label class="block">
 			<span class="text-sm font-medium">提出できる人</span>
-			<select name="submitScope" value={initial?.submitScope ?? 'everyone'} class="field mt-1">
+			<select
+				name="submitScope"
+				defaultValue={initial?.submitScope ?? 'everyone'}
+				class="field mt-1"
+			>
 				<option value="everyone">サーバーのメンバー全員</option>
 				<option value="target_role">対象ロールの人のみ</option>
 			</select>
@@ -129,7 +137,7 @@
 
 		<label class="block">
 			<span class="text-sm font-medium">結果の公開範囲</span>
-			<select name="visibility" value={initial?.visibility ?? 'public'} class="field mt-1">
+			<select name="visibility" defaultValue={initial?.visibility ?? 'public'} class="field mt-1">
 				<option value="public">公開</option>
 				<option value="admin_only">管理者のみ</option>
 				<option value="after_deadline">締切後または確定後に公開</option>
@@ -161,7 +169,12 @@
 	</div>
 
 	<label class="flex items-center gap-2 text-sm">
-		<input type="checkbox" name="allowEdit" checked={initial?.allowEdit ?? true} class="size-4" />
+		<input
+			type="checkbox"
+			name="allowEdit"
+			defaultChecked={initial?.allowEdit ?? true}
+			class="size-4"
+		/>
 		回答の編集を許可する
 	</label>
 </section>

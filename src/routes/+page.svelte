@@ -70,7 +70,7 @@
 		{:else}
 			<section>
 				<h2 class="text-text text-base font-semibold">
-					未提出{data.pending.length > 0 ? ` ${data.pending.length} 件` : ''}
+					未提出{data.pending.length > 0 ? ` ${data.pending.length}件` : ''}
 				</h2>
 				{#if data.pending.length === 0}
 					<div class="card mt-3 flex flex-col items-center gap-2 p-6 text-center">
@@ -105,7 +105,7 @@
 			{#if data.submitted.length > 0}
 				<section>
 					<h2 class="section-title">
-						提出済みのフォーム {data.submitted.length} 件
+						提出済みのフォーム {data.submitted.length}件
 					</h2>
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each submitted as row (row.id)}
@@ -135,7 +135,7 @@
 							class="text-text-muted hover:text-text-subtle mt-2 text-xs hover:underline"
 							onclick={() => (allSubmitted = !allSubmitted)}
 						>
-							{allSubmitted ? '一部だけ表示' : `すべて表示（${data.submitted.length} 件）`}
+							{allSubmitted ? '一部だけ表示' : `すべて表示（${data.submitted.length}件）`}
 						</button>
 					{/if}
 				</section>
@@ -143,7 +143,7 @@
 
 			{#if data.drafts.length > 0}
 				<section>
-					<h2 class="section-title">下書き {data.drafts.length} 件</h2>
+					<h2 class="section-title">下書き {data.drafts.length}件</h2>
 					{#if form?.message}
 						<p role="alert" class="alert-error mt-2">{form.message}</p>
 					{/if}
@@ -187,7 +187,7 @@
 			{#if data.created.length > 0}
 				<section>
 					<h2 class="section-title">
-						自分が作成したフォーム {data.created.length} 件
+						自分が作成したフォーム {data.created.length}件
 					</h2>
 					<ul class="mt-2 flex flex-col gap-2">
 						{#each created as row (row.id)}
@@ -212,7 +212,7 @@
 									</ItemHeader>
 									<MetaLine
 										class={UNDER_ICON}
-										items={[deadlineItem(row.deadline), { value: `${row.responseCount} 件の回答` }]}
+										items={[deadlineItem(row.deadline), { label: '回答', value: `${row.responseCount}名` }]}
 									/>
 								</a>
 								<!-- The results page's own action: it redirects to the new draft. -->
@@ -228,7 +228,7 @@
 							class="text-text-muted hover:text-text-subtle mt-2 text-xs hover:underline"
 							onclick={() => (allCreated = !allCreated)}
 						>
-							{allCreated ? '一部だけ表示' : `すべて表示（${data.created.length} 件）`}
+							{allCreated ? '一部だけ表示' : `すべて表示（${data.created.length}件）`}
 						</button>
 					{/if}
 				</section>

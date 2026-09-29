@@ -1665,7 +1665,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-empty',
-		title: '回答0件',
+		title: '回答者0名',
 		data: {
 			...SESSION,
 			form: resultsForm(),

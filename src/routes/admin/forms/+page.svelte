@@ -11,7 +11,7 @@
 	<header class="flex items-center justify-between gap-4">
 		<div>
 			<h1 class="page-title">フォーム管理</h1>
-			<p class="mt-1 text-sm text-text-muted">{data.forms.length} 件</p>
+			<p class="mt-1 text-sm text-text-muted">{data.forms.length}件</p>
 		</div>
 		<a href="/forms/new" class="btn-primary px-4 py-2">新規作成</a>
 	</header>

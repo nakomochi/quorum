@@ -161,6 +161,8 @@
 main {
 	overflow-wrap: anywhere;
 	text-wrap: pretty;
+	/* Lets the browser add a small gap between Japanese and Latin letters or digits, as in "3件". */
+	text-autospace: normal;
 }
 
 /* svelte-dnd-action moves the dragged clone to <body> and marks the drop placeholder with its

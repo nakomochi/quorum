@@ -1,5 +1,5 @@
 <script lang="ts" module>
-	/** "締切 2026/04/30 23:59", or a value alone such as "12 件の回答". */
+	/** "締切 2026/04/30 23:59", "回答 12名", or a value alone. */
 	export type MetaItem = { label?: string; value: string };
 </script>
 

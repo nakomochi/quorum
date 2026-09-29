@@ -269,6 +269,7 @@
 									<th scope="col" class="pr-4 pb-1 font-medium">種類</th>
 									<th scope="col" class="pb-1 text-right font-medium">対象</th>
 									<th scope="col" class="pb-1"><span class="sr-only">通数</span></th>
+									<th scope="col" class="pb-1"><span class="sr-only">未送信</span></th>
 									<th scope="col" class="pb-1"><span class="sr-only">メッセージ</span></th>
 								</tr>
 							</thead>
@@ -281,6 +282,10 @@
 										<!-- A single message is the usual case and goes unsaid. -->
 										<td class="py-0.5 whitespace-nowrap">
 											{entry.messageCount > 1 ? `（${entry.messageCount}通）` : ''}
+										</td>
+										<!-- Left by a send that failed partway, until the next one of its kind continues it. -->
+										<td class="py-0.5 pl-2 whitespace-nowrap text-warning">
+											{entry.pendingCount > 0 ? `残り${entry.pendingCount}名は未送信` : ''}
 										</td>
 										<td class="py-0.5 pl-2 whitespace-nowrap">
 											{#if entry.url}

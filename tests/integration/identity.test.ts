@@ -1,10 +1,12 @@
 import { describe, expect, test } from 'bun:test';
+import { isHttpError } from '@sveltejs/kit';
 import { activeMember } from '$lib/server/forms';
-import { confirmMember, gateMember } from '$lib/server/guards';
+import { canManageForm, confirmMember, gateMember, requireAdmin } from '$lib/server/guards';
 import { reconcileMember } from '$lib/server/guild-sync';
-import { discord, OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
+import { ADMIN_ROLE, discord, OTHER_ROLE, TARGET_ROLE, type Route } from '../helpers/discord';
 import {
 	createUser,
+	createUsers,
 	member,
 	quietly,
 	seedGuild,
@@ -156,5 +158,65 @@ describe('confirmMember (writes)', () => {
 		const { value } = await quietly(() => confirmMember(sessionLocals(me)));
 
 		expect(value).toEqual({ status: 'unavailable' });
+	});
+});
+
+/** The HTTP status and message `run` refused with, or null when it did not throw. */
+async function refusal(run: () => Promise<unknown>): Promise<{ status: number; message: string } | null> {
+	try {
+		await run();
+		return null;
+	} catch (e) {
+		if (!isHttpError(e)) throw e;
+		return { status: e.status, message: e.body.message };
+	}
+}
+
+describe('live admin checks', () => {
+	/** An admin by the mirror who did not create the form, and the form's creator. */
+	async function scene() {
+		const [admin, creator] = await createUsers([ME, snowflake(2)]);
+		await seedGuild([member(ME, [ADMIN_ROLE]), member(creator.discordId)]);
+		return { admin, creator, target: { createdBy: creator.id } };
+	}
+
+	test('an admin passes when Discord answers', async () => {
+		const { admin, target } = await scene();
+
+		expect(await canManageForm(sessionLocals(admin), target, 'act')).toBe(true);
+		expect((await requireAdmin(sessionLocals(admin))).id).toBe(admin.id);
+	});
+
+	test('the admin branch answers 503 like the creator branch when Discord fails', async () => {
+		const { admin, creator, target } = await scene();
+		discord.fail('getMember', 500);
+
+		const { value: asCreator } = await quietly(() =>
+			refusal(() => canManageForm(sessionLocals(creator), target, 'act'))
+		);
+		expect(asCreator?.status).toBe(503);
+
+		const members = discord.members;
+		for (const route of ['guild', 'getMember', 'roles'] as Route[]) {
+			discord.reset();
+			discord.members = members;
+			discord.fail(route, 500);
+			for (const access of ['view', 'act'] as const) {
+				const { value } = await quietly(() =>
+					refusal(() => canManageForm(sessionLocals(admin), target, access))
+				);
+				expect(value).toEqual(asCreator);
+			}
+		}
+	});
+
+	test('requireAdmin answers 503 when Discord fails', async () => {
+		const { admin } = await scene();
+		discord.fail('guild', 500);
+
+		const { value } = await quietly(() => refusal(() => requireAdmin(sessionLocals(admin))));
+
+		expect(value?.status).toBe(503);
+		expect(value?.message).toContain('Discord に接続できない');
 	});
 });

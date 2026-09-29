@@ -46,9 +46,17 @@ const REMINDER_FAILURES = {
 		status: 502,
 		message:
 			'Discord からメンバー一覧を取得できませんでした。古い名簿でメンションしないため、送信していません。'
-	},
-	post_failed: { status: 502, message: 'Discord への投稿に失敗しました。送信記録も残していません。' }
+	}
 } as const;
+
+function reminderPostFailed(targets: number, remaining: number): string {
+	if (remaining === 0) return 'Discord への投稿に失敗しました。送信記録も残していません。';
+	const head =
+		targets > 0
+			? `Discord への投稿が途中で失敗しました。${targets}名にはリマインドを送信済みです。`
+			: 'Discord への投稿に失敗しました。';
+	return `${head}残りの${remaining}名には、もう一度リマインドすると続きから送信します。`;
+}
 
 export const load: PageServerLoad = async ({ locals, params, url }) => {
 	requireUser(locals);
@@ -181,6 +189,9 @@ export const actions: Actions = {
 
 		const result = await sendReminder(params.id, { kind: 'manual', sentBy: user.id });
 		if (!result.ok) {
+			if (result.reason === 'post_failed') {
+				return fail(502, { message: reminderPostFailed(result.targets, result.remaining) });
+			}
 			const failure = REMINDER_FAILURES[result.reason];
 			return fail(failure.status, { message: failure.message });
 		}

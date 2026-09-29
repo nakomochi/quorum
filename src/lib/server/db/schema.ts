@@ -284,7 +284,13 @@ export const reminder = pgTable(
 		kind: reminderKind('kind').notNull(),
 		// Null for automatic reminders.
 		sentBy: text('sent_by').references(() => user.id),
+		// Mentioned, or claimed for a post under way. Members move here from pending one message at a time.
 		targetDiscordIds: jsonb('target_discord_ids').$type<string[]>().notNull(),
+		/**
+		 * Not mentioned yet. Empty once the send is done; left non-empty by a send that failed partway,
+		 * which the next send of the same kind continues instead of starting over.
+		 */
+		pendingDiscordIds: jsonb('pending_discord_ids').$type<string[]>().notNull().default([]),
 		// Mentions are chunked at 50 users per message, so one send can span several ids.
 		messageIds: jsonb('message_ids').$type<string[]>().notNull().default([]),
 		/**

@@ -35,6 +35,7 @@ async function dueForReminder(): Promise<string[]> {
 				gt(form.deadline, sql`now()`),
 				// Nowhere to post; sendReminder would only refuse it.
 				isNotNull(form.announcementChannelId),
+				// A send that failed partway still has members pending and stays due until they are sent.
 				notExists(
 					db
 						.select({ sent: sql`1` })
@@ -43,7 +44,8 @@ async function dueForReminder(): Promise<string[]> {
 							and(
 								eq(reminder.formId, form.id),
 								eq(reminder.kind, 'auto'),
-								eq(reminder.targetDeadline, form.deadline)
+								eq(reminder.targetDeadline, form.deadline),
+								sql`${reminder.pendingDiscordIds} = '[]'::jsonb`
 							)
 						)
 				)
@@ -81,8 +83,9 @@ export async function runTick(): Promise<TickResult> {
 				// sendReminder has already recorded the deadline as handled. closed only reaches here
 				// by racing a close.
 				result.failed.push(id);
-				// sendReminder drops its reservation when a post fails, so the next tick retries on its
-				// own. Logging is the only thing that keeps a Discord outage from failing in silence.
+				// A failed post leaves either no record or the unsent members pending, and the next tick
+				// sends them on its own. Logging is the only thing that keeps a Discord outage from
+				// failing in silence.
 				console.warn(`auto reminder not sent for ${id}: ${sent.reason}`);
 			}
 		} catch (cause) {

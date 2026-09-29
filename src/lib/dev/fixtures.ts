@@ -602,12 +602,14 @@ const reminderEntry = (
 	kind: ReminderEntry['kind'],
 	sentAt: string,
 	targetCount: number,
-	messageCount: number
+	messageCount: number,
+	pendingCount = 0
 ): ReminderEntry => ({
 	id,
 	kind,
 	sentAt: at(sentAt),
 	targetCount,
+	pendingCount,
 	messageCount,
 	url: messageCount > 0 ? discordMessage(`9000000000000001${String(id).padStart(2, '0')}`) : null
 });
@@ -620,8 +622,12 @@ const REMINDERS: ReminderEntry[] = [
 	reminderEntry(1, 'manual', '2026-04-14T08:00:00', 118, 3)
 ];
 
-/** With the row an automatic reminder leaves when nobody was pending: nothing posted, no link. */
+/**
+ * With the row an automatic reminder leaves when nobody was pending (nothing posted, no link), and
+ * one whose second message failed (the rest left unsent).
+ */
 const REMINDERS_WITH_EMPTY: ReminderEntry[] = [
+	reminderEntry(8, 'manual', '2026-04-30T08:00:00', 50, 1, 70),
 	reminderEntry(7, 'auto', '2026-04-29T23:59:00', 0, 0),
 	reminderEntry(6, 'manual', '2026-04-29T22:30:00', 3, 1),
 	...REMINDERS
@@ -1815,7 +1821,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-reminder-links',
-		title: '送信履歴の Discord へのリンク（投稿のない行はリンクなし）',
+		title: '送信履歴の Discord へのリンク（投稿のない行はリンクなし、途中で失敗した行は未送信の人数つき）',
 		data: rosterResults({ reminders: REMINDERS_WITH_EMPTY })
 	},
 	{

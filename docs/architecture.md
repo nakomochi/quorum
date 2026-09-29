@@ -62,7 +62,7 @@ erDiagram
 | `question` | 質問。削除は `deleted_at` の論理削除 |
 | `response` / `answer` | 最新の回答。1 人 1 フォーム 1 件 |
 | `response_revision` | 送信のたびに回答全体を 1 版として残す。同じ内容の再送では増えない |
-| `reminder` | リマインドの送信記録。自動は締切ごとに 1 件（部分ユニーク `reminder_auto_once_uq`） |
+| `reminder` | リマインドの送信記録。自動は締切ごとに 1 件（部分ユニーク `reminder_auto_once_uq`）。メンションした人（`target_discord_ids`）とまだの人（`pending_discord_ids`）を分けて持つ |
 | `form_draft` | 作成画面の下書き。エディタの入力を `payload`（jsonb）に検証せずに持つ。`version` で古い画面からの上書きを 409 で止める。作成が成功すると同じトランザクションで消す。フォームの複製もこの行を作る |
 | `response_draft` | 回答画面の下書き。1 人 1 フォーム 1 行。`version` で古い画面からの上書きを 409 で止める。送信とクローズで消す。本人にしか見えず、提出数やリマインドには影響しない |
 
@@ -76,6 +76,7 @@ erDiagram
 | 全員同期 `runFullSync` | advisory lock → `guild_member` の upsert・離脱の UPDATE → `guild_sync` の upsert |
 | フォームの作成 `createForm` | `form_draft` の DELETE → `form` と `question` の INSERT。`form` の行のロックは取らない |
 | 下書きの保存 `updateDraft` | `form_draft` の条件付き UPDATE だけ。ほかの行には触れない |
+| リマインドの送信 `sendReminder` | 1 通ごとに `reminder` を `FOR UPDATE` → 未送信から 50 人をメンション済みに移す。投稿はトランザクションの外 |
 
 - 送信のトランザクションで `form` の行に書き込まない。`FOR SHARE` の後に同じ行を UPDATE すると、同時に来た初回の回答どうしがデッドロックする。
 - `response_draft` は `form` の行のロックの後に書く。保存の `FOR SHARE` とクローズの `FOR UPDATE` が順番を決めるので、クローズの後に下書きは残らない。
@@ -112,21 +113,23 @@ flowchart TD
   K -->|管理者の操作| N{名簿で管理者?}
   N -->|いいえ| NG
   N -->|はい| L3[Discord でオーナー・メンバー・ロールを確かめる]
+  L3 -->|失敗| E
 ```
 
 | 操作 | 判定 | Discord への問い合わせ |
 | --- | --- | --- |
 | 閲覧（トップ・回答・結果・作成画面を開く） | 名簿（`gateMember`） | 名簿で拒否されるときだけ、本人の在籍とロールを 1 回問い合わせる。名簿と違っていれば全員同期して判定し直す |
 | 回答の送信・フォームの作成 | Discord 上の在籍とロール（`confirmMember`） | 毎回 1 回。問い合わせに失敗したら 503 |
-| 作成者としての管理操作（クローズ・再開・告知・リマインド・名簿の更新） | Discord 上の在籍（`canManageForm(..., 'act')`） | 毎回 1 回 |
-| 管理者としての管理操作 | 名簿で管理者でなければその場で拒否し、管理者なら Discord で確かめる（`isGuildAdmin`） | 名簿で管理者のときだけ 3 回 |
-| 管理画面（`requireAdmin`） | Discord 上の権限 | 毎回 3 回 |
+| 作成者としての管理操作（クローズ・再開・告知・リマインド・名簿の更新） | Discord 上の在籍（`canManageForm(..., 'act')`） | 毎回 1 回。問い合わせに失敗したら 503 |
+| 管理者としての管理操作 | 名簿で管理者でなければその場で拒否し、管理者なら Discord で確かめる（`isGuildAdmin`） | 名簿で管理者のときだけ 3 回。問い合わせに失敗したら 503 |
+| 管理画面（`requireAdmin`） | Discord 上の権限 | 毎回 3 回。問い合わせに失敗したら 503 |
 | 管理者向けリンクの表示 | 名簿（`looksLikeGuildAdmin`） | なし |
 | 下書きの保存・破棄（破棄はトップの `?/discardDraft`） | 名簿（`requireMember`）。他人の下書きは 404 | 閲覧と同じ。本人以外に影響しないので、書き込みでも毎回は問い合わせない |
 | 回答の下書きの保存・破棄 | 名簿で回答画面を開ける人（`requireSubmitter`）。対象は常にセッションの本人の行 | 閲覧と同じ。本人以外に影響しないので、書き込みでも毎回は問い合わせない |
 | フォームの複製 | 作成者と管理者だけ（`requireFormManager(..., 'view')`） | 管理者のときだけ 3 回 |
 
 - 名簿は拒否にだけ使う。許可は、閲覧と下書きを除いて Discord で確かめる。
+- 許可を Discord で確かめる判定は、問い合わせに失敗したら（通信の失敗、5xx、429 の再試行の上限など）どれも同じ文言の 503 にする。DB のエラーは 500 のまま。
 - 下書きの JSON エンドポイント（作成画面の保存の `POST /forms/drafts` と `PUT /forms/drafts/[id]`、回答画面の保存と破棄の `PUT /forms/[id]/draft` と `DELETE /forms/[id]/draft`）は SvelteKit の CSRF 検査の対象外なので、`Origin` が自分のオリジンと一致しなければ 403 にする。作成画面の下書きの破棄はトップの form action（`?/discardDraft`）で、CSRF 検査は SvelteKit に任せる。
 - 本人への問い合わせは 1 リクエストにつき 1 回（`WeakMap` でリクエスト単位に使い回す）。同じ人への同時の問い合わせはまとめる。
 - 閲覧は名簿で許可するので、抜けた人やロールを外された人は次の全員同期まで閲覧できる。書き込みはできない。
@@ -141,7 +144,8 @@ Coolify の Scheduled Tasks が `node scripts/cron.js <job>` を実行し、`POS
 | `sync-members` | 1 時間 | 全員同期 |
 
 - 同じ job が実行中なら 409 を返して何もしない。`CRON_SECRET` が未設定なら常に拒否する。
-- 自動リマインドは送信前に予約の行を入れ、締切ごとの部分ユニークで重複を防ぐ。投稿に失敗すると予約を消し、次の tick で送り直す。
+- 自動リマインドは送信前に予約の行を入れ、締切ごとの部分ユニークで重複を防ぐ。
+- 途中で失敗した送信は、送れた分を記録して残す。続きは自動なら次の tick、手動なら次の手動のリマインドで、まだメンションしていない未提出者にだけ送る。自動と手動の記録は別々。
 
 ## 同期のタイミング
 

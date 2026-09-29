@@ -1,0 +1,1 @@
+ALTER TABLE "reminder" ADD COLUMN "pending_discord_ids" jsonb DEFAULT '[]'::jsonb NOT NULL;

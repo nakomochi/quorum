@@ -5,19 +5,31 @@ import { activeMember, canSubmit, loadForm } from './forms';
 import { reconcileMember, type Reconciled } from './guild-sync';
 import { isGuildAdmin, looksLikeGuildAdmin } from './permissions';
 
+const DISCORD_UNAVAILABLE =
+	'Discord に接続できないため、今は操作できません。時間をおいてもう一度お試しください。';
+
 /**
  * Memoized per request: actions run before, and independently of, the layout load, so both guard
  * the same request — and each isGuildAdmin costs three Discord calls.
  */
 const adminChecks = new WeakMap<App.Locals, Promise<boolean>>();
 
-function guildAdminCheck(locals: App.Locals, user: SessionUser): Promise<boolean> {
+/**
+ * An unreachable Discord refuses with 503, as the creator's live check does. isGuildAdmin asks
+ * nothing but Discord, so a database fault cannot be caught here and stays a 500.
+ */
+async function guildAdminCheck(locals: App.Locals, user: SessionUser): Promise<boolean> {
 	let check = adminChecks.get(locals);
 	if (!check) {
 		check = isGuildAdmin(user.discordId);
 		adminChecks.set(locals, check);
 	}
-	return check;
+	try {
+		return await check;
+	} catch (cause) {
+		console.error('[guards] live admin check failed', cause);
+		error(503, DISCORD_UNAVAILABLE);
+	}
 }
 
 /**
@@ -137,7 +149,7 @@ export type ManageAccess = 'view' | 'act';
 /**
  * A form is managed by its creator or by a guild admin, either way only while in the guild. To
  * view, a creator present in the mirror costs no Discord call; to act, the creator's membership is
- * confirmed live, and an unreachable Discord refuses with 503.
+ * confirmed live. Wherever Discord is asked, an unreachable Discord refuses with 503.
  *
  * The admin branch is screened by the mirror first: the results page can be open to the whole
  * guild, and the live check is three calls, one of them the 5/s getGuildMember. The mirror is only
@@ -154,9 +166,7 @@ export async function canManageForm(
 		if (access === 'view') return (await gateMember(locals)) !== null;
 
 		const live = await confirmMember(locals);
-		if (live.status === 'unavailable') {
-			error(503, 'Discord に接続できないため、今は操作できません。時間をおいてもう一度お試しください。');
-		}
+		if (live.status === 'unavailable') error(503, DISCORD_UNAVAILABLE);
 		return live.status === 'member';
 	}
 

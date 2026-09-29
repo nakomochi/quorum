@@ -56,7 +56,7 @@ erDiagram
 | テーブル | 役割 |
 | --- | --- |
 | `user` `session` `account` `verification` | Better Auth。`user.discord_id` は OAuth のプロフィールからだけ入る |
-| `guild_member` | 名簿。Discord サーバーのメンバーを全員同期で写したもの。抜けた人も行を残し `left_at` を入れる |
+| `guild_member` | 名簿。Discord サーバーのメンバーを全員同期で写したもの。抜けた人も行を残し `left_at` を入れる。アバターはアカウント用（`avatar_hash`）とサーバー用（`guild_avatar_hash`）を持つ |
 | `guild_sync` | 1 行だけ。最後に成功した全員同期の時刻と、その時点のオーナー・ロール権限 |
 | `form` | フォーム。`deadline`（告知した締切）・`closes_at`（受付終了の予定）・`closed_at`（クローズした時刻。自動クローズでは `closes_at` と同じ値）を別々に持つ。クローズで対象者（`final_target_ids`）と未提出者（`final_non_submitters`）を確定する |
 | `question` | 質問。削除は `deleted_at` の論理削除 |

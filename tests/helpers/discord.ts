@@ -14,6 +14,8 @@ export type StubMember = {
 	username?: string;
 	globalName?: string | null;
 	nick?: string | null;
+	avatar?: string | null;
+	guildAvatar?: string | null;
 };
 
 export type Route = 'listMembers' | 'getMember' | 'roles' | 'channels' | 'guild' | 'post';
@@ -60,10 +62,11 @@ function toDiscordMember(member: StubMember) {
 			id: member.id,
 			username: member.username ?? `user${member.id}`,
 			global_name: member.globalName ?? null,
-			avatar: null,
+			avatar: member.avatar ?? null,
 			bot: member.bot ?? false
 		},
 		nick: member.nick ?? null,
+		avatar: member.guildAvatar ?? null,
 		roles: member.roles,
 		joined_at: '2026-01-01T00:00:00.000Z'
 	};

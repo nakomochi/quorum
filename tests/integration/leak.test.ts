@@ -153,6 +153,46 @@ describe('what a member receives', () => {
 		expect(discord.count()).toBe(0);
 	});
 
+	test('root layout: the server avatar, then the account avatar, then the login image, then none', async () => {
+		const [both, accountOnly, bare, outsider, none] = await createUsers([21, 22, 23, 24, 25].map(snowflake));
+		await seedGuild([
+			member(both.discordId, [TARGET_ROLE], { avatar: 'account-hash', guildAvatar: 'a_server-hash' }),
+			member(accountOnly.discordId, [TARGET_ROLE], { avatar: 'account-hash' }),
+			member(bare.discordId, [TARGET_ROLE]),
+			member(none.discordId, [TARGET_ROLE])
+		]);
+		const login = (who: TestUser) => `https://cdn.discordapp.com/avatars/${who.discordId}/login.png`;
+
+		const images: unknown[] = [];
+		for (const [who, image] of [
+			[both, login(both)],
+			[accountOnly, login(accountOnly)],
+			[bare, login(bare)],
+			[outsider, login(outsider)],
+			[none, null]
+		] as const) {
+			const data = await layoutLoad({ locals: sessionLocals(who, image) } as never);
+			expect(keysOf((data as { user: object }).user)).toEqual(new Set(['name', 'image']));
+			// The own snowflake may appear inside the URL; nobody else's, and no other id, may.
+			const others = [both, accountOnly, bare, outsider, none].filter((u) => u !== who);
+			expectNoLeak(data, [
+				who.id,
+				`${who.discordId}@example.invalid`,
+				...others.map((u) => u.discordId)
+			]);
+			images.push((data as { user: { image: unknown } }).user.image);
+		}
+
+		expect(images).toEqual([
+			`https://cdn.discordapp.com/guilds/${GUILD_ID}/users/${both.discordId}/avatars/a_server-hash.png?size=64`,
+			`https://cdn.discordapp.com/avatars/${accountOnly.discordId}/account-hash.png?size=64`,
+			login(bare),
+			login(outsider),
+			null
+		]);
+		expect(discord.count()).toBe(0);
+	});
+
 	test('top page: summaries only, and no Discord call', async () => {
 		const { viewer, open, secrets } = await scene();
 

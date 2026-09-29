@@ -118,7 +118,9 @@ export const guildMember = pgTable('guild_member', {
 	username: text('username').notNull(),
 	globalName: text('global_name'),
 	nickname: text('nickname'),
+	// The account's avatar; guild_avatar_hash is the server profile's, set only when it differs.
 	avatarHash: text('avatar_hash'),
+	guildAvatarHash: text('guild_avatar_hash'),
 	roleIds: jsonb('role_ids').$type<string[]>().notNull().default([]),
 	isBot: boolean('is_bot').notNull().default(false),
 	joinedAt: timestamp('joined_at', { withTimezone: true }),

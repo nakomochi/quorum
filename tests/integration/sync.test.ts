@@ -137,6 +137,33 @@ describe('syncAllMembers', () => {
 		expect((await lastSyncedAt())?.getTime()).toBe(values[later].syncedAt.getTime());
 	}, 20_000);
 
+	test('keeps the server avatar apart from the account avatar, and follows changes to either', async () => {
+		discord.members = [
+			member(snowflake(1), [], { avatar: 'account-a', guildAvatar: 'a_server-a' }),
+			member(snowflake(2), [], { avatar: 'account-b' }),
+			member(snowflake(3))
+		];
+		await syncAllMembers();
+		const hashes = async () => (await mirror()).map((r) => [r.avatarHash, r.guildAvatarHash]);
+		expect(await hashes()).toEqual([
+			['account-a', 'a_server-a'],
+			['account-b', null],
+			[null, null]
+		]);
+
+		discord.members = [
+			member(snowflake(1), [], { avatar: 'account-a' }),
+			member(snowflake(2), [], { avatar: 'account-b', guildAvatar: 'server-b' }),
+			member(snowflake(3))
+		];
+		await syncAllMembers();
+		expect(await hashes()).toEqual([
+			['account-a', null],
+			['account-b', 'server-b'],
+			[null, null]
+		]);
+	});
+
 	test('a role change reaches the mirror on the next sync', async () => {
 		discord.members = [member(snowflake(1), [TARGET_ROLE])];
 		await syncAllMembers();

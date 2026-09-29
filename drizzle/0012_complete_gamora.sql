@@ -1,0 +1,1 @@
+ALTER TABLE "guild_member" ADD COLUMN "guild_avatar_hash" text;

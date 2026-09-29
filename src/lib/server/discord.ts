@@ -26,6 +26,8 @@ export type DiscordUser = {
 export type DiscordGuildMember = {
 	user: DiscordUser;
 	nick: string | null;
+	/** The server profile's avatar hash, apart from the account's `user.avatar`. */
+	avatar: string | null;
 	roles: string[];
 	joined_at: string;
 };
@@ -110,6 +112,25 @@ export function guildId(): string {
 /** A link that opens the message in Discord. Built locally; nothing is asked of the API. */
 export function messageUrl(channelId: string, messageId: string): string {
 	return `https://discord.com/channels/${guildId()}/${channelId}/${messageId}`;
+}
+
+const CDN_BASE = 'https://cdn.discordapp.com';
+const AVATAR_SIZE = 64;
+
+/**
+ * The server avatar, else the account avatar, as a static PNG (animated ones too). Null when there
+ * is neither. Built locally; nothing is asked of the API.
+ */
+export function memberAvatarUrl(
+	userId: string,
+	guildAvatarHash: string | null,
+	avatarHash: string | null
+): string | null {
+	if (guildAvatarHash) {
+		return `${CDN_BASE}/guilds/${guildId()}/users/${userId}/avatars/${guildAvatarHash}.png?size=${AVATAR_SIZE}`;
+	}
+	if (avatarHash) return `${CDN_BASE}/avatars/${userId}/${avatarHash}.png?size=${AVATAR_SIZE}`;
+	return null;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

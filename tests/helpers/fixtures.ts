@@ -137,7 +137,7 @@ export function submit(
 	return submitResponse(formId, { id: who.id, discordId: who.discordId }, { roleIds }, answers);
 }
 
-export function sessionLocals(who: TestUser): App.Locals {
+export function sessionLocals(who: TestUser, image: string | null = null): App.Locals {
 	const now = new Date();
 	return {
 		user: {
@@ -145,7 +145,7 @@ export function sessionLocals(who: TestUser): App.Locals {
 			name: who.name,
 			email: `${who.discordId}@example.invalid`,
 			emailVerified: false,
-			image: null,
+			image,
 			createdAt: now,
 			updatedAt: now,
 			discordId: who.discordId

@@ -5,15 +5,23 @@ const JST_OFFSET = '+09:00';
 
 const LOCAL_PATTERN = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})(?::(\d{2}))?$/;
 
+// Explicit fields instead of `timeStyle: 'short'`, which drops the leading zero from the hour
+// and so lets 9:00 and 19:00 take different widths.
 const displayFormat = new Intl.DateTimeFormat('ja-JP', {
-	dateStyle: 'short',
-	timeStyle: 'short',
-	timeZone: 'Asia/Tokyo'
+	timeZone: 'Asia/Tokyo',
+	year: 'numeric',
+	month: '2-digit',
+	day: '2-digit',
+	hour: '2-digit',
+	minute: '2-digit',
+	hourCycle: 'h23'
 });
 
 const timeFormat = new Intl.DateTimeFormat('ja-JP', {
-	timeStyle: 'short',
-	timeZone: 'Asia/Tokyo'
+	timeZone: 'Asia/Tokyo',
+	hour: '2-digit',
+	minute: '2-digit',
+	hourCycle: 'h23'
 });
 
 const inputFormat =new Intl.DateTimeFormat('en-CA', {

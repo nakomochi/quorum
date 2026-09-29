@@ -1,6 +1,26 @@
 import { describe, expect, test } from 'bun:test';
-import { parseJstLocal, toJstLocal } from '$lib/datetime';
+import { formatJst, formatJstTime, parseJstLocal, toJstLocal } from '$lib/datetime';
 import { ADMIN_PERMISSIONS, hasAdminPermissions, rolePermissions } from '$lib/server/permissions';
+
+describe('formatJst / formatJstTime', () => {
+	test('pads the hour to two digits in 24-hour JST', () => {
+		const cases: [string, string][] = [
+			['2026-04-26T15:00:00Z', '2026/04/27 00:00'],
+			['2026-04-27T00:05:00Z', '2026/04/27 09:05'],
+			['2026-04-27T10:00:00Z', '2026/04/27 19:00'],
+			['2026-04-27T14:59:00Z', '2026/04/27 23:59']
+		];
+		for (const [iso, expected] of cases) {
+			expect(formatJst(new Date(iso))).toBe(expected);
+			expect(formatJstTime(new Date(iso))).toBe(expected.slice(-5));
+		}
+	});
+
+	test('falls back when there is no date', () => {
+		expect(formatJst(null)).toBe('—');
+		expect(formatJst(null, 'なし')).toBe('なし');
+	});
+});
 
 describe('parseJstLocal', () => {
 	test('reads a datetime-local value as JST', () => {

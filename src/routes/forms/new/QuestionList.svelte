@@ -20,7 +20,7 @@
 	// The open card. Kept out of the history: undo and redo change the form, not where the admin is
 	// looking. Held by id, so a question that undo or redo takes away closes with it, and opens
 	// again if it comes back.
-	let selectedId = $state<string | null>(untrack(() => questions[0]?.id ?? null));
+	let selectedId = $state(untrack(() => questions[0].id));
 	const selected = $derived(questions.some((q) => q.id === selectedId) ? selectedId : null);
 
 	const canAdd = $derived(questions.length < MAX_QUESTIONS);
@@ -64,10 +64,11 @@
 	}
 
 	// Closing the open card hands the selection to its neighbour above, as Google Forms does.
+	// Compared with `selectedId`: `selected` already reads null once the question is gone.
 	function remove(index: number) {
 		const id = questions[index].id;
 		history.step(() => (questions = questions.filter((item) => item.id !== id)));
-		if (id === selected) selectedId = questions[Math.max(0, index - 1)]?.id ?? null;
+		if (id === selectedId) selectedId = questions[Math.max(0, index - 1)].id;
 	}
 
 	// Both events must be handled: `consider` opens the gap, `finalize` commits the drop.
@@ -102,12 +103,6 @@
 			>
 				<Icon name="redo-2" />
 			</button>
-			<!-- Once there is a question, the open card's toolbar adds the next one where it is. -->
-			{#if questions.length === 0}
-				<button type="button" class="chip" onclick={() => insert(-1, newQuestion())}>
-					質問を追加
-				</button>
-			{/if}
 		</div>
 	</div>
 

@@ -2188,15 +2188,6 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 		data: draftData(UNTITLED_STATE)
 	},
 	{
-		id: 'new-no-questions',
-		title: '質問0件（最後の1問を削除した）',
-		data: FRESH_EDITOR,
-		setup: async (doc) => {
-			doc.querySelector<HTMLButtonElement>('[aria-label="質問 1 を削除"]')?.click();
-			await tick();
-		}
-	},
-	{
 		id: 'new-toolbar-phone',
 		title: 'スマホ幅（ツールバーはカードの下端）',
 		data: draftData(),

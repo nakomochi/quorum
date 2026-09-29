@@ -67,8 +67,13 @@
 		>
 			<Icon name="chevron-down" />
 		</button>
-		<!-- The last one may go too: the list then offers 質問を追加, and the server refuses an empty set. -->
-		<button type="button" class="chip" aria-label="質問 {index + 1} を削除" onclick={onremove}>
+		<button
+			type="button"
+			class="chip"
+			aria-label="質問 {index + 1} を削除"
+			disabled={count === 1}
+			onclick={onremove}
+		>
 			削除
 		</button>
 	</div>

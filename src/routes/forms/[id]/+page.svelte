@@ -177,14 +177,10 @@
 	};
 </script>
 
-<main class="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-12">
+<main class="mx-auto flex max-w-2xl flex-col gap-6 px-6 pt-8 pb-12">
 	<div class="flex flex-col gap-3">
-		<nav class="flex items-center justify-between gap-4 text-sm text-text-muted">
-			<a href="/" class="inline-flex items-center gap-1.5 hover:underline">
-				<Icon name="arrow-left" />
-				トップ
-			</a>
-			{#if data.resultsVisible}
+		{#if data.resultsVisible}
+			<nav class="self-start text-sm text-text-muted">
 				<a
 					href="/forms/{data.form.id}/results"
 					class="inline-flex items-center gap-1.5 hover:underline"
@@ -192,8 +188,8 @@
 					回答状況を見る
 					<Icon name="arrow-right" />
 				</a>
-			{/if}
-		</nav>
+			</nav>
+		{/if}
 
 		<!-- The accent bar is a clipped child, not a `border-t-4`: the rounded top corners would
 		     otherwise render the border as a thickening wedge. -->

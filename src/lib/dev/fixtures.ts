@@ -67,6 +67,10 @@ const USER: SessionUser = {
 	image: null
 };
 
+/** What the root layout returns for the viewer, drawn by the shared header. */
+const SESSION = { user: USER, member: true, isAdmin: false };
+const ADMIN_SESSION = { ...SESSION, isAdmin: true };
+
 const LONG_TITLE =
 	'2026年度 春合宿の参加可否および宿泊プラン・交通手段・食事アレルギーに関する事前アンケート（回答期限厳守）';
 
@@ -641,7 +645,7 @@ const ROSTER_SYNCED_AT = at('2026-04-14T08:15:00');
 
 /** A manager's view of an open form, for the cases that differ only in the roster's sync state. */
 const rosterResults = (over: Partial<ResultsData> = {}): ResultsData => ({
-	user: USER,
+	...SESSION,
 	form: resultsForm(),
 	closed: false,
 	reopenClearsClosesAt: false,
@@ -682,15 +686,13 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 	{
 		id: 'home-empty',
 		title: 'メンバー / フォーム0件',
-		data: { user: USER, member: true, isAdmin: false, pending: [], submitted: [], created: [] }
+		data: { ...SESSION, pending: [], submitted: [], created: [] }
 	},
 	{
 		id: 'home-member',
 		title: 'メンバー / 未提出・提出済み・作成済み',
 		data: {
-			user: USER,
-			member: true,
-			isAdmin: false,
+			...SESSION,
 			pending: [
 				pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(-36) }),
 				pendingRow({ id: 'pending000002', title: '新歓イベントの担当希望', deadline: fromNow(30) }),
@@ -729,9 +731,7 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 		id: 'home-long-lists',
 		title: 'メンバー / 提出済みと作成済みが多い',
 		data: {
-			user: USER,
-			member: true,
-			isAdmin: false,
+			...SESSION,
 			pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })],
 			submitted: Array.from({ length: 9 }, (_, i) =>
 				submittedRow({
@@ -754,15 +754,14 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 	{
 		id: 'home-outsider',
 		title: '非メンバー',
-		data: { user: USER, member: false, isAdmin: false, pending: [], submitted: [], created: [] }
+		data: { ...SESSION, member: false, pending: [], submitted: [], created: [] }
 	},
 	{
 		id: 'home-admin',
 		title: '運営（管理リンクあり）',
 		data: {
-			user: { ...USER, image: null, name: 'とてもながい表示名のサーバー運営アカウント' },
-			member: true,
-			isAdmin: true,
+			...ADMIN_SESSION,
+			user: { ...USER, name: 'とてもながい表示名のサーバー運営アカウント' },
 			pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認' })],
 			submitted: [],
 			created: [createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 })]
@@ -775,7 +774,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-fresh',
 		title: '未提出（新規回答）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: false,
 			form: answerForm(),
 			questions: QUESTIONS,
@@ -790,7 +789,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-other',
 		title: '回答中（その他あり）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: true,
 			form: answerForm(),
 			questions: OTHER_QUESTIONS,
@@ -806,7 +805,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-created',
 		title: '送信直後',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: true,
 			form: answerForm(),
 			questions: OTHER_QUESTIONS,
@@ -822,7 +821,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-updated',
 		title: '更新直後',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: true,
 			form: answerForm(),
 			questions: QUESTIONS,
@@ -838,7 +837,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-submitted',
 		title: '後から開いた提出済み（編集可）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: true,
 			form: answerForm(),
 			questions: QUESTIONS,
@@ -853,7 +852,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-readonly',
 		title: '提出済み / 編集不可',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: true,
 			form: answerForm(),
 			questions: QUESTIONS,
@@ -868,7 +867,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-closed-submitted',
 		title: '受付終了（提出済み）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: true,
 			form: answerForm({ closesAt: at('2026-04-20T23:59:00') }),
 			questions: OTHER_QUESTIONS,
@@ -883,7 +882,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-closed',
 		title: '受付終了（未提出）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: true,
 			form: answerForm({ closesAt: at('2026-04-20T23:59:00') }),
 			questions: QUESTIONS,
@@ -898,7 +897,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-error',
 		title: '入力エラー（サーバーの検証で拒否）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: false,
 			form: answerForm(),
 			questions: QUESTIONS,
@@ -917,7 +916,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-expired',
 		title: '回答中に受付終了日時を過ぎた（入力あり・送信不可）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: false,
 			form: answerForm({ closesAt: fromNow(-1) }),
 			questions: QUESTIONS,
@@ -934,7 +933,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-refused-closed',
 		title: '送信したら受付終了していた（未提出・入力あり）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: false,
 			form: answerForm({ closesAt: null }),
 			questions: QUESTIONS,
@@ -951,7 +950,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-edit-closed',
 		title: '編集を保存したら受付終了していた（入力あり）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: true,
 			form: answerForm({ closesAt: null }),
 			questions: OTHER_QUESTIONS,
@@ -968,7 +967,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-already-submitted',
 		title: '送信したら別の画面で提出済みだった（編集不可）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: true,
 			form: answerForm(),
 			questions: QUESTIONS,
@@ -984,7 +983,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-checks',
 		title: 'ブラウザの入力チェック（必須の複数選択・その他・必須の自由記述）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: false,
 			form: answerForm(),
 			questions: CHECKED_QUESTIONS,
@@ -999,7 +998,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-checks-restored',
 		title: 'ブラウザの入力チェック（前回の回答を編集中）',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: false,
 			form: answerForm(),
 			questions: CHECKED_QUESTIONS,
@@ -1020,7 +1019,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		id: 'answer-overflow',
 		title: '長文タイトル / 選択肢14個',
 		data: {
-			user: USER,
+			...SESSION,
 			resultsVisible: true,
 			form: answerForm({ title: LONG_TITLE, description: LONG_DESCRIPTION, deadline: null }),
 			questions: OVERFLOW_QUESTIONS,
@@ -1038,7 +1037,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-viewer',
 		title: '一般閲覧（manage: false）',
 		data: {
-			user: USER,
+			...SESSION,
 			form: viewerForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1061,7 +1060,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-manager',
 		title: '管理者（操作ボタンあり）',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1084,7 +1083,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-edited-manager',
 		title: '編集済みの回答あり / 管理者（履歴へのリンク）',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1107,7 +1106,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-edited-viewer',
 		title: '編集済みの回答あり / 一般閲覧（リンクなし）',
 		data: {
-			user: USER,
+			...SESSION,
 			form: viewerForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1130,7 +1129,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-many-pending',
 		title: '未提出者が多数',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1153,7 +1152,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-outsiders',
 		title: '対象外からの回答あり',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm({ visibility: 'after_deadline' }),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1176,7 +1175,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-closed',
 		title: 'クローズ済み（凍結表示・リマインド不可）',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm({ closedAt: at('2026-05-01T00:05:00') }),
 			closed: true,
 			reopenClearsClosesAt: true,
@@ -1200,7 +1199,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-expired',
 		title: '受付終了日時を過ぎた / 自動クローズ前',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm(),
 			closed: true,
 			reopenClearsClosesAt: false,
@@ -1223,7 +1222,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-reminders',
 		title: 'リマインド送信履歴あり',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1247,7 +1246,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-empty',
 		title: '回答0件',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1270,7 +1269,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-no-channel',
 		title: '告知チャンネル未設定',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm({ title: LONG_TITLE }),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1293,7 +1292,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-announce-failed',
 		title: '告知失敗（未投稿）',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1316,7 +1315,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-other',
 		title: '「その他」の集計あり',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1340,7 +1339,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-role-deleted',
 		title: '対象ロールが削除済み',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm(),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1364,7 +1363,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		id: 'results-wide',
 		title: '横に長い回答表（質問12件・長い質問文・長い回答・その他・多数選択）',
 		data: {
-			user: USER,
+			...SESSION,
 			form: resultsForm({ title: '夏合宿（8/10〜8/17）の参加登録と事前アンケート' }),
 			closed: false,
 			reopenClearsClosesAt: false,
@@ -1469,7 +1468,7 @@ export const HISTORY_CASES: UiCase<HistoryData>[] = [
 		id: 'history-three',
 		title: '3版（版ごとに変わった質問が違う）',
 		data: {
-			user: USER,
+			...SESSION,
 			form: { id: 'fixtureform1', title: '春合宿の参加確認' },
 			response: {
 				displayName: 'あおい',
@@ -1484,7 +1483,7 @@ export const HISTORY_CASES: UiCase<HistoryData>[] = [
 		id: 'history-single',
 		title: '1版のみ（その他あり・未回答あり）',
 		data: {
-			user: USER,
+			...SESSION,
 			form: { id: 'fixtureform1', title: LONG_TITLE },
 			response: {
 				displayName: 'とてもながい表示名のサーバーメンバーアカウント',
@@ -1514,18 +1513,18 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 	{
 		id: 'new-default',
 		title: 'ロール / チャンネルあり',
-		data: { user: USER, roles: ROLES, channels: CHANNELS }
+		data: { ...SESSION, roles: ROLES, channels: CHANNELS }
 	},
 	{
 		id: 'new-error',
 		title: '検証エラー表示',
-		data: { user: USER, roles: ROLES, channels: CHANNELS },
+		data: { ...SESSION, roles: ROLES, channels: CHANNELS },
 		form: { message: '受付終了は現在より後の日時を指定してください' }
 	},
 	{
 		id: 'new-other',
 		title: '「その他」を追加した質問',
-		data: { user: USER, roles: ROLES, channels: CHANNELS },
+		data: { ...SESSION, roles: ROLES, channels: CHANNELS },
 		setup: async (doc) => {
 			const fill = (label: string, value: string) => {
 				const input = doc.querySelector<HTMLInputElement>(`[aria-label="${label}"]`);
@@ -1563,7 +1562,7 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 		id: 'admin-list',
 		title: 'フォーム数件 / 同期済み',
 		data: {
-			user: USER,
+			...ADMIN_SESSION,
 			syncedAt: at('2026-04-09T08:30:00'),
 			forms: [
 				adminRow({
@@ -1595,7 +1594,7 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 		id: 'admin-unsynced',
 		title: '未同期',
 		data: {
-			user: USER,
+			...ADMIN_SESSION,
 			syncedAt: null,
 			forms: [
 				adminRow({ id: 'pending000001', title: '春合宿の参加確認', submitted: 12, targetCount: 18 })
@@ -1605,13 +1604,13 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 	{
 		id: 'admin-empty',
 		title: 'フォーム0件',
-		data: { user: USER, syncedAt: at('2026-04-09T08:30:00'), forms: [] }
+		data: { ...ADMIN_SESSION, syncedAt: at('2026-04-09T08:30:00'), forms: [] }
 	},
 	{
 		id: 'admin-wide',
 		title: '横に長いフォーム一覧（80字前後のタイトル・削除されたロール）',
 		data: {
-			user: USER,
+			...ADMIN_SESSION,
 			syncedAt: at('2026-04-09T08:30:00'),
 			forms: [
 				adminRow({

@@ -1,14 +1,13 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
 	import { formatJst } from '$lib/datetime';
-	import Icon from '$lib/icons/Icon.svelte';
 
 	let { data, form } = $props();
 
 	let syncing = $state(false);
 </script>
 
-<main class="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-6 py-12">
+<main class="mx-auto flex max-w-4xl flex-col gap-6 px-6 pt-8 pb-12">
 	<header class="flex items-center justify-between gap-4">
 		<div>
 			<h1 class="text-xl font-semibold tracking-tight">フォーム管理</h1>
@@ -107,9 +106,4 @@
 			</table>
 		</div>
 	{/if}
-
-	<a href="/" class="inline-flex items-center gap-1.5 self-start text-sm text-text-muted hover:underline">
-		<Icon name="arrow-left" />
-		トップへ
-	</a>
 </main>

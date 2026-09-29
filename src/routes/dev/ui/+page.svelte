@@ -96,8 +96,8 @@
 								{entry.id} ↗
 							</a>
 						</div>
-						<!-- iframe rather than inline: every page is min-h-screen, so sharing a document
-						     would break both the heights and the viewport-relative styles. -->
+						<!-- iframe rather than inline: every page fills at least the viewport, so sharing a
+						     document would break both the heights and the viewport-relative styles. -->
 						<iframe
 							src="/dev/ui/{entry.id}{themeQuery}"
 							title={entry.title}

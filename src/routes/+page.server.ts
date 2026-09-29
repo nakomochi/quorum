@@ -2,11 +2,15 @@ import { error, redirect } from '@sveltejs/kit';
 import { auth } from '$lib/server/auth';
 import { listFormsCreatedBy, listFormsForMember } from '$lib/server/forms';
 import { gateMember } from '$lib/server/guards';
-import { looksLikeGuildAdmin } from '$lib/server/permissions';
 import type { Actions, PageServerLoad } from './$types';
 
-const ANONYMOUS = { member: false, isAdmin: false, pending: [], submitted: [], created: [] };
+const ANONYMOUS = { member: false, pending: [], submitted: [], created: [] };
 
+/**
+ * The header's flags come from the root layout. `member` is decided again here, by gateMember
+ * rather than the mirror alone: it lets someone who just joined see their forms before the next
+ * sync, and the lists below need the member's roles anyway.
+ */
 export const load: PageServerLoad = async ({ locals }) => {
 	const user = locals.user;
 	if (!user) return ANONYMOUS;
@@ -14,13 +18,12 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const member = await gateMember(locals);
 	if (!member) return ANONYMOUS;
 
-	const [forms, created, isAdmin] = await Promise.all([
+	const [forms, created] = await Promise.all([
 		listFormsForMember(member, user.id),
-		listFormsCreatedBy(user.id),
-		looksLikeGuildAdmin(user.discordId, member.roleIds)
+		listFormsCreatedBy(user.id)
 	]);
 
-	return { member: true, isAdmin, created, ...forms };
+	return { member: true, created, ...forms };
 };
 
 export const actions: Actions = {
@@ -39,6 +42,7 @@ export const actions: Actions = {
 		redirect(303, result.url);
 	},
 
+	// Posted to from the shared header on every page.
 	logout: async ({ request }) => {
 		await auth.api.signOut({ headers: request.headers });
 

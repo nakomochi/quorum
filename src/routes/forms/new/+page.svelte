@@ -247,7 +247,7 @@
 	});
 </script>
 
-<main class="mx-auto flex min-h-screen max-w-3xl flex-col gap-6 px-6 py-12">
+<main class="mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-8 pb-12">
 	<header>
 		<h1 class="text-xl font-semibold tracking-tight">フォームを作成</h1>
 	</header>

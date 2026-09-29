@@ -4,8 +4,6 @@
 
 	let { data } = $props();
 
-	const avatarUrl = $derived(data.user?.image ?? null);
-
 	const deadlineText = (value: Date | null) => (value ? `締切 ${formatJst(value)}` : '締切なし');
 
 	const SOON_MS = 48 * 60 * 60 * 1000;
@@ -36,66 +34,13 @@
 	const created = $derived(allCreated ? data.created : data.created.slice(0, PREVIEW));
 </script>
 
+<!-- Signed in, the shared header sits above; signed out there is none, and the login is centred. -->
 <main
-	class="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-10 {data.user
-		? ''
-		: 'justify-center'}"
+	class="mx-auto flex max-w-2xl flex-col gap-6 px-6 {data.user
+		? 'pt-8 pb-10'
+		: 'min-h-screen justify-center py-10'}"
 >
 	{#if data.user}
-		<header class="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 sm:flex-nowrap">
-			<h1 class="shrink-0 text-lg font-semibold">form-discord</h1>
-			<!-- Wraps only on phones, and then as two groups so the avatar never parts from ログアウト.
-			     Past that it must stay on one line so the display name truncates instead of shoving the
-			     controls onto rows of their own. -->
-			<div class="flex min-w-0 flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
-				{#if data.member || data.isAdmin}
-					<div class="flex shrink-0 items-center gap-2">
-						{#if data.member}
-							<a
-								href="/forms/new"
-								class="btn-primary inline-flex items-center gap-1.5 px-3 py-1.5 text-xs"
-							>
-								<Icon name="plus" />
-								フォームを作る
-							</a>
-						{/if}
-						{#if data.isAdmin}
-							<a
-								href="/admin/forms"
-								class="border-border-strong hover:bg-surface-raised rounded-lg border px-3 py-1.5
-									text-xs font-medium transition"
-							>
-								フォーム管理
-							</a>
-						{/if}
-					</div>
-				{/if}
-				<div class="flex min-w-0 items-center gap-2">
-					{#if avatarUrl}
-						<img
-							src={avatarUrl}
-							alt=""
-							class="border-border-strong size-8 shrink-0 rounded-full border"
-						/>
-					{:else}
-						<div class="border-border-strong bg-surface-raised size-8 shrink-0 rounded-full border"></div>
-					{/if}
-					<!-- Dropped on phones: the avatar already identifies the viewer, and keeping the name
-					     pushes the controls past the viewport. -->
-					<span class="hidden truncate text-sm sm:inline">{data.user.name}</span>
-					<form method="POST" action="?/logout" class="shrink-0">
-						<button
-							type="submit"
-							class="border-border-strong hover:bg-surface-raised rounded-lg border px-3 py-1.5
-								text-xs font-medium transition"
-						>
-							ログアウト
-						</button>
-					</form>
-				</div>
-			</div>
-		</header>
-
 		{#if !data.member}
 			<p class="card text-text-muted p-5 text-sm">
 				対象の Discord サーバーのメンバーではないため、フォームは表示されません。
@@ -150,8 +95,18 @@
 										<Icon name="check" class="text-success size-4 shrink-0" />
 										{row.title}
 									</span>
-									<span class="text-text-muted shrink-0 text-xs whitespace-nowrap">
-										提出 {formatJst(row.submittedAt)}{row.revisionCount > 1 ? '（編集済み）' : ''}
+									<!-- The badge goes before the date once the dates are right-aligned, and after it
+									     while they stack left-aligned, so the dates line up either way. -->
+									<span class="text-text-muted flex shrink-0 items-center gap-2 text-xs">
+										<span class="whitespace-nowrap tabular-nums">提出 {formatJst(row.submittedAt)}</span>
+										{#if row.revisionCount > 1}
+											<span
+												class="bg-surface-raised text-text-subtle rounded px-2 py-0.5 whitespace-nowrap
+													sm:order-first"
+											>
+												編集済み
+											</span>
+										{/if}
 									</span>
 								</a>
 							</li>

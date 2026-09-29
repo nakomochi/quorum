@@ -22,23 +22,27 @@
 	}
 </script>
 
-<main class="mx-auto flex min-h-screen max-w-2xl flex-col gap-6 px-6 py-12">
-	<a
-		href="/forms/{data.form.id}/results"
-		class="inline-flex items-center gap-1.5 self-start text-sm text-text-muted hover:underline"
-	>
-		<Icon name="arrow-left" />
-		回答状況へ戻る
-	</a>
+<main class="mx-auto flex max-w-2xl flex-col gap-6 px-6 pt-8 pb-12">
+	<div class="flex flex-col gap-3">
+		<nav class="self-start text-sm text-text-muted">
+			<a
+				href="/forms/{data.form.id}/results"
+				class="inline-flex items-center gap-1.5 hover:underline"
+			>
+				<Icon name="arrow-left" />
+				回答状況へ戻る
+			</a>
+		</nav>
 
-	<header>
-		<h1 class="text-xl font-semibold tracking-tight">{data.response.displayName} さんの回答履歴</h1>
-		<p class="mt-1 text-sm text-text-muted">{data.form.title}</p>
-		<p class="mt-2 text-xs text-text-muted">
-			<span class="whitespace-nowrap">提出日時: {formatJst(data.response.submittedAt)}</span>
-			<span class="whitespace-nowrap">/ 最終更新: {formatJst(data.response.updatedAt)}</span>
-		</p>
-	</header>
+		<header>
+			<h1 class="text-xl font-semibold tracking-tight">{data.response.displayName} さんの回答履歴</h1>
+			<p class="mt-1 text-sm text-text-muted">{data.form.title}</p>
+			<p class="mt-2 text-xs text-text-muted">
+				<span class="whitespace-nowrap">提出日時: {formatJst(data.response.submittedAt)}</span>
+				<span class="whitespace-nowrap">/ 最終更新: {formatJst(data.response.updatedAt)}</span>
+			</p>
+		</header>
+	</div>
 
 	<ol class="flex flex-col gap-4">
 		{#each data.revisions as revision, index (revision.number)}

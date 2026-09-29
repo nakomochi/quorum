@@ -1,7 +1,20 @@
+import { activeMember } from '$lib/server/forms';
+import { looksLikeGuildAdmin } from '$lib/server/permissions';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = ({ locals }) => {
+export const load: LayoutServerLoad = async ({ locals }) => {
 	const user = locals.user;
-	// Only what the pages draw: the session user also carries the email and ids.
-	return { user: user ? { name: user.name, image: user.image ?? null } : null };
+	if (!user) return { user: null, member: false, isAdmin: false };
+
+	// The mirror only, never Discord: this runs for every page and only decides which links the
+	// header draws. Each destination checks access again on its own.
+	const mirrored = await activeMember(user.discordId);
+	const isAdmin = mirrored ? await looksLikeGuildAdmin(user.discordId, mirrored.roleIds) : false;
+
+	return {
+		// Only what the header draws: the session user also carries the email and ids.
+		user: { name: user.name, image: user.image ?? null },
+		member: mirrored !== null,
+		isAdmin
+	};
 };

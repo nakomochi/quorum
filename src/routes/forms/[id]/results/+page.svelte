@@ -95,18 +95,28 @@
 <!-- The POST is a full navigation; a page restored from the back-forward cache must not stay disabled. -->
 <svelte:window onpageshow={() => (syncingRoster = false)} />
 
-<main class="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 px-6 py-12">
-	<header>
-		<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
-		<p class="mt-1 text-sm text-text-muted">回答状況</p>
-		<p class="mt-2 text-xs text-text-muted">
-			<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
-			<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt, '指定なし')}</span>
-			{#if data.manage && data.form.visibility}
-				<span class="whitespace-nowrap">/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}</span>
-			{/if}
-		</p>
-	</header>
+<main class="mx-auto flex max-w-4xl flex-col gap-6 px-6 pt-8 pb-12">
+	<div class="flex flex-col gap-3">
+		<!-- Not "back": the creator and admins usually arrive from the top page or the admin list. -->
+		<nav class="self-start text-sm text-text-muted">
+			<a href="/forms/{data.form.id}" class="inline-flex items-center gap-1.5 hover:underline">
+				回答画面へ
+				<Icon name="arrow-right" />
+			</a>
+		</nav>
+
+		<header>
+			<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
+			<p class="mt-1 text-sm text-text-muted">回答状況</p>
+			<p class="mt-2 text-xs text-text-muted">
+				<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
+				<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt, '指定なし')}</span>
+				{#if data.manage && data.form.visibility}
+					<span class="whitespace-nowrap">/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}</span>
+				{/if}
+			</p>
+		</header>
+	</div>
 
 	{#if data.roleDeleted}
 		<p role="alert" class="alert-warning">
@@ -315,12 +325,4 @@
 			{@render answerTable(data.outsiders)}
 		</section>
 	{/if}
-
-	<div class="flex gap-4 text-sm text-text-muted">
-		<a href="/forms/{data.form.id}" class="hover:underline">回答画面へ</a>
-		<a href="/" class="inline-flex items-center gap-1.5 hover:underline">
-			<Icon name="arrow-left" />
-			トップへ
-		</a>
-	</div>
 </main>

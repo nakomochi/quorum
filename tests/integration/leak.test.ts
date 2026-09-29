@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { isHttpError } from '@sveltejs/kit';
 import { closeForm } from '$lib/server/forms';
+import { load as layoutLoad } from '../../src/routes/+layout.server';
 import { load as topLoad } from '../../src/routes/+page.server';
 import { load as formLoad } from '../../src/routes/forms/[id]/+page.server';
 import { load as resultsLoad } from '../../src/routes/forms/[id]/results/+page.server';
@@ -96,12 +97,24 @@ async function httpStatus(pending: unknown): Promise<number | 'ok'> {
 }
 
 describe('what a member receives', () => {
+	test('root layout: a name, an icon and two flags, and no Discord call', async () => {
+		const { viewer, secrets } = await scene();
+
+		const data = await layoutLoad(event(viewer));
+
+		// toEqual, not toMatchObject: any extra field, such as the email or an id, fails it. The bare
+		// snowflake is left out of the string check only because the test user's name embeds it.
+		expect(data).toEqual({ user: { name: viewer.name, image: null }, member: true, isAdmin: false });
+		expectNoLeak(data, [...secrets, SECRET_NAME, viewer.id, `${viewer.discordId}@example.invalid`]);
+		expect(discord.count()).toBe(0);
+	});
+
 	test('top page: summaries only, and no Discord call', async () => {
 		const { viewer, open, secrets } = await scene();
 
 		const data = await topLoad(event(viewer));
 
-		expect(data).toMatchObject({ member: true, isAdmin: false, created: [] });
+		expect(data).toMatchObject({ member: true, created: [] });
 		expect((data as { pending: { id: string }[] }).pending.map((f) => f.id)).toContain(open.id);
 		expectNoLeak(data, [...secrets, SECRET_NAME]);
 		expect(discord.count()).toBe(0);

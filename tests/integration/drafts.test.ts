@@ -1,13 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { isHttpError, isRedirect } from '@sveltejs/kit';
+import { isActionFailure, isHttpError, isRedirect } from '@sveltejs/kit';
 import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { form, formDraft, question } from '$lib/server/db/schema';
 import { createForm } from '$lib/server/forms';
 import { draftPayload, MAX_DRAFT_BYTES, readDraftPayload } from '$lib/form-draft';
 import { utf8Bytes } from '$lib/forms';
+import { actions as topActions } from '../../src/routes/+page.server';
 import { POST } from '../../src/routes/forms/drafts/+server';
-import { DELETE, PUT } from '../../src/routes/forms/drafts/[id]/+server';
+import { PUT } from '../../src/routes/forms/drafts/[id]/+server';
 import { actions as newActions, load as newLoad } from '../../src/routes/forms/new/+page.server';
 import { actions as resultsActions } from '../../src/routes/forms/[id]/results/+page.server';
 import { ADMIN_ROLE, CHANNEL_ID, discord, OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
@@ -31,7 +32,7 @@ async function call(
 	handler: (event: never) => Promise<Response> | Response,
 	options: {
 		who: TestUser | null;
-		method: 'POST' | 'PUT' | 'DELETE';
+		method: 'POST' | 'PUT';
 		id?: string;
 		body?: unknown;
 		raw?: string;
@@ -85,6 +86,23 @@ async function created(who: TestUser, title = '下書き') {
 	return result.body as { id: string; version: number; updatedAt: string };
 }
 
+/** Posts the top page's discard action, turning a failure, redirect or thrown error into its status. */
+async function discard(who: TestUser | null, id: string | null): Promise<number> {
+	const body = new FormData();
+	if (id !== null) body.set('id', id);
+	const request = new Request(`${ORIGIN}/?/discardDraft`, { method: 'POST', body });
+	try {
+		const result = await topActions.discardDraft({
+			locals: who ? sessionLocals(who) : ({} as App.Locals),
+			request
+		} as never);
+		return isActionFailure(result) ? result.status : 200;
+	} catch (e) {
+		if (isRedirect(e) || isHttpError(e)) return e.status;
+		throw e;
+	}
+}
+
 describe('saving a draft', () => {
 	test('create, then update with the version read, which moves the version on', async () => {
 		const { author } = await setup();
@@ -131,7 +149,7 @@ describe('saving a draft', () => {
 	test('a draft that is gone is a 409 too', async () => {
 		const { author } = await setup();
 		const { id } = await created(author);
-		expect((await call(DELETE, { who: author, method: 'DELETE', id })).status).toBe(204);
+		expect(await discard(author, id)).toBe(200);
 
 		const late = await call(PUT, { who: author, method: 'PUT', id, body: { version: 1, payload: payload('x') } });
 
@@ -139,12 +157,12 @@ describe('saving a draft', () => {
 		expect(await stored(id)).toBeNull();
 	});
 
-	test('someone else’s draft can be neither read, written nor deleted', async () => {
+	test('someone else’s draft can be neither read, written nor discarded', async () => {
 		const { author, other } = await setup();
 		const { id } = await created(author, '他人には見せない');
 
 		const put = await call(PUT, { who: other, method: 'PUT', id, body: { version: 1, payload: payload('乗っ取り') } });
-		const del = await call(DELETE, { who: other, method: 'DELETE', id });
+		const discarded = await discard(other, id);
 		let loadStatus: number | 'ok' = 'ok';
 		try {
 			await newLoad({ locals: sessionLocals(other), url: new URL(`${ORIGIN}/forms/new?draft=${id}`) } as never);
@@ -153,7 +171,7 @@ describe('saving a draft', () => {
 		}
 
 		expect(put.status).toBe(404);
-		expect(del.status).toBe(404);
+		expect(discarded).toBe(404);
 		expect(loadStatus).toBe(404);
 		const row = await stored(id);
 		expect(row?.version).toBe(1);
@@ -167,7 +185,6 @@ describe('saving a draft', () => {
 
 		const post = await call(POST, { who: author, method: 'POST', body: { payload: payload('x') }, headers: foreign });
 		const put = await call(PUT, { who: author, method: 'PUT', id, body: { version: 1, payload: payload('x') }, headers: foreign });
-		const del = await call(DELETE, { who: author, method: 'DELETE', id, headers: foreign });
 		const missing = await call(POST, {
 			who: author,
 			method: 'POST',
@@ -175,7 +192,7 @@ describe('saving a draft', () => {
 			headers: { origin: '' }
 		});
 
-		expect([post.status, put.status, del.status, missing.status]).toEqual([403, 403, 403, 403]);
+		expect([post.status, put.status, missing.status]).toEqual([403, 403, 403]);
 		expect((await stored(id))?.version).toBe(1);
 		expect(await db.$count(formDraft)).toBe(1);
 	});
@@ -272,6 +289,33 @@ describe('opening a draft', () => {
 		expect(data.draft.version).toBe(1);
 		expect(data.draft.state).toEqual(readDraftPayload(saved));
 		expect(JSON.stringify(data)).not.toContain('使わない値');
+	});
+});
+
+describe('discarding a draft', () => {
+	test('the author discards their own draft once; a second discard is a 404', async () => {
+		const { author } = await setup();
+		const { id } = await created(author);
+		const { id: kept } = await created(author, '残す');
+
+		expect(await discard(author, id)).toBe(200);
+		expect(await discard(author, id)).toBe(404);
+
+		expect(await stored(id)).toBeNull();
+		expect(await stored(kept)).not.toBeNull();
+		// Judged by the mirror, like saving.
+		expect(discord.count()).toBe(0);
+	});
+
+	test('no id is a 404, anonymous visitors are sent to the top, and non-members get a 403', async () => {
+		const { author } = await setup();
+		const { id } = await created(author);
+		const [outsider] = await createUsers([snowflake(9)]);
+
+		const statuses = [await discard(author, null), await discard(null, id), await discard(outsider, id)];
+
+		expect(statuses).toEqual([404, 303, 403]);
+		expect(await stored(id)).not.toBeNull();
 	});
 });
 

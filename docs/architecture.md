@@ -122,12 +122,12 @@ flowchart TD
 | 管理者としての管理操作 | 名簿で管理者でなければその場で拒否し、管理者なら Discord で確かめる（`isGuildAdmin`） | 名簿で管理者のときだけ 3 回 |
 | 管理画面（`requireAdmin`） | Discord 上の権限 | 毎回 3 回 |
 | 管理者向けリンクの表示 | 名簿（`looksLikeGuildAdmin`） | なし |
-| 下書きの保存・破棄 | 名簿（`requireMember`）。他人の下書きは 404 | 閲覧と同じ。本人以外に影響しないので、書き込みでも毎回は問い合わせない |
+| 下書きの保存・破棄（破棄はトップの `?/discardDraft`） | 名簿（`requireMember`）。他人の下書きは 404 | 閲覧と同じ。本人以外に影響しないので、書き込みでも毎回は問い合わせない |
 | 回答の下書きの保存・破棄 | 名簿で回答画面を開ける人（`requireSubmitter`）。対象は常にセッションの本人の行 | 閲覧と同じ。本人以外に影響しないので、書き込みでも毎回は問い合わせない |
 | フォームの複製 | 作成者と管理者だけ（`requireFormManager(..., 'view')`） | 管理者のときだけ 3 回 |
 
 - 名簿は拒否にだけ使う。許可は、閲覧と下書きを除いて Discord で確かめる。
-- 下書きの JSON エンドポイント（`/forms/drafts`、`/forms/drafts/[id]`、`/forms/[id]/draft`）は SvelteKit の CSRF 検査の対象外なので、`Origin` が自分のオリジンと一致しなければ 403 にする。
+- 下書きの JSON エンドポイント（作成画面の保存の `POST /forms/drafts` と `PUT /forms/drafts/[id]`、回答画面の保存と破棄の `PUT /forms/[id]/draft` と `DELETE /forms/[id]/draft`）は SvelteKit の CSRF 検査の対象外なので、`Origin` が自分のオリジンと一致しなければ 403 にする。作成画面の下書きの破棄はトップの form action（`?/discardDraft`）で、CSRF 検査は SvelteKit に任せる。
 - 本人への問い合わせは 1 リクエストにつき 1 回（`WeakMap` でリクエスト単位に使い回す）。同じ人への同時の問い合わせはまとめる。
 - 閲覧は名簿で許可するので、抜けた人やロールを外された人は次の全員同期まで閲覧できる。書き込みはできない。
 

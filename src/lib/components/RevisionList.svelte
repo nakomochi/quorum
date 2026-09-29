@@ -10,7 +10,7 @@
 
 <script lang="ts" generics="R extends Revision">
 	import type { Snippet } from 'svelte';
-	import { formatJst } from '$lib/datetime';
+	import { displayJst } from '$lib/display-date';
 	import AnswerList from './AnswerList.svelte';
 	import ItemHeader from './ItemHeader.svelte';
 	import MetaLine from './MetaLine.svelte';
@@ -52,7 +52,7 @@
 			<MetaLine
 				class="mt-1.5"
 				items={[
-					{ label: revision.number === 1 ? '提出' : '更新', value: formatJst(revision.createdAt) }
+					{ label: revision.number === 1 ? '提出' : '更新', value: displayJst(revision.createdAt) }
 				]}
 			/>
 			<AnswerList

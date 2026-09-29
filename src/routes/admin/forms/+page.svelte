@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
-	import { formatJst } from '$lib/datetime';
+	import { displayJst } from '$lib/display-date';
 
 	let { data, form } = $props();
 
@@ -21,7 +21,7 @@
 			<p class="text-text-subtle">
 				メンバー情報
 				{#if data.syncedAt}
-					<span class="whitespace-nowrap">{formatJst(data.syncedAt)}</span> に更新
+					<span class="whitespace-nowrap">{displayJst(data.syncedAt)}</span> に更新
 				{:else}
 					まだ同期していません
 				{/if}
@@ -83,7 +83,7 @@
 								{/if}
 							</td>
 							<td class="whitespace-nowrap text-text-subtle tabular-nums">
-								{formatJst(row.deadline)}
+								{displayJst(row.deadline)}
 							</td>
 							<td class="tabular-nums whitespace-nowrap text-text-subtle">
 								{row.submitted} / {row.targetCount}

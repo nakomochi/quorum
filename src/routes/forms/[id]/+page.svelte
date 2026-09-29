@@ -4,7 +4,7 @@
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import AnswerList from '$lib/components/AnswerList.svelte';
 	import ContextLink from '$lib/components/ContextLink.svelte';
-	import { formatJst } from '$lib/datetime';
+	import { displayJst } from '$lib/display-date';
 	import {
 		DraftAutosave,
 		discardResponseDraft,
@@ -241,7 +241,7 @@
 				<p class="min-w-0 flex-1 text-sm text-text-subtle">
 					下書きを復元しました
 					<span class="whitespace-nowrap text-xs text-text-muted">
-						（{formatJst(restoredAt)} に保存）
+						（{displayJst(restoredAt)} に保存）
 					</span>
 				</p>
 				<button

@@ -17,6 +17,8 @@ const displayFormat = new Intl.DateTimeFormat('ja-JP', {
 	hourCycle: 'h23'
 });
 
+const yearFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Tokyo', year: 'numeric' });
+
 const timeFormat = new Intl.DateTimeFormat('ja-JP', {
 	timeZone: 'Asia/Tokyo',
 	hour: '2-digit',
@@ -24,7 +26,7 @@ const timeFormat = new Intl.DateTimeFormat('ja-JP', {
 	hourCycle: 'h23'
 });
 
-const inputFormat =new Intl.DateTimeFormat('en-CA', {
+const inputFormat = new Intl.DateTimeFormat('en-CA', {
 	timeZone: 'Asia/Tokyo',
 	year: 'numeric',
 	month: '2-digit',
@@ -51,8 +53,16 @@ export function parseJstLocal(value: string): Date | null {
 	return toJstLocal(parsed) === `${date}T${hour}:${minute}` ? parsed : null;
 }
 
-export function formatJst(value: Date | null, fallback = '—'): string {
-	return value ? displayFormat.format(value) : fallback;
+/**
+ * "2025/10/14 04:00", or "10/14 04:00" for a date in the same JST year as `now`. Markup goes
+ * through `$lib/display-date` instead, which picks a `now` the server and the hydrating browser
+ * agree on.
+ */
+export function formatJst(value: Date | null, fallback = '—', now: Date = new Date()): string {
+	if (!value) return fallback;
+	const parts = new Map(displayFormat.formatToParts(value).map((part) => [part.type, part.value]));
+	const date = `${parts.get('month')}/${parts.get('day')} ${parts.get('hour')}:${parts.get('minute')}`;
+	return parts.get('year') === yearFormat.format(now) ? date : `${parts.get('year')}/${date}`;
 }
 
 /** Hours and minutes only, for something that happened moments ago. */

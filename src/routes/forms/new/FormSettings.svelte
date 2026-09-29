@@ -6,9 +6,8 @@
 
 	type Props = {
 		/**
-		 * The restored draft's values, or null for a new form. The uncontrolled fields take them as
-		 * defaultValue/defaultChecked: a value/checked attribute is written again whenever the
-		 * template reruns, and after hydration that overwrites what has been typed.
+		 * The restored draft's values, or null for a new form. Read once into the fields' own state:
+		 * that puts them in the server's HTML, and nothing but the field itself writes them again.
 		 */
 		initial: EditorState | null;
 		roles: PageData['roles'];
@@ -30,6 +29,15 @@
 
 	const ROLE_MISSING = '元のロールが見つかりません。選び直してください';
 	const CHANNEL_MISSING = '元のチャンネルが見つかりません。選び直してください';
+
+	// Bound rather than given as defaultValue, which the server leaves out of its HTML. The title and
+	// description stay out of the editor's undo history: `bind:value` writes the field only when the
+	// state differs from it, so their native Ctrl+Z keeps working.
+	let title = $state(untrack(() => initial?.title ?? ''));
+	let description = $state(untrack(() => initial?.description ?? ''));
+	let submitScope = $state(untrack(() => initial?.submitScope ?? 'everyone'));
+	let visibility = $state(untrack(() => initial?.visibility ?? 'public'));
+	let allowEdit = $state(untrack(() => initial?.allowEdit ?? true));
 
 	// Controlled so that a stored id missing from today's options can be told apart from a choice.
 	let targetRoleId = $state(untrack(() => initial?.targetRoleId ?? ''));
@@ -59,7 +67,7 @@
 		<span class="text-sm font-medium">タイトル</span>
 		<input
 			name="title"
-			defaultValue={initial?.title ?? ''}
+			bind:value={title}
 			required
 			maxlength={MAX_TITLE}
 			class="field mt-1"
@@ -70,7 +78,7 @@
 		<span class="text-sm font-medium">説明</span>
 		<textarea
 			name="description"
-			defaultValue={initial?.description ?? ''}
+			bind:value={description}
 			rows="3"
 			maxlength={MAX_DESCRIPTION}
 			class="field mt-1"
@@ -125,11 +133,7 @@
 
 		<label class="block">
 			<span class="text-sm font-medium">提出できる人</span>
-			<select
-				name="submitScope"
-				defaultValue={initial?.submitScope ?? 'everyone'}
-				class="field mt-1"
-			>
+			<select name="submitScope" bind:value={submitScope} class="field mt-1">
 				<option value="everyone">サーバーのメンバー全員</option>
 				<option value="target_role">対象ロールの人のみ</option>
 			</select>
@@ -137,7 +141,7 @@
 
 		<label class="block">
 			<span class="text-sm font-medium">結果の公開範囲</span>
-			<select name="visibility" defaultValue={initial?.visibility ?? 'public'} class="field mt-1">
+			<select name="visibility" bind:value={visibility} class="field mt-1">
 				<option value="public">公開</option>
 				<option value="admin_only">管理者のみ</option>
 				<option value="after_deadline">締切後または確定後に公開</option>
@@ -169,12 +173,7 @@
 	</div>
 
 	<label class="flex items-center gap-2 text-sm">
-		<input
-			type="checkbox"
-			name="allowEdit"
-			defaultChecked={initial?.allowEdit ?? true}
-			class="size-4"
-		/>
+		<input type="checkbox" name="allowEdit" bind:checked={allowEdit} class="size-4" />
 		回答の編集を許可する
 	</label>
 </section>

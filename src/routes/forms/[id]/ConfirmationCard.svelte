@@ -1,6 +1,6 @@
 <script lang="ts">
 	import MetaLine from '$lib/components/MetaLine.svelte';
-	import { formatJst } from '$lib/datetime';
+	import { displayJst } from '$lib/display-date';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	type Props = {
@@ -41,7 +41,7 @@
 
 	// Minute precision: an edit within the same minute as the submission adds nothing to show.
 	const updated = $derived(
-		updatedAt && formatJst(updatedAt) !== formatJst(submittedAt) ? formatJst(updatedAt) : null
+		updatedAt && displayJst(updatedAt) !== displayJst(submittedAt) ? displayJst(updatedAt) : null
 	);
 </script>
 
@@ -56,7 +56,7 @@
 				<MetaLine
 					class="mt-1"
 					items={[
-						{ label: '提出', value: formatJst(submittedAt) },
+						{ label: '提出', value: displayJst(submittedAt) },
 						...(updated ? [{ label: '更新', value: updated }] : [])
 					]}
 				/>

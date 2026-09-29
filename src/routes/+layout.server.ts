@@ -4,8 +4,11 @@ import { looksLikeGuildAdmin } from '$lib/server/permissions';
 import type { LayoutServerLoad } from './$types';
 
 export const load: LayoutServerLoad = async ({ locals }) => {
+	// What "this year" is judged by while the page renders and hydrates (`$lib/display-date`).
+	const now = new Date();
+
 	const user = locals.user;
-	if (!user) return { user: null, member: false, isAdmin: false };
+	if (!user) return { user: null, member: false, isAdmin: false, now };
 
 	// The mirror only, never Discord: this runs for every page and only decides which links the
 	// header draws. Each destination checks access again on its own.
@@ -23,6 +26,7 @@ export const load: LayoutServerLoad = async ({ locals }) => {
 		// the one the guild shows, falling back to the Discord account's for someone not mirrored.
 		user: { name: mirrored ? memberDisplayName(mirrored) : user.name, image },
 		member: mirrored !== null,
-		isAdmin
+		isAdmin,
+		now
 	};
 };

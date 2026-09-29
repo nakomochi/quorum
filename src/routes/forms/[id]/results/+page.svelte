@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ContextLink from '$lib/components/ContextLink.svelte';
 	import MetaLine from '$lib/components/MetaLine.svelte';
-	import { formatJst } from '$lib/datetime';
+	import { displayJst } from '$lib/display-date';
 	import { describeAnswer, VISIBILITY_LABELS, type AnswerValue } from '$lib/forms';
 	import Icon from '$lib/icons/Icon.svelte';
 
@@ -84,11 +84,11 @@
 							</td>
 						{/each}
 						<td class="text-xs whitespace-nowrap text-text-muted tabular-nums">
-							{formatJst(row.submittedAt)}
+							{displayJst(row.submittedAt)}
 							{#if row.revisionCount > 1}
 								<!-- The date first and the mark after it, as everywhere else. -->
 								<span class="mt-1.5 flex items-center gap-2">
-									<span>更新 {formatJst(row.updatedAt)}</span>
+									<span>更新 {displayJst(row.updatedAt)}</span>
 									{#if data.manage}
 										<a
 											href="/forms/{data.form.id}/results/{row.responseId}"
@@ -121,8 +121,8 @@
 			<MetaLine
 				class="mt-1.5"
 				items={[
-					{ label: '締切', value: formatJst(data.form.deadline, 'なし') },
-					{ label: '受付終了', value: formatJst(data.form.closesAt, '指定なし') },
+					{ label: '締切', value: displayJst(data.form.deadline, 'なし') },
+					{ label: '受付終了', value: displayJst(data.form.closesAt, '指定なし') },
 					...(data.manage && data.form.visibility
 						? [{ label: '公開範囲', value: VISIBILITY_LABELS[data.form.visibility] }]
 						: [])
@@ -190,9 +190,9 @@
 		<section class="card action-row px-5 py-4">
 			<p class="min-w-0 flex-1 text-sm text-text-subtle">
 				{#if data.form.closedAt}
-					<span class="whitespace-nowrap">{formatJst(data.form.closedAt)}</span> に締め切りました。
+					<span class="whitespace-nowrap">{displayJst(data.form.closedAt)}</span> に締め切りました。
 				{:else}
-					締め切ると、Discord から最新のメンバー一覧を取得して未提出者を確定します。以後の提出は受け付けません。
+					締め切ると、Discord から最新のメンバー一覧を取得して未提出者を確定し、以後の提出を受け付けません。受付はあとから再開できます。
 				{/if}
 			</p>
 			{#if data.form.closedAt}
@@ -264,7 +264,7 @@
 						<tbody class="tabular-nums">
 							{#each data.reminders as entry (entry.id)}
 								<tr>
-									<td class="pr-4 py-0.5 whitespace-nowrap">{formatJst(entry.sentAt)}</td>
+									<td class="pr-4 py-0.5 whitespace-nowrap">{displayJst(entry.sentAt)}</td>
 									<td class="pr-4 py-0.5 whitespace-nowrap">{REMINDER_KIND[entry.kind]}</td>
 									<td class="py-0.5 text-right whitespace-nowrap">{entry.targetCount}名</td>
 									<!-- A single message is the usual case and goes unsaid. -->
@@ -327,7 +327,7 @@
 					items={[
 						{
 							label: '名簿',
-							value: data.rosterSyncedAt ? `${formatJst(data.rosterSyncedAt)} 時点` : '未同期'
+							value: data.rosterSyncedAt ? `${displayJst(data.rosterSyncedAt)} 時点` : '未同期'
 						}
 					]}
 				/>

@@ -2,14 +2,14 @@
 	import ItemHeader from '$lib/components/ItemHeader.svelte';
 	import Menu, { type MenuItem } from '$lib/components/Menu.svelte';
 	import MetaLine, { type MetaItem } from '$lib/components/MetaLine.svelte';
-	import { formatJst } from '$lib/datetime';
+	import { displayJst } from '$lib/display-date';
 	import { FORM_STATUS_LABELS, type FormStatus } from '$lib/forms';
 	import Icon, { type IconName } from '$lib/icons/Icon.svelte';
 
 	let { data, form } = $props();
 
 	const deadlineItem = (value: Date | null): MetaItem =>
-		value ? { label: '締切', value: formatJst(value) } : { value: '締切なし' };
+		value ? { label: '締切', value: displayJst(value) } : { value: '締切なし' };
 
 	const SOON_MS = 48 * 60 * 60 * 1000;
 
@@ -123,7 +123,7 @@
 									</ItemHeader>
 									<MetaLine
 										class={UNDER_ICON}
-										items={[{ label: '提出', value: formatJst(row.submittedAt) }]}
+										items={[{ label: '提出', value: displayJst(row.submittedAt) }]}
 									/>
 								</a>
 							</li>
@@ -164,7 +164,7 @@
 									</ItemHeader>
 									<MetaLine
 										class={UNDER_ICON}
-										items={[{ label: '更新', value: formatJst(row.updatedAt) }]}
+										items={[{ label: '更新', value: displayJst(row.updatedAt) }]}
 									/>
 								</a>
 								{@render rowMenu(`「${row.title ?? '無題のフォーム'}」の下書きの操作`, [

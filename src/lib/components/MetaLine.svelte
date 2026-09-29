@@ -12,10 +12,16 @@
 	let { items, class: className = '' }: Props = $props();
 </script>
 
-<!-- Inline text rather than flex, and a no-break space ahead of each ・: a wrap may come after the
-     separator but never before it, so no line ever opens with one. -->
+<!-- Every item leads with its own ・, and the row is pulled left by one separator's width and
+     clipped there. The separator that opens a line falls outside the clip, so no line starts or
+     ends with one however the items wrap. The separators are drawn only: not read out, not copied. -->
 <p class="text-text-muted text-xs {className}">
-	{#each items as item, index (index)}{index > 0 ? ' ・ ' : ''}<span
-			class="whitespace-nowrap tabular-nums">{item.label ? `${item.label} ` : ''}{item.value}</span
-		>{/each}
+	<span class="-ml-[1.5em] flex flex-wrap [clip-path:inset(0_0_0_1.5em)]">
+		{#each items as item, index (index)}
+			<span class="whitespace-nowrap tabular-nums"
+				><span aria-hidden="true" class="inline-block w-[1.5em] text-center select-none">・</span
+				>{item.label ? `${item.label} ` : ''}{item.value}</span
+			>
+		{/each}
+	</span>
 </p>

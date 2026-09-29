@@ -3,6 +3,8 @@ import { formatJst, formatJstTime, parseJstLocal, toJstLocal } from '$lib/dateti
 import { ADMIN_PERMISSIONS, hasAdminPermissions, rolePermissions } from '$lib/server/permissions';
 
 describe('formatJst / formatJstTime', () => {
+	const IN_2025 = new Date('2025-06-01T03:00:00Z');
+
 	test('pads the hour to two digits in 24-hour JST', () => {
 		const cases: [string, string][] = [
 			['2026-04-26T15:00:00Z', '2026/04/27 00:00'],
@@ -11,9 +13,32 @@ describe('formatJst / formatJstTime', () => {
 			['2026-04-27T14:59:00Z', '2026/04/27 23:59']
 		];
 		for (const [iso, expected] of cases) {
-			expect(formatJst(new Date(iso))).toBe(expected);
+			expect(formatJst(new Date(iso), '—', IN_2025)).toBe(expected);
 			expect(formatJstTime(new Date(iso))).toBe(expected.slice(-5));
 		}
+	});
+
+	test('leaves the year out for this year only', () => {
+		const now = new Date('2026-09-30T03:00:00Z');
+		expect(formatJst(new Date('2026-10-13T19:00:00Z'), '—', now)).toBe('10/14 04:00');
+		expect(formatJst(new Date('2025-10-13T19:00:00Z'), '—', now)).toBe('2025/10/14 04:00');
+		expect(formatJst(new Date('2027-10-13T19:00:00Z'), '—', now)).toBe('2027/10/14 04:00');
+	});
+
+	test('judges the year in JST on both sides of New Year', () => {
+		const lastMinute = new Date('2026-12-31T23:59:00+09:00');
+		const firstMinute = new Date('2027-01-01T00:00:00+09:00');
+
+		// Still 2026 in JST.
+		expect(formatJst(lastMinute, '—', lastMinute)).toBe('12/31 23:59');
+		expect(formatJst(firstMinute, '—', lastMinute)).toBe('2027/01/01 00:00');
+
+		// 2027 in JST while UTC is still in 2026.
+		expect(formatJst(lastMinute, '—', firstMinute)).toBe('2026/12/31 23:59');
+		expect(formatJst(firstMinute, '—', firstMinute)).toBe('01/01 00:00');
+		expect(formatJst(new Date('2026-12-31T15:30:00Z'), '—', new Date('2026-12-31T16:00:00Z'))).toBe(
+			'01/01 00:30'
+		);
 	});
 
 	test('falls back when there is no date', () => {

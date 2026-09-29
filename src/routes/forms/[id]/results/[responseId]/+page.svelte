@@ -2,7 +2,7 @@
 	import ContextLink from '$lib/components/ContextLink.svelte';
 	import MetaLine from '$lib/components/MetaLine.svelte';
 	import RevisionList from '$lib/components/RevisionList.svelte';
-	import { formatJst } from '$lib/datetime';
+	import { displayJst } from '$lib/display-date';
 
 	let { data } = $props();
 </script>
@@ -17,8 +17,8 @@
 			<MetaLine
 				class="mt-2"
 				items={[
-					{ label: '提出', value: formatJst(data.response.submittedAt) },
-					{ label: '更新', value: formatJst(data.response.updatedAt) }
+					{ label: '提出', value: displayJst(data.response.submittedAt) },
+					{ label: '更新', value: displayJst(data.response.updatedAt) }
 				]}
 			/>
 		</header>

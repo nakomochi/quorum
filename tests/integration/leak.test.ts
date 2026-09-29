@@ -108,14 +108,19 @@ async function httpStatus(pending: unknown): Promise<number | 'ok'> {
 }
 
 describe('what a member receives', () => {
-	test('root layout: a name, an icon and two flags, and no Discord call', async () => {
+	test('root layout: a name, an icon, two flags and the time, and no Discord call', async () => {
 		const { viewer, secrets } = await scene();
 
 		const data = await layoutLoad(event(viewer));
 
 		// toEqual, not toMatchObject: any extra field, such as the email or an id, fails it. The name
 		// is the guild nickname, not the account name.
-		expect(data).toEqual({ user: { name: '閲覧者', image: null }, member: true, isAdmin: false });
+		expect(data).toEqual({
+			user: { name: '閲覧者', image: null },
+			member: true,
+			isAdmin: false,
+			now: expect.any(Date)
+		});
 		expectNoLeak(data, [
 			...secrets,
 			SECRET_NAME,

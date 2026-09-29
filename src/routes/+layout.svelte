@@ -1,10 +1,14 @@
 <script lang="ts">
 	import './layout.css';
+	import { onMount } from 'svelte';
 	import { page } from '$app/state';
 	import favicon from '$lib/assets/favicon.svg';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
+	import { markHydrated } from '$lib/display-date';
 
 	let { data, children } = $props();
+
+	onMount(markHydrated);
 
 	// The catalogue draws each case's header from its fixture, not from the visitor's session.
 	const catalogue = $derived(page.route.id?.startsWith('/dev/ui') ?? false);

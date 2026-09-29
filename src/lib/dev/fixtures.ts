@@ -84,6 +84,12 @@ const at = (jst: string) => new Date(`${jst}+09:00`);
 
 const HOUR_MS = 3_600_000;
 
+const jstYear = () => new Date(Date.now() + 9 * HOUR_MS).getUTCFullYear();
+
+/** Dates in the current JST year, which the pages show without the year, and in the one before. */
+const thisYear = (monthDayTime: string) => at(`${jstYear()}-${monthDayTime}`);
+const lastYear = (monthDayTime: string) => at(`${jstYear() - 1}-${monthDayTime}`);
+
 /**
  * The home page derives its urgency chips from the clock, so those rows cannot be fixed dates.
  * Snapped to the hour: the server and the hydrating client then format the same string.
@@ -108,8 +114,11 @@ const USER: SessionUser = {
 	image: null
 };
 
-/** What the root layout returns for the viewer, drawn by the shared header. */
-const SESSION = { user: USER, member: true, isAdmin: false };
+/**
+ * What the root layout returns for the viewer, drawn by the shared header. Its `now` goes unread
+ * here: the pages judge "this year" by the catalogue route's own root layout data.
+ */
+const SESSION = { user: USER, member: true, isAdmin: false, now: new Date() };
 const ADMIN_SESSION = { ...SESSION, isAdmin: true };
 
 const LONG_TITLE =
@@ -820,6 +829,7 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 			user: null,
 			member: false,
 			isAdmin: false,
+			now: SESSION.now,
 			pending: [],
 			submitted: [],
 			created: [],
@@ -919,6 +929,37 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 				})
 			),
 			drafts: []
+		}
+	},
+	{
+		id: 'home-mixed-years',
+		title: 'メンバー / 今年と去年の日付が混ざる（去年の日付だけ年つき）',
+		data: {
+			...SESSION,
+			pending: [pendingRow({ id: 'pending000001', title: '定例会の出欠（10月）', deadline: fromNow(24 * 21) })],
+			submitted: [
+				submittedRow({
+					id: 'done00000001',
+					title: '新年会の出欠',
+					submittedAt: thisYear('01-08T22:10:00')
+				}),
+				submittedRow({
+					id: 'done00000002',
+					title: '忘年会の出欠',
+					submittedAt: lastYear('12-04T12:30:00'),
+					revisionCount: 2
+				})
+			],
+			created: [
+				createdRow({
+					id: 'mine00000001',
+					title: '年末大掃除の担当希望',
+					responseCount: 24,
+					deadline: lastYear('12-20T18:00:00'),
+					status: 'closed'
+				})
+			],
+			drafts: [{ id: 'draft0000001', title: '秋合宿の参加確認', updatedAt: lastYear('11-30T08:00:00') }]
 		}
 	},
 	{
@@ -1087,6 +1128,30 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			updatedAt: at('2026-04-14T08:15:00'),
 			answers: FILLED_ANSWERS,
 			...NO_DRAFT
+		}
+	},
+	{
+		id: 'answer-last-year',
+		title: '去年のフォーム（年つきの日付・折り返す日付の行・長いタイトルと印が2つ・回答履歴）',
+		data: {
+			...SESSION,
+			resultsVisible: true,
+			form: answerForm({
+				title: LONG_TITLE,
+				deadline: lastYear('10-14T04:00:00'),
+				closesAt: lastYear('10-15T12:00:00')
+			}),
+			questions: QUESTIONS,
+			closed: true,
+			editable: false,
+			submittedAt: lastYear('10-12T21:40:00'),
+			updatedAt: lastYear('10-14T03:15:00'),
+			answers: FILLED_ANSWERS,
+			draft: null,
+			history: OWN_HISTORY.map((revision, index) => ({
+				...revision,
+				createdAt: lastYear(['10-14T03:15:00', '10-13T09:05:00', '10-12T21:40:00'][index])
+			}))
 		}
 	},
 	{
@@ -1569,6 +1634,33 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			outsiders: OUTSIDERS,
 			nonSubmitters: NON_SUBMITTERS
 		}
+	},
+	{
+		id: 'results-last-year',
+		title: '去年に確定したフォーム（年つきの日付・折り返す日付の行）',
+		data: rosterResults({
+			form: resultsForm({
+				title: LONG_TITLE,
+				deadline: lastYear('10-14T04:00:00'),
+				closesAt: lastYear('10-15T12:00:00'),
+				visibility: 'after_deadline',
+				closedAt: lastYear('10-15T12:00:00')
+			}),
+			closed: true,
+			reopenClearsClosesAt: true,
+			rosterSyncedAt: null,
+			reminders: [
+				{ ...REMINDERS[0], sentAt: lastYear('10-13T21:15:00') },
+				{ ...REMINDERS[2], sentAt: lastYear('10-13T04:00:00') }
+			],
+			frozen: true,
+			tallies: tallyOf(QUESTIONS, EDITED_SUBMITTED),
+			submitted: EDITED_SUBMITTED.map((row, index) => {
+				const submittedAt = lastYear(`10-0${index + 1}T21:00:00`);
+				const updatedAt = row.revisionCount > 1 ? lastYear('10-12T08:15:00') : submittedAt;
+				return { ...row, submittedAt, updatedAt };
+			})
+		})
 	},
 	{
 		id: 'results-expired',

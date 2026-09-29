@@ -24,8 +24,7 @@
 		closesAtTouched: boolean;
 	};
 
-	// The title and description are uncontrolled and stay out of the snapshot, so their own
-	// Ctrl+Z has to keep working.
+	// The title and description stay out of the snapshot and keep the browser's own Ctrl+Z.
 	const NATIVE_UNDO = ['title', 'description'];
 
 	let { data, form } = $props();

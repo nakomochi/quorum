@@ -1,7 +1,7 @@
 <script lang="ts">
 	import ItemHeader from '$lib/components/ItemHeader.svelte';
 	import MetaLine from '$lib/components/MetaLine.svelte';
-	import { formatJst } from '$lib/datetime';
+	import { displayJst } from '$lib/display-date';
 	import type { PageData } from './$types';
 
 	type Props = {
@@ -30,8 +30,8 @@
 		<MetaLine
 			class="mt-4"
 			items={[
-				{ label: '締切', value: formatJst(form.deadline, 'なし') },
-				{ label: '受付終了', value: formatJst(form.closesAt, '指定なし') }
+				{ label: '締切', value: displayJst(form.deadline, 'なし') },
+				{ label: '受付終了', value: displayJst(form.closesAt, '指定なし') }
 			]}
 		/>
 	</div>

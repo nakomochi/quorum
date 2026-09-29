@@ -595,7 +595,6 @@ export type CreatedFormSummary = {
 	id: string;
 	title: string;
 	deadline: Date | null;
-	createdAt: Date;
 	responseCount: number;
 };
 
@@ -1025,7 +1024,6 @@ export async function listFormsCreatedBy(userId: string): Promise<CreatedFormSum
 			id: form.id,
 			title: form.title,
 			deadline: form.deadline,
-			createdAt: form.createdAt,
 			responseCount: count(response.id)
 		})
 		.from(form)

@@ -98,7 +98,6 @@ const submittedRow = (
 
 const createdRow = (over: Partial<CreatedRow> & Pick<CreatedRow, 'id' | 'title'>): CreatedRow => ({
 	deadline: at('2026-04-30T23:59:00'),
-	createdAt: at('2026-04-01T10:00:00'),
 	responseCount: 0,
 	...over
 });
@@ -715,15 +714,13 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 				createdRow({
 					id: 'mine00000001',
 					title: '春合宿の参加確認',
-					responseCount: 12,
-					createdAt: at('2026-04-01T09:00:00')
+					responseCount: 12
 				}),
 				createdRow({
 					id: 'mine00000002',
 					title: LONG_TITLE,
 					responseCount: 3,
-					deadline: null,
-					createdAt: at('2026-03-15T18:20:00')
+					deadline: null
 				})
 			]
 		}
@@ -749,8 +746,7 @@ export const HOME_CASES: UiCase<HomeData>[] = [
 					id: `mine0000000${i + 1}`,
 					title: `イベントの出欠確認 ${i + 1}`,
 					responseCount: 20 - i * 3,
-					deadline: fromNow(-24 * 10 * (i + 1)),
-					createdAt: fromNow(-24 * 10 * (i + 1) - 24 * 14)
+					deadline: fromNow(-24 * 10 * (i + 1))
 				})
 			)
 		}

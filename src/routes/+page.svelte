@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { formatJst, formatJstDate } from '$lib/datetime';
+	import { formatJst } from '$lib/datetime';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	let { data } = $props();
@@ -186,8 +186,6 @@
 									     one, so a wrap never opens a line with the separator. -->
 									<span class="text-text-muted shrink-0 text-xs">
 										<span class="whitespace-nowrap">{deadlineText(row.deadline)}</span>
-										・
-										<span class="whitespace-nowrap">作成 {formatJstDate(row.createdAt)}</span>
 										・
 										<span class="whitespace-nowrap tabular-nums">{row.responseCount} 件の回答</span>
 									</span>

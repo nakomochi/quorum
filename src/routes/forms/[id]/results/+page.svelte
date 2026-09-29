@@ -64,7 +64,7 @@
 
 {#snippet answerTable(rows: Row[])}
 	<div class="table-wrap">
-		<table class="table">
+		<table class="data-table">
 			<thead>
 				<tr>
 					<th class="whitespace-nowrap">回答者</th>

@@ -1,30 +1,24 @@
 <script lang="ts">
 	import { onMount, tick, untrack } from 'svelte';
-	import { enhance } from '$app/forms';
 	import { invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import AnswerList from '$lib/components/AnswerList.svelte';
 	import ContextLink from '$lib/components/ContextLink.svelte';
-	import ItemHeader from '$lib/components/ItemHeader.svelte';
-	import MetaLine from '$lib/components/MetaLine.svelte';
-	import RevisionList from '$lib/components/RevisionList.svelte';
-	import SaveStatus from '$lib/components/SaveStatus.svelte';
 	import { formatJst } from '$lib/datetime';
 	import {
 		DraftAutosave,
 		discardResponseDraft,
 		responseDraftTransport,
+		saveWhileMounted,
 		type SaveStatus as DraftSaveStatus
 	} from '$lib/draft-autosave';
-	import {
-		MAX_OTHER_ANSWER,
-		MAX_TEXT_ANSWER,
-		OTHER_OPTION_ID,
-		type AnswerValue,
-		type RevisionAnswers
-	} from '$lib/forms';
+	import type { AnswerValue, RevisionAnswers } from '$lib/forms';
 	import { answersFromFields, draftDiffers } from '$lib/response-draft';
-	import Icon from '$lib/icons/Icon.svelte';
+	import AnswerForm from './AnswerForm.svelte';
+	import AnswerHistory from './AnswerHistory.svelte';
+	import ConfirmationCard from './ConfirmationCard.svelte';
+	import { watchExpiry } from './expiry.svelte';
+	import FormHeader from './FormHeader.svelte';
 
 	let { data, form } = $props();
 
@@ -55,26 +49,12 @@
 	let saved = $derived(form?.created);
 	let submitting = $state(false);
 
-	// setTimeout fires at once past 2^31-1 ms (about 24.8 days), so a longer wait is taken in steps.
-	const MAX_TIMEOUT = 2 ** 31 - 1;
-
-	// Read off this browser's clock, which may be wrong. The server still refuses a late
-	// submission, and that refusal ends in the same locked state.
+	// The server still refuses a late submission, and that refusal ends in the same locked state.
 	let expired = $state(false);
-
-	$effect(() => {
-		const closesAt = data.form.closesAt?.getTime();
-		if (data.closed || closesAt === undefined) return;
-
-		let timer: ReturnType<typeof setTimeout> | undefined;
-		const wait = () => {
-			const remaining = closesAt - Date.now();
-			if (remaining <= 0) expired = true;
-			else timer = setTimeout(wait, Math.min(remaining, MAX_TIMEOUT));
-		};
-		wait();
-		return () => clearTimeout(timer);
-	});
+	watchExpiry(
+		() => (data.closed ? undefined : data.form.closesAt?.getTime()),
+		() => (expired = true)
+	);
 
 	// --- draft autosave ---
 
@@ -114,22 +94,7 @@
 	// Replaced once the draft is gone (sent or discarded): the next save creates it again.
 	let autosave = newAutosave(initialDraft);
 
-	onMount(() => {
-		autosave.start();
-
-		const onVisibility = () => {
-			if (document.visibilityState === 'hidden') void autosave.flush(true);
-		};
-		const onPageHide = () => void autosave.flush(true);
-		document.addEventListener('visibilitychange', onVisibility);
-		window.addEventListener('pagehide', onPageHide);
-
-		return () => {
-			document.removeEventListener('visibilitychange', onVisibility);
-			window.removeEventListener('pagehide', onPageHide);
-			autosave.leave();
-		};
-	});
+	onMount(() => saveWhileMounted(() => autosave));
 
 	$effect(() => {
 		if (closed) void autosave.stop();
@@ -217,96 +182,6 @@
 		autosave.resume();
 	}
 
-	// --- display ---
-
-	const heading = $derived(
-		saved === true ? '回答を送信しました' : saved === false ? '回答を更新しました' : '回答済みです'
-	);
-
-	// Minute precision: an edit within the same minute as the submission adds nothing to show.
-	const updatedAt = $derived(
-		data.updatedAt && formatJst(data.updatedAt) !== formatJst(data.submittedAt)
-			? formatJst(data.updatedAt)
-			: null
-	);
-
-	const isChecked = (questionId: number, optionId: string) => {
-		const value = formSource[questionId];
-		if (value?.type === 'single') return 'optionId' in value && value.optionId === optionId;
-		if (value?.type === 'multi') return value.optionIds.includes(optionId);
-		return false;
-	};
-
-	const otherValue = (questionId: number): string | undefined => {
-		const value = formSource[questionId];
-		if (value?.type === 'single') return 'other' in value ? value.other : undefined;
-		if (value?.type === 'multi') return value.other;
-		return undefined;
-	};
-
-	const textValue = (questionId: number) => {
-		const value = formSource[questionId];
-		if (value?.type === 'text') return value.text;
-		if (value?.type === 'date') return value.date;
-		return '';
-	};
-
-	type Question = (typeof data.questions)[number];
-
-	const otherChoiceId = (questionId: number) => `q_${questionId}_other_choice`;
-
-	function otherChoice(questionId: number): HTMLInputElement | null {
-		const choice = document.getElementById(otherChoiceId(questionId));
-		return choice instanceof HTMLInputElement ? choice : null;
-	}
-
-	// Typing an "その他" answer chooses it, as in Google Forms.
-	function chooseOther(questionId: number, text: string) {
-		const choice = otherChoice(questionId);
-		if (text.trim() === '' || !choice || choice.checked) return;
-		choice.checked = true;
-		// A scripted check fires no event, and checkQuestion listens for one.
-		choice.dispatchEvent(new Event('change', { bubbles: true }));
-	}
-
-	/** Runs `check` on mount, which covers a restored answer, and after every edit inside `node`. */
-	function recheck<T extends HTMLElement>(node: T, check: (node: T) => void) {
-		const run = () => check(node);
-		run();
-		node.addEventListener('input', run);
-		node.addEventListener('change', run);
-		return {
-			destroy() {
-				node.removeEventListener('input', run);
-				node.removeEventListener('change', run);
-			}
-		};
-	}
-
-	// `required` lets whitespace through, and the server trims before checking.
-	function requireFilled(field: HTMLInputElement | HTMLTextAreaElement, required: boolean) {
-		field.setCustomValidity(required && field.value.trim() === '' ? '入力してください' : '');
-	}
-
-	// The browser has no "at least one" for checkboxes, and the "その他" text is only required
-	// while its choice is picked. A custom validity puts the browser's bubble beside the control.
-	function checkQuestion(fieldset: HTMLFieldSetElement, q: Question) {
-		if (q.type === 'multi' && q.required) {
-			const boxes = fieldset.querySelectorAll<HTMLInputElement>(`input[name="q_${q.id}"]`);
-			const picked = [...boxes].some((box) => box.checked);
-			boxes[0]?.setCustomValidity(picked ? '' : 'いずれかを選択してください');
-		}
-
-		const other = fieldset.querySelector<HTMLInputElement>(`input[name="q_${q.id}_other"]`);
-		if (other) {
-			other.required = otherChoice(q.id)?.checked ?? false;
-			requireFilled(other, other.required);
-		}
-
-		const text = fieldset.querySelector<HTMLTextAreaElement>(`textarea[name="q_${q.id}"]`);
-		if (text) requireFilled(text, q.required);
-	}
-
 	const submit: SubmitFunction = async ({ cancel }) => {
 		if (closed) {
 			cancel();
@@ -341,30 +216,7 @@
 		{#if data.resultsVisible}
 			<ContextLink href="/forms/{data.form.id}/results" label="回答状況を見る" direction="forward" />
 		{/if}
-
-		<!-- The accent bar is a clipped child, not a `border-t-4`: the rounded top corners would
-		     otherwise render the border as a thickening wedge. -->
-		<header class="card overflow-hidden">
-			<div class="bg-accent h-1.5"></div>
-			<div class="p-6">
-				<ItemHeader title={data.form.title} tag="h1" titleClass="page-title text-2xl" wrap>
-					{#snippet badges()}
-						{#if closed}<span class="badge badge-muted">受付終了</span>{/if}
-						{#if submitted}<span class="badge badge-success">提出済み</span>{/if}
-					{/snippet}
-				</ItemHeader>
-				{#if data.form.description}
-					<p class="mt-2 text-sm whitespace-pre-wrap text-text-subtle">{data.form.description}</p>
-				{/if}
-				<MetaLine
-					class="mt-4"
-					items={[
-						{ label: '締切', value: formatJst(data.form.deadline, 'なし') },
-						{ label: '受付終了', value: formatJst(data.form.closesAt, '指定なし') }
-					]}
-				/>
-			</div>
-		</header>
+		<FormHeader form={data.form} {closed} {submitted} />
 	</div>
 
 	{#if form?.message}
@@ -404,178 +256,33 @@
 		{/if}
 
 		{#key formKey}
-			<form
-				method="POST"
-				use:enhance={submit}
-				{@attach track}
-				oninput={edited}
-				onchange={edited}
-				class="flex scroll-mt-4 flex-col gap-5"
-			>
-				{#each data.questions as q (q.id)}
-					<!-- The card is the wrapper, not the fieldset: a bordered fieldset lets the browser cut a
-					     notch for the legend and start its padding below it, which misaligns the heading. -->
-					<div class="card p-5">
-						<fieldset
-							class="m-0 border-0 p-0"
-							use:recheck={(fieldset) => checkQuestion(fieldset, q)}
-						>
-							<legend class="mb-3 block text-sm font-medium">
-								{q.label}
-								{#if q.required}<span class="text-danger">*</span>{/if}
-							</legend>
-							{#if q.helpText}
-								<p class="-mt-2 mb-3 text-xs text-text-muted">{q.helpText}</p>
-							{/if}
-
-							{#if q.type === 'single' || q.type === 'multi'}
-								<div class="flex flex-col gap-2">
-									{#each q.options ?? [] as option (option.id)}
-										<label class="flex items-center gap-2 text-sm">
-											<input
-												type={q.type === 'single' ? 'radio' : 'checkbox'}
-												name="q_{q.id}"
-												value={option.id}
-												checked={isChecked(q.id, option.id)}
-												required={q.required && q.type === 'single'}
-												class="accent-accent size-4"
-											/>
-											{option.label}
-										</label>
-									{/each}
-									{#if q.allowOther}
-										<div class="flex items-center gap-2 text-sm">
-											<label class="flex shrink-0 items-center gap-2">
-												<input
-													type={q.type === 'single' ? 'radio' : 'checkbox'}
-													id={otherChoiceId(q.id)}
-													name="q_{q.id}"
-													value={OTHER_OPTION_ID}
-													checked={otherValue(q.id) !== undefined}
-													required={q.required && q.type === 'single'}
-													class="accent-accent size-4"
-												/>
-												その他:
-											</label>
-											<input
-												type="text"
-												name="q_{q.id}_other"
-												value={otherValue(q.id) ?? ''}
-												aria-label="「{q.label}」のその他の内容"
-												maxlength={MAX_OTHER_ANSWER}
-												oninput={(event) => chooseOther(q.id, event.currentTarget.value)}
-												class="field min-w-0 flex-1 py-1"
-											/>
-										</div>
-									{/if}
-								</div>
-							{:else if q.type === 'text'}
-								<textarea
-									name="q_{q.id}"
-									rows="3"
-									aria-label={q.label}
-									required={q.required}
-									maxlength={MAX_TEXT_ANSWER}
-									class="field">{textValue(q.id)}</textarea
-								>
-							{:else}
-								<input
-									type="date"
-									name="q_{q.id}"
-									value={textValue(q.id)}
-									aria-label={q.label}
-									required={q.required}
-									class="field"
-								/>
-							{/if}
-						</fieldset>
-					</div>
-				{/each}
-
-				<SaveStatus
-					status={saveStatus}
-					savedLabel="下書きを保存済み"
-					failedLabel="下書きを保存できませんでした"
-					tooLargeHint="回答が大きすぎます。入力を短くしてください"
-					conflictMessage="別の画面でこの回答が送信されたか、下書きが更新・破棄されました。この画面の自動保存は停止しています。"
-					closedMessage={closed ? '受付を終了したため送信できません。' : null}
-				>
-					<button type="submit" class="btn-primary px-5 py-2.5" disabled={submitting || closed}>
-						{submitted ? '回答を更新' : '送信'}
-					</button>
-					{#if submitted}
-						<button
-							type="button"
-							class="text-sm text-text-muted hover:underline"
-							onclick={cancelEditing}
-						>
-							キャンセル
-						</button>
-					{/if}
-				</SaveStatus>
-			</form>
+			<AnswerForm
+				questions={data.questions}
+				source={formSource}
+				{saveStatus}
+				{closed}
+				{submitted}
+				{submitting}
+				{submit}
+				attach={track}
+				onedit={edited}
+				oncancel={cancelEditing}
+			/>
 		{/key}
 	{:else if submitted}
-		<section class="card flex flex-col gap-4 p-6">
-			<div class="action-row">
-				<div class="flex min-w-0 flex-1 items-start gap-3">
-					<span class="bg-success-badge text-success shrink-0 rounded-full p-1.5">
-						<Icon name="check" />
-					</span>
-					<div class="min-w-0">
-						<h2 class="text-lg font-semibold">{heading}</h2>
-						<MetaLine
-							class="mt-1"
-							items={[
-								{ label: '提出', value: formatJst(data.submittedAt) },
-								...(updatedAt ? [{ label: '更新', value: updatedAt }] : [])
-							]}
-						/>
-						{#if closed}
-							<p class="mt-2 text-sm text-text-subtle">受付は終了しています。</p>
-						{:else if !data.editable}
-							<p class="mt-2 text-sm text-text-subtle">
-								このフォームは回答の編集が許可されていません。
-							</p>
-						{/if}
-					</div>
-				</div>
-				{#if canEdit && !unsent}
-					<button
-						type="button"
-						class="btn-secondary inline-flex shrink-0 items-center gap-1.5 self-start px-4 py-2 sm:self-auto"
-						onclick={() => openForm(submittedAnswers)}
-					>
-						<Icon name="pencil" />
-						回答を編集
-					</button>
-				{/if}
-			</div>
-
-			{#if canEdit && unsent}
-				<div class="alert-warning action-row">
-					<p class="min-w-0 flex-1">未送信の変更があります。</p>
-					<div class="flex shrink-0 flex-wrap gap-2">
-						<button
-							type="button"
-							class="btn-primary inline-flex items-center gap-1.5 px-4 py-2"
-							onclick={() => unsent && openForm(unsent)}
-						>
-							<Icon name="pencil" />
-							続きを編集
-						</button>
-						<button
-							type="button"
-							class="btn-secondary px-4 py-2"
-							disabled={discarding}
-							onclick={discard}
-						>
-							破棄
-						</button>
-					</div>
-				</div>
-			{/if}
-		</section>
+		<ConfirmationCard
+			{saved}
+			submittedAt={data.submittedAt}
+			updatedAt={data.updatedAt}
+			{closed}
+			editable={data.editable}
+			{canEdit}
+			unsent={unsent !== null}
+			{discarding}
+			onedit={() => openForm(submittedAnswers)}
+			oncontinue={() => unsent && openForm(unsent)}
+			ondiscard={discard}
+		/>
 
 		<section class="flex flex-col gap-3">
 			<h2 class="section-title">あなたの回答</h2>
@@ -583,22 +290,12 @@
 		</section>
 
 		{#if data.history.length > 0}
-			<section class="flex flex-col gap-3">
-				<h2 class="section-title">回答履歴</h2>
-				<RevisionList revisions={data.history} questions={data.questions} headingTag="h3">
-					{#snippet actions(revision, index)}
-						{#if canEdit && index > 0}
-							<button
-								type="button"
-								class="btn-secondary btn-sm shrink-0"
-								onclick={() => loadRevision(revision)}
-							>
-								この内容を読み込む
-							</button>
-						{/if}
-					{/snippet}
-				</RevisionList>
-			</section>
+			<AnswerHistory
+				revisions={data.history}
+				questions={data.questions}
+				{canEdit}
+				onload={loadRevision}
+			/>
 		{/if}
 	{:else}
 		<section class="card p-6">

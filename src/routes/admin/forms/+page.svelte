@@ -60,7 +60,7 @@
 		</p>
 	{:else}
 		<div class="table-wrap">
-			<table class="table">
+			<table class="data-table">
 				<thead>
 					<tr>
 						<th>タイトル</th>

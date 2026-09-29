@@ -289,3 +289,26 @@ export class DraftAutosave {
 		this.#clearTimer();
 	}
 }
+
+/**
+ * For `onMount`, whose cleanup it returns: starts the page's autosave, sends what is pending when
+ * the page is hidden, and leaves when the page unmounts. `current` is read each time, so a page
+ * may replace its autosave meanwhile.
+ */
+export function saveWhileMounted(current: () => DraftAutosave): () => void {
+	current().start();
+
+	const onVisibility = () => {
+		if (document.visibilityState === 'hidden') void current().flush(true);
+	};
+	const onPageHide = () => void current().flush(true);
+	document.addEventListener('visibilitychange', onVisibility);
+	window.addEventListener('pagehide', onPageHide);
+
+	return () => {
+		document.removeEventListener('visibilitychange', onVisibility);
+		window.removeEventListener('pagehide', onPageHide);
+		// A link inside the app unmounts the page without hiding it.
+		current().leave();
+	};
+}

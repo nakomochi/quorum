@@ -279,7 +279,8 @@ main {
 		@apply border-border overflow-x-auto rounded-xl border;
 	}
 
-	.table {
+	/* Not `.table`: that is Tailwind's `display: table` utility. */
+	.data-table {
 		@apply w-max min-w-full text-left text-sm;
 
 		& thead {

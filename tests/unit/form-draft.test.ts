@@ -30,6 +30,7 @@ describe('readDraftPayload', () => {
 				description: ['説明'],
 				targetRoleId: ['1'],
 				announcementChannelId: ['2'],
+				announceClose: ['off'],
 				submitScope: ['target_role'],
 				visibility: ['admin_only'],
 				deadline: ['2026-10-01T12:00'],
@@ -45,6 +46,7 @@ describe('readDraftPayload', () => {
 			description: '説明',
 			targetRoleId: '1',
 			announcementChannelId: '2',
+			announceClose: false,
 			submitScope: 'target_role',
 			visibility: 'admin_only',
 			deadline: '2026-10-01T12:00',
@@ -66,6 +68,8 @@ describe('readDraftPayload', () => {
 		});
 
 		expect(state.allowEdit).toBe(false);
+		// Always saved as on or off, so its absence means a draft from before the setting: on.
+		expect(state.announceClose).toBe(true);
 		expect(state.submitScope).toBe('everyone');
 		expect(state.visibility).toBe('public');
 		expect(state.questions).toEqual([
@@ -85,6 +89,7 @@ describe('readDraftPayload', () => {
 			const state = readDraftPayload(junk);
 			expect(state.title).toBe('');
 			expect(state.allowEdit).toBe(true);
+			expect(state.announceClose).toBe(true);
 			expect(state.questions).toEqual([]);
 		}
 	});

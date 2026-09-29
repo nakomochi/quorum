@@ -124,7 +124,8 @@ describe('parseCreateFormPayload', () => {
 			deadline: null,
 			closesAt: null,
 			allowEdit: false,
-			announcementChannelId: null
+			announcementChannelId: null,
+			announceClose: true
 		});
 		expect(parsed.questions).toHaveLength(1);
 	});
@@ -136,6 +137,7 @@ describe('parseCreateFormPayload', () => {
 				visibility: 'after_deadline',
 				allowEdit: 'on',
 				announcementChannelId: '456',
+				announceClose: 'off',
 				deadline: '2099-01-02T09:00'
 			})
 		);
@@ -143,6 +145,7 @@ describe('parseCreateFormPayload', () => {
 		expect(parsed.visibility).toBe('after_deadline');
 		expect(parsed.allowEdit).toBe(true);
 		expect(parsed.announcementChannelId).toBe('456');
+		expect(parsed.announceClose).toBe(false);
 		expect(parsed.deadline?.toISOString()).toBe('2099-01-02T00:00:00.000Z');
 	});
 

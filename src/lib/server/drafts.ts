@@ -129,6 +129,7 @@ export async function duplicateForm(
 		| 'visibility'
 		| 'allowEdit'
 		| 'announcementChannelId'
+		| 'announceClose'
 	>,
 	userId: string
 ): Promise<SavedDraft> {
@@ -139,6 +140,7 @@ export async function duplicateForm(
 		description: [source.description ?? ''],
 		targetRoleId: [source.targetRoleId],
 		announcementChannelId: [source.announcementChannelId ?? ''],
+		announceClose: [source.announceClose ? 'on' : 'off'],
 		submitScope: [source.submitScope],
 		visibility: [source.visibility],
 		deadline: [''],

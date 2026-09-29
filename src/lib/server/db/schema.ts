@@ -169,6 +169,15 @@ export const form = pgTable(
 		finalNonSubmitters: jsonb('final_non_submitters').$type<FrozenMember[]>(),
 		// The target roster at close, so a later role change cannot move a response in or out of it.
 		finalTargetIds: jsonb('final_target_ids').$type<string[]>(),
+		// Whether a close is posted to the announcement channel.
+		announceClose: boolean('announce_close').notNull().default(true),
+		/**
+		 * Claimed before the close is posted, so that a crash between the two leaves the post missed
+		 * rather than sent twice. Cleared again by a failed post and by reopening.
+		 */
+		closeNoticeClaimedAt: timestamp('close_notice_claimed_at', { withTimezone: true }),
+		// Set once the post has gone through.
+		closeMessageId: text('close_message_id'),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 		updatedAt: timestamp('updated_at', { withTimezone: true })
 			.notNull()

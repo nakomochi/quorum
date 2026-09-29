@@ -264,10 +264,10 @@ describe('runTick', () => {
 		const expired = await makeForm(creator, { closesAt: new Date(Date.now() - 1000) });
 
 		const first = await runTick();
-		expect(first).toEqual({ reminded: [due.id], closed: [expired.id], failed: [] });
+		expect(first).toEqual({ reminded: [due.id], closed: [expired.id], closePosted: [], failed: [] });
 
 		const second = await runTick();
-		expect(second).toEqual({ reminded: [], closed: [], failed: [] });
+		expect(second).toEqual({ reminded: [], closed: [], closePosted: [], failed: [] });
 		expect(discord.posts()).toHaveLength(1);
 		expect(await reminders(later.id)).toEqual([]);
 	});
@@ -279,7 +279,7 @@ describe('runTick', () => {
 
 		const { value } = await quietly(() => runTick());
 
-		expect(value).toEqual({ reminded: [], closed: [], failed: [id] });
+		expect(value).toEqual({ reminded: [], closed: [], closePosted: [], failed: [id] });
 		const first = mentioned(discord.posts()[0]);
 		expect(first).toHaveLength(50);
 		const [row] = await reminders(id);
@@ -288,7 +288,7 @@ describe('runTick', () => {
 		expect(row.pendingDiscordIds).toHaveLength(70);
 		discord.calls = [];
 
-		expect(await runTick()).toEqual({ reminded: [id], closed: [], failed: [] });
+		expect(await runTick()).toEqual({ reminded: [id], closed: [], closePosted: [], failed: [] });
 		const rest = discord.posts().flatMap(mentioned);
 		expect(rest).toHaveLength(70);
 		expect(rest.filter((discordId) => first.includes(discordId))).toEqual([]);
@@ -301,7 +301,7 @@ describe('runTick', () => {
 
 		// Done for this deadline.
 		discord.calls = [];
-		expect(await runTick()).toEqual({ reminded: [], closed: [], failed: [] });
+		expect(await runTick()).toEqual({ reminded: [], closed: [], closePosted: [], failed: [] });
 		expect(discord.count()).toBe(0);
 	});
 
@@ -316,14 +316,14 @@ describe('runTick', () => {
 		}
 		discord.calls = [];
 
-		expect(await runTick()).toEqual({ reminded: [], closed: [], failed: [] });
+		expect(await runTick()).toEqual({ reminded: [], closed: [], closePosted: [], failed: [] });
 		expect(discord.posts()).toEqual([]);
 		const [done] = await reminders(id);
 		expect(done.targetDiscordIds).toHaveLength(50);
 		expect(done.pendingDiscordIds).toEqual([]);
 
 		discord.calls = [];
-		expect(await runTick()).toEqual({ reminded: [], closed: [], failed: [] });
+		expect(await runTick()).toEqual({ reminded: [], closed: [], closePosted: [], failed: [] });
 		expect(discord.count()).toBe(0);
 	});
 });

@@ -56,6 +56,6 @@ describe('cron endpoint authorization', () => {
 		process.env.CRON_SECRET = SECRET;
 		const res = await call('tick', `Bearer ${SECRET}`);
 		expect(res.status).toBe(200);
-		expect(await res.json()).toEqual({ reminded: [], closed: [], failed: [] });
+		expect(await res.json()).toEqual({ reminded: [], closed: [], closePosted: [], failed: [] });
 	});
 });

@@ -11,9 +11,10 @@
 	type Row = (typeof data.submitted)[number];
 	type Option = { id: string; label: string };
 
-	function readable(row: Row, questionId: number, options: Option[] | null): string {
+	/** Null for a question left unanswered. */
+	function readable(row: Row, questionId: number, options: Option[] | null): string | null {
 		const value = row.answers[questionId] as AnswerValue | undefined;
-		return value ? describeAnswer(value, options) : '—';
+		return value ? describeAnswer(value, options) : null;
 	}
 
 	const REMINDER_KIND = { manual: '手動', auto: '自動' };
@@ -75,8 +76,12 @@
 			<thead>
 				<tr>
 					<th class="whitespace-nowrap">回答者</th>
+					<!-- Clamped inside a block of their own, which a table cell cannot be; the title keeps
+					     the whole text. -->
 					{#each data.questions as q (q.id)}
-						<th>{q.label}</th>
+						<th>
+							<div class="line-clamp-2 max-w-64 wrap-break-word" title={q.label}>{q.label}</div>
+						</th>
 					{/each}
 					<th class="whitespace-nowrap">提出日時</th>
 				</tr>
@@ -86,8 +91,12 @@
 					<tr>
 						<td class="font-medium whitespace-nowrap">{row.displayName}</td>
 						{#each data.questions as q (q.id)}
-							<td class="max-w-64 whitespace-pre-wrap text-text-subtle">
-								{readable(row, q.id, q.options)}
+							{@const answer = readable(row, q.id, q.options)}
+							<td class="text-text-subtle">
+								<div
+									class="line-clamp-3 max-w-64 wrap-break-word whitespace-pre-wrap"
+									title={answer ?? undefined}
+								>{answer ?? '—'}</div>
 							</td>
 						{/each}
 						<td class="text-xs whitespace-nowrap text-text-muted tabular-nums">

@@ -2103,6 +2103,7 @@ const DRAFT_STATE: DraftState = {
 	description: '11月の合宿について、参加可否を教えてください。',
 	targetRoleId: ROLE_ID,
 	announcementChannelId: CHANNEL_ID,
+	announceClose: true,
 	submitScope: 'target_role',
 	visibility: 'after_deadline',
 	deadline: '2026-10-31T23:59',

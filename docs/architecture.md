@@ -26,7 +26,7 @@ SvelteKit（adapter-node）の単一コンテナ。Discord は Bot の REST だ�
 | `GET /guilds/{guild}` | オーナー | `runFullSync`、`isGuildAdmin` | 実質無制限 |
 | `GET /guilds/{guild}/roles` | ロールの権限と名前 | `runFullSync`、`isGuildAdmin`、作成画面、管理画面 | 実質無制限 |
 | `GET /guilds/{guild}/channels` | 告知チャンネルの選択肢と検証 | 作成画面 | 未計測 |
-| `POST /channels/{channel}/messages` | 告知とリマインド（リマインドは告知への返信で、50 人ずつメンション） | `announceForm`、`sendReminder` | 未計測 |
+| `POST /channels/{channel}/messages` | 告知・リマインド・締め切りの投稿。後の2つは告知への返信 | `announceForm`、`sendReminder`、`postCloseNotice` | 未計測 |
 
 - ログインの OAuth は Better Auth の Discord プロバイダが扱う。
 - 429 は `retry_after` だけ待って再試行する。1 回のリクエストは 10 秒でタイムアウトする。
@@ -58,7 +58,7 @@ erDiagram
 | `user` `session` `account` `verification` | Better Auth。`user.discord_id` は OAuth のプロフィールからだけ入る |
 | `guild_member` | 名簿。Discord サーバーのメンバーを全員同期で写したもの。抜けた人も行を残し `left_at` を入れる。アバターはアカウント用（`avatar_hash`）とサーバー用（`guild_avatar_hash`）を持つ |
 | `guild_sync` | 1 行だけ。最後に成功した全員同期の時刻と、その時点のオーナー・ロール権限 |
-| `form` | フォーム。`deadline`（告知した締切）・`closes_at`（受付終了の予定）・`closed_at`（クローズした時刻。自動クローズでは `closes_at` と同じ値）を別々に持つ。クローズで対象者（`final_target_ids`）と未提出者（`final_non_submitters`）を確定する |
+| `form` | フォーム。`deadline`（告知した締切）・`closes_at`（受付終了の予定）・`closed_at`（クローズした時刻。自動クローズでは `closes_at` と同じ値）を別々に持つ。クローズで対象者（`final_target_ids`）と未提出者（`final_non_submitters`）を確定する。締め切りの投稿は `close_notice_claimed_at` で予約し、`close_message_id` に結果を持つ |
 | `question` | 質問。削除は `deleted_at` の論理削除 |
 | `response` / `answer` | 最新の回答。1 人 1 フォーム 1 件 |
 | `response_revision` | 送信のたびに回答全体を 1 版として残す。同じ内容の再送では増えない |
@@ -72,6 +72,7 @@ erDiagram
 | --- | --- |
 | 回答の送信 `submitResponse` | `form` を `FOR SHARE` → `response` を INSERT（重複は DO NOTHING）→ 編集なら `response` を `FOR UPDATE` → 本人の `response_draft` の DELETE → `answer` の入れ直し・`response_revision` の追加 |
 | クローズ `closeForm` | `form` を `FOR UPDATE` → 名簿と回答を読む → `form` を UPDATE → そのフォームの `response_draft` の DELETE |
+| 締め切りの投稿 `postCloseNotice` | `form` の条件付き UPDATE で予約（未予約のときだけ）→ 投稿はトランザクションの外 → 予約が残っているときだけ `form` を UPDATE。クローズのトランザクションの後に走る |
 | 回答の下書きの保存 `saveResponseDraft` | `form` を `FOR SHARE` → `isClosed` なら 409 → `response_draft` を版 0 なら INSERT（重複は DO NOTHING）、それ以外は条件付き UPDATE。`response` には触れない |
 | 全員同期 `runFullSync` | advisory lock → `guild_member` の upsert・離脱の UPDATE → `guild_sync` の upsert |
 | フォームの作成 `createForm` | `form_draft` の DELETE → `form` と `question` の INSERT。`form` の行のロックは取らない |
@@ -140,12 +141,13 @@ Coolify の Scheduled Tasks が `node scripts/cron.js <job>` を実行し、`POS
 
 | job | 間隔 | 内容 |
 | --- | --- | --- |
-| `tick` | 1 分 | 締切 24 時間前から締切までのフォームに自動リマインドを 1 回送る。受付終了を過ぎたフォームをクローズする |
+| `tick` | 1 分 | 締切 24 時間前から締切までのフォームに自動リマインドを 1 回送る。受付終了を過ぎたフォームをクローズする。クローズから 24 時間以内で、締め切りの投稿がまだのフォームに投稿する |
 | `sync-members` | 1 時間 | 全員同期 |
 
 - 同じ job が実行中なら 409 を返して何もしない。`CRON_SECRET` が未設定なら常に拒否する。
 - 自動リマインドは送信前に予約の行を入れ、締切ごとの部分ユニークで重複を防ぐ。
 - 途中で失敗した送信は、送れた分を記録して残す。続きは自動なら次の tick、手動なら次の手動のリマインドで、まだメンションしていない未提出者にだけ送る。自動と手動の記録は別々。
+- 締め切りの投稿は、クローズの直後に行う。失敗してもクローズは成功のままで、次の tick が送り直す。
 
 ## 同期のタイミング
 

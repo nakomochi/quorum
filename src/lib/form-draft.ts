@@ -60,6 +60,7 @@ export type EditorState = {
 	description: string;
 	targetRoleId: string;
 	announcementChannelId: string;
+	announceClose: boolean;
 	submitScope: SubmitScope;
 	visibility: Visibility;
 	deadline: string;
@@ -129,6 +130,8 @@ export function readDraftPayload(payload: unknown): EditorState {
 		description: field('description') ?? '',
 		targetRoleId: field('targetRoleId') ?? '',
 		announcementChannelId: field('announcementChannelId') ?? '',
+		// Always present since it was added, as 'on' or 'off'. Older drafts fall back to on.
+		announceClose: field('announceClose') !== 'off',
 		submitScope: pick(field('submitScope') ?? '', SUBMIT_SCOPES, 'everyone'),
 		visibility: pick(field('visibility') ?? '', VISIBILITIES, 'public'),
 		deadline: field('deadline') ?? '',

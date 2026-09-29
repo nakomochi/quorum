@@ -65,11 +65,12 @@ export type DiscordMessage = {
 
 /**
  * `parse: []` suppresses @everyone/@here and role pings that happen to appear in the body, so only
- * the snowflakes listed in `users` are notified.
+ * the snowflakes listed in `users` and `roles` are notified.
  */
 export type AllowedMentions = {
 	parse: never[];
 	users?: string[];
+	roles?: string[];
 	replied_user?: boolean;
 };
 

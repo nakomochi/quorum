@@ -3,13 +3,18 @@ import { db } from './db';
 import { form, reminder } from './db/schema';
 import { closeForm } from './forms';
 import { syncAllMembers, type SyncAllResult } from './guild-sync';
-import { sendReminder } from './notify';
+import { postCloseNotice, sendReminder } from './notify';
 
 const REMINDER_LEAD = sql`interval '24 hours'`;
+
+/** How long after a close its post is still retried. */
+const CLOSE_NOTICE_RETRY = sql`interval '24 hours'`;
 
 export type TickResult = {
 	reminded: string[];
 	closed: string[];
+	/** Forms whose close was posted to Discord by this pass. */
+	closePosted: string[];
 	/** Forms whose scheduled action did not happen. Every entry is also logged. */
 	failed: string[];
 };
@@ -64,9 +69,30 @@ async function dueForClose(): Promise<string[]> {
 	return rows.map((row) => row.id);
 }
 
-/** One pass over both schedules. Throws only if a query itself fails. */
+/**
+ * Closes whose post is still owed: closed by this pass, or by hand while Discord failed. Bounded so
+ * that a channel refusing every post is not retried forever.
+ */
+async function dueForCloseNotice(): Promise<string[]> {
+	const rows = await db
+		.select({ id: form.id })
+		.from(form)
+		.where(
+			and(
+				isNotNull(form.closedAt),
+				gt(form.closedAt, sql`now() - ${CLOSE_NOTICE_RETRY}`),
+				eq(form.announceClose, true),
+				isNotNull(form.announcementChannelId),
+				isNull(form.closeNoticeClaimedAt)
+			)
+		);
+
+	return rows.map((row) => row.id);
+}
+
+/** One pass over every schedule. Throws only if a query itself fails. */
 export async function runTick(): Promise<TickResult> {
-	const result: TickResult = { reminded: [], closed: [], failed: [] };
+	const result: TickResult = { reminded: [], closed: [], closePosted: [], failed: [] };
 
 	// Per-form try/catch throughout: one form that Discord rejects must not hold up the rest.
 	for (const id of await dueForReminder()) {
@@ -109,6 +135,24 @@ export async function runTick(): Promise<TickResult> {
 		} catch (cause) {
 			result.failed.push(id);
 			console.error(`auto close failed for ${id}`, cause);
+		}
+	}
+
+	// After the closes above, so that a form closed by this pass is posted by it too.
+	for (const id of await dueForCloseNotice()) {
+		try {
+			const posted = await postCloseNotice(id);
+			if (posted.ok) {
+				result.closePosted.push(id);
+			} else if (posted.reason === 'post_failed') {
+				// The claim is released, and the next pass tries again. skipped is not a failure: a
+				// close by hand posting its own, or a reopen, got in between.
+				result.failed.push(id);
+				console.warn(`close notice not posted for ${id}: ${posted.reason}`);
+			}
+		} catch (cause) {
+			result.failed.push(id);
+			console.error(`close notice failed for ${id}`, cause);
 		}
 	}
 

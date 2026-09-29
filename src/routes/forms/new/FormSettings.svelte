@@ -38,6 +38,7 @@
 	let submitScope = $state(untrack(() => initial?.submitScope ?? 'everyone'));
 	let visibility = $state(untrack(() => initial?.visibility ?? 'public'));
 	let allowEdit = $state(untrack(() => initial?.allowEdit ?? true));
+	let announceClose = $state(untrack(() => initial?.announceClose ?? true));
 
 	// Controlled so that a stored id missing from today's options can be told apart from a choice.
 	let targetRoleId = $state(untrack(() => initial?.targetRoleId ?? ''));
@@ -49,6 +50,7 @@
 	const channelMissing = $derived(
 		announcementChannelId !== '' && !channels.some((channel) => channel.id === announcementChannelId)
 	);
+	const noChannel = $derived(announcementChannelId === '');
 
 	/** Blocks the submission, with the reason in the browser's own bubble, until it is resolved. */
 	const validity = (message: () => string) => (node: HTMLSelectElement) => {
@@ -176,4 +178,24 @@
 		<input type="checkbox" name="allowEdit" bind:checked={allowEdit} class="size-4" />
 		回答の編集を許可する
 	</label>
+
+	<div>
+		<label class="flex items-center gap-2 text-sm" class:text-text-muted={noChannel}>
+			<input
+				type="checkbox"
+				bind:checked={announceClose}
+				disabled={noChannel}
+				aria-describedby="announce-close-hint"
+				class="size-4"
+			/>
+			締め切ったときに Discord に投稿する
+		</label>
+		<span id="announce-close-hint" class="mt-1 block pl-6 text-xs text-text-muted">
+			{noChannel
+				? '告知チャンネルを選ぶと設定できます。'
+				: '対象ロールをメンションして、告知への返信として投稿します。'}
+		</span>
+		<!-- Sent in the box's place: a disabled box drops out of the form data, choice and all. -->
+		<input type="hidden" name="announceClose" value={announceClose ? 'on' : 'off'} />
+	</div>
 </section>

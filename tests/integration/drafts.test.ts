@@ -364,6 +364,7 @@ describe('creating the form removes its draft', () => {
 			closesAt: null,
 			allowEdit: true,
 			announcementChannelId: null,
+			announceClose: true,
 			// Fails in the question insert, after the draft's delete has run.
 			questions: [{ ...DEFAULT_QUESTIONS[0], type: 'bogus' as never }]
 		};
@@ -390,6 +391,7 @@ describe('creating the form removes its draft', () => {
 				closesAt: null,
 				allowEdit: true,
 				announcementChannelId: null,
+				announceClose: true,
 				questions: DEFAULT_QUESTIONS
 			},
 			author.id,
@@ -446,6 +448,7 @@ describe('duplicating a form', () => {
 			visibility: 'after_deadline',
 			allowEdit: false,
 			announcementChannelId: CHANNEL_ID,
+			announceClose: false,
 			deadline: new Date(Date.now() + 86_400_000),
 			closesAt: new Date(Date.now() + 2 * 86_400_000),
 			questions: [
@@ -466,6 +469,7 @@ describe('duplicating a form', () => {
 			description: '説明文',
 			targetRoleId: TARGET_ROLE,
 			announcementChannelId: CHANNEL_ID,
+			announceClose: false,
 			submitScope: 'target_role',
 			visibility: 'after_deadline',
 			deadline: '',

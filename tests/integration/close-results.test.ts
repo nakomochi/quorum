@@ -142,7 +142,7 @@ describe('closed_at', () => {
 		// Given the role after closes_at, before the tick got to the form.
 		discord.members = [...discord.members, member(late.discordId)];
 
-		expect(await runTick()).toEqual({ reminded: [], closed: [id], failed: [] });
+		expect(await runTick()).toEqual({ reminded: [], closed: [id], closePosted: [], failed: [] });
 
 		const row = await formRow(id);
 		expect(row.closedAt).toEqual(closesAt);

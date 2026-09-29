@@ -22,7 +22,7 @@ import {
 } from '$lib/server/guards';
 import { messageUrl } from '$lib/server/discord';
 import { lastSyncedAt, syncAllMembers, syncedGuildRoles } from '$lib/server/guild-sync';
-import { announceForm, listReminders, sendReminder } from '$lib/server/notify';
+import { announceForm, listReminders, postCloseNotice, sendReminder } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 const NO_CHANNEL = '告知チャンネルが設定されていないため、Discord へ投稿できません';
@@ -155,6 +155,13 @@ export const actions: Actions = {
 			return result.reason === 'not_found'
 				? fail(404, { message: FORM_NOT_FOUND })
 				: fail(409, { message: 'このフォームはすでに締め切って確定済みです' });
+		}
+
+		// The close has committed and stands whatever happens here: a failed post is left to the tick.
+		try {
+			await postCloseNotice(params.id);
+		} catch (cause) {
+			console.error('close notice after a close by hand failed', cause);
 		}
 
 		return { closed: result.frozen };

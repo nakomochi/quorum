@@ -1,4 +1,4 @@
-import { and, desc, eq, isNull, sql } from 'drizzle-orm';
+import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { db } from './db';
 import { form, reminder, type Form } from './db/schema';
@@ -84,6 +84,72 @@ export async function announceForm(formId: string): Promise<AnnounceResult> {
 	}
 
 	await db.update(form).set({ announcementMessageId: message.id }).where(eq(form.id, formId));
+
+	return { ok: true, messageId: message.id };
+}
+
+/** A reply to the announcement once there is one, a plain message before that. */
+function replyTo(announcementMessageId: string | null): Pick<CreateMessage, 'message_reference'> {
+	return announcementMessageId
+		? { message_reference: { message_id: announcementMessageId, fail_if_not_exists: false } }
+		: {};
+}
+
+function closeNoticeContent(target: { title: string; targetRoleId: string }): string {
+	return `<@&${target.targetRoleId}> 「${truncate(target.title, TITLE_IN_MESSAGE)}」を締め切りました。`;
+}
+
+/** 'skipped': nothing to post. The form is open or gone, posts no close, or the close is claimed. */
+export type CloseNoticeResult =
+	| { ok: true; messageId: string }
+	| { ok: false; reason: 'skipped' | 'post_failed' };
+
+/**
+ * Posts that a form has closed, mentioning its target role. Run after the close has committed and
+ * retried by the tick: a failed post never undoes the close.
+ */
+export async function postCloseNotice(formId: string): Promise<CloseNoticeResult> {
+	// Claimed in one conditional statement before anything is posted, like a reminder's reserved
+	// row: two callers racing on one close post it once, and a crash after the claim misses it
+	// rather than posting it twice.
+	const claimedAt = new Date();
+	const [target] = await db
+		.update(form)
+		.set({ closeNoticeClaimedAt: claimedAt })
+		.where(
+			and(
+				eq(form.id, formId),
+				isNotNull(form.closedAt),
+				eq(form.announceClose, true),
+				isNotNull(form.announcementChannelId),
+				isNull(form.closeNoticeClaimedAt)
+			)
+		)
+		.returning({
+			title: form.title,
+			targetRoleId: form.targetRoleId,
+			channelId: form.announcementChannelId,
+			announcementMessageId: form.announcementMessageId
+		});
+	if (!target?.channelId) return { ok: false, reason: 'skipped' };
+
+	// A reopen in between clears the claim, and neither write below may then touch the reopened form.
+	const stillClaimed = and(eq(form.id, formId), eq(form.closeNoticeClaimedAt, claimedAt));
+
+	let message;
+	try {
+		message = await postMessage(target.channelId, {
+			content: closeNoticeContent(target),
+			allowed_mentions: { parse: [], roles: [target.targetRoleId], replied_user: false },
+			...replyTo(target.announcementMessageId)
+		});
+	} catch (cause) {
+		console.error('close notice post failed', cause);
+		await db.update(form).set({ closeNoticeClaimedAt: null }).where(stillClaimed);
+		return { ok: false, reason: 'post_failed' };
+	}
+
+	await db.update(form).set({ closeMessageId: message.id }).where(stillClaimed);
 
 	return { ok: true, messageId: message.id };
 }
@@ -234,14 +300,7 @@ async function postPending(target: Form, channelId: string, id: number): Promise
 				content: reminderContent(target, batch),
 				// replied_user: false keeps the reply from notifying the announcement's author, the bot.
 				allowed_mentions: { parse: [], users: batch, replied_user: false },
-				...(target.announcementMessageId
-					? {
-							message_reference: {
-								message_id: target.announcementMessageId,
-								fail_if_not_exists: false
-							}
-						}
-					: {})
+				...replyTo(target.announcementMessageId)
 			});
 		} catch (cause) {
 			console.error('reminder post failed', cause);

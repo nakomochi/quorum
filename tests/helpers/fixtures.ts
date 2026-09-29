@@ -100,6 +100,7 @@ export async function makeForm(creator: TestUser, overrides: Partial<CreateFormI
 			closesAt: null,
 			allowEdit: true,
 			announcementChannelId: null,
+			announceClose: true,
 			questions: DEFAULT_QUESTIONS,
 			...overrides
 		},

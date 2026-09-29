@@ -30,6 +30,7 @@ const FORBIDDEN_KEYS = [
 	'finalTargetIds',
 	'announcementChannelId',
 	'announcementMessageId',
+	'closeMessageId',
 	'channelId',
 	'messageId',
 	'messageIds',

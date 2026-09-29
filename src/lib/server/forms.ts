@@ -86,6 +86,7 @@ export type CreateFormInput = {
 	closesAt: Date | null;
 	allowEdit: boolean;
 	announcementChannelId: string | null;
+	announceClose: boolean;
 	questions: QuestionDraft[];
 };
 
@@ -253,6 +254,8 @@ export function parseCreateFormPayload(data: FormData): CreateFormInput {
 			'告知チャンネル',
 			MAX_SNOWFLAKE
 		),
+		// A hidden field rather than the checkbox, which is disabled while no channel is chosen.
+		announceClose: data.get('announceClose') !== 'off',
 		questions: parseQuestions(data.get('questions'))
 	};
 }
@@ -286,6 +289,7 @@ export async function createForm(
 			closesAt: input.closesAt,
 			allowEdit: input.allowEdit,
 			announcementChannelId: input.announcementChannelId,
+			announceClose: input.announceClose,
 			createdBy
 		});
 
@@ -1052,7 +1056,7 @@ export type CloseTime = 'now' | 'closes_at';
  * Closing writes a permanent record, so the mirror is refreshed from Discord first: freezing a
  * stale roster would name the wrong people forever. A Discord failure propagates and the form
  * stays open rather than being frozen on old data. The roster is frozen as it stands when the close
- * runs, whatever `at` records.
+ * runs, whatever `at` records. The close is posted to Discord afterwards, by postCloseNotice.
  */
 export async function closeForm(formId: string, at: CloseTime = 'now'): Promise<CloseResult> {
 	try {
@@ -1099,7 +1103,7 @@ export async function closeForm(formId: string, at: CloseTime = 'now'): Promise<
 /**
  * Recovery from a mistaken close. The frozen lists are discarded, not archived. A closes_at that
  * has already passed is cleared, since it would refuse submissions and let the scheduler close the
- * form again; a future one is kept.
+ * form again; a future one is kept. The close's post is forgotten too, so the next close posts again.
  */
 export async function reopenForm(formId: string): Promise<boolean> {
 	const rows = await db
@@ -1108,6 +1112,8 @@ export async function reopenForm(formId: string): Promise<boolean> {
 			closedAt: null,
 			finalNonSubmitters: null,
 			finalTargetIds: null,
+			closeNoticeClaimedAt: null,
+			closeMessageId: null,
 			closesAt: sql`CASE WHEN ${form.closesAt} <= now() THEN NULL ELSE ${form.closesAt} END`
 		})
 		.where(and(eq(form.id, formId), isNotNull(form.closedAt)))

@@ -1,22 +1,13 @@
 import { describe, expect, test } from 'bun:test';
 import {
-	DRAFT_TEXT_LIMIT,
 	draftPayload,
-	MAX_DRAFT_LENGTH,
+	MAX_DRAFT_BYTES,
 	questionsField,
 	readDraftPayload
 } from '../../src/lib/form-draft';
-import {
-	MAX_DESCRIPTION,
-	MAX_HELP_TEXT,
-	MAX_LABEL,
-	MAX_OPTION_ID,
-	MAX_OPTION_LABEL,
-	MAX_OPTIONS,
-	MAX_QUESTIONS,
-	MAX_TITLE
-} from '../../src/lib/forms';
+import { MAX_FORM_BYTES, MAX_TITLE, utf8Bytes } from '../../src/lib/forms';
 import { copyTitle } from '../../src/lib/server/drafts';
+import { formOfSize } from '../helpers/sizes';
 
 describe('readDraftPayload', () => {
 	test('reads back what the editor saved', () => {
@@ -100,23 +91,13 @@ describe('readDraftPayload', () => {
 });
 
 describe('size limit', () => {
-	test('the largest valid form fits, with room to spare', () => {
-		const long = (n: number) => 'あ'.repeat(n);
-		const questions = Array.from({ length: MAX_QUESTIONS }, (_, q) => ({
-			type: 'single' as const,
-			label: long(MAX_LABEL),
-			helpText: long(MAX_HELP_TEXT),
-			required: true,
-			options: Array.from({ length: MAX_OPTIONS }, (_, o) => ({
-				id: `${q}-${o}`.padEnd(MAX_OPTION_ID, 'x'),
-				label: long(MAX_OPTION_LABEL)
-			})),
-			allowOther: true
-		}));
+	/** The body the editor would send for a form of exactly MAX_FORM_BYTES made of `char`. */
+	function draftBodyBytes(char: string) {
+		const text = formOfSize(MAX_FORM_BYTES, char);
 		const payload = draftPayload(
 			{
-				title: [long(MAX_TITLE)],
-				description: [long(MAX_DESCRIPTION)],
+				title: [text.title],
+				description: [text.description],
 				targetRoleId: ['900000000000000001'],
 				announcementChannelId: ['900000000000000002'],
 				submitScope: ['target_role'],
@@ -124,15 +105,21 @@ describe('size limit', () => {
 				deadline: ['2026-10-01T12:00'],
 				closesAt: ['2026-10-02T12:00'],
 				allowEdit: ['on'],
-				questions: [questionsField(questions)]
+				questions: [text.questions]
 			},
 			true
 		);
-		const body = JSON.stringify({ version: 1, payload });
+		return utf8Bytes(JSON.stringify({ version: 2_147_483_647, payload }));
+	}
 
-		expect(DRAFT_TEXT_LIMIT).toBe(1_474_200);
-		expect(body.length).toBeGreaterThan(DRAFT_TEXT_LIMIT);
-		expect(body.length).toBeLessThan(MAX_DRAFT_LENGTH);
+	test('the draft of any form within MAX_FORM_BYTES fits, escaping included', () => {
+		const japanese = draftBodyBytes('あ');
+		// Quotes are the worst case: every one is escaped once more in the draft.
+		const quotes = draftBodyBytes('"');
+
+		expect(japanese).toBeLessThan(MAX_FORM_BYTES * 1.1);
+		expect(quotes).toBeGreaterThan(MAX_FORM_BYTES * 1.9);
+		expect(quotes).toBeLessThanOrEqual(MAX_DRAFT_BYTES);
 	});
 });
 

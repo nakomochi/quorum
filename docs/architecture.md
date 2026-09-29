@@ -15,6 +15,8 @@ flowchart LR
 
 SvelteKit（adapter-node）の単一コンテナ。Discord は Bot の REST だけを使い、Gateway は使わない。
 
+リクエスト本文の上限は adapter-node の既定（512KB）のまま。フォーム全体・回答全体・下書きに UTF-8 のバイト数の上限（`MAX_FORM_BYTES`、`MAX_RESPONSE_BYTES`、`MAX_DRAFT_BYTES`）を設け、送信の本文が 512KB に収まるようにしている。
+
 ## Discord API
 
 | API | 用途 | 呼び出し元 | 制限（実測） |
@@ -54,7 +56,7 @@ erDiagram
 | `user` `session` `account` `verification` | Better Auth。`user.discord_id` は OAuth のプロフィールからだけ入る |
 | `guild_member` | 名簿。Discord サーバーのメンバーを全員同期で写したもの。抜けた人も行を残し `left_at` を入れる |
 | `guild_sync` | 1 行だけ。最後に成功した全員同期の時刻と、その時点のオーナー・ロール権限 |
-| `form` | フォーム。`deadline`（告知した締切）・`closes_at`（受付終了の予定）・`closed_at`（実際にクローズした時刻）を別々に持つ。クローズで対象者（`final_target_ids`）と未提出者（`final_non_submitters`）を確定する |
+| `form` | フォーム。`deadline`（告知した締切）・`closes_at`（受付終了の予定）・`closed_at`（クローズした時刻。自動クローズでは `closes_at` と同じ値）を別々に持つ。クローズで対象者（`final_target_ids`）と未提出者（`final_non_submitters`）を確定する |
 | `question` | 質問。削除は `deleted_at` の論理削除 |
 | `response` / `answer` | 最新の回答。1 人 1 フォーム 1 件 |
 | `response_revision` | 送信のたびに回答全体を 1 版として残す。同じ内容の再送では増えない |
@@ -129,7 +131,7 @@ Coolify の Scheduled Tasks が `node scripts/cron.js <job>` を実行し、`POS
 
 | job | 間隔 | 内容 |
 | --- | --- | --- |
-| `tick` | 5 分 | 締切 24 時間前から締切までのフォームに自動リマインドを 1 回送る。受付終了を過ぎたフォームをクローズする |
+| `tick` | 1 分 | 締切 24 時間前から締切までのフォームに自動リマインドを 1 回送る。受付終了を過ぎたフォームをクローズする |
 | `sync-members` | 1 時間 | 全員同期 |
 
 - 同じ job が実行中なら 409 を返して何もしない。`CRON_SECRET` が未設定なら常に拒否する。

@@ -34,6 +34,22 @@ export const MAX_OPTIONS = 50;
 export const MAX_TEXT_ANSWER = 4000;
 export const MAX_OTHER_ANSWER = 500;
 
+/**
+ * Whole-form and whole-response limits, in UTF-8 bytes of the text as it arrives, before any
+ * trimming. The per-field limits above add up to megabytes, far past the 512K request body that
+ * adapter-node accepts by default. Form posts are URL-encoded, where one byte of text takes at
+ * most three, so either limit stays well inside that body.
+ *
+ * The form counts its title, description and questions field; a response counts every value and
+ * "その他" text sent for the form's questions.
+ */
+export const MAX_FORM_BYTES = 100_000;
+export const MAX_RESPONSE_BYTES = 50_000;
+
+const encoder = new TextEncoder();
+
+export const utf8Bytes = (text: string) => encoder.encode(text).byteLength;
+
 /** Posted as the choice value for "その他"; option ids may never take it. */
 export const OTHER_OPTION_ID = '__other__';
 

@@ -762,7 +762,11 @@
 				{:else if saveStatus.kind === 'saved'}
 					<span class="whitespace-nowrap">保存済み {formatJstTime(saveStatus.at)}</span>
 				{:else if saveStatus.kind === 'failed'}
-					<span class="text-error-fg">保存できませんでした</span>
+					<span class="text-error-fg">
+						保存できませんでした{saveStatus.tooLarge
+							? '。フォームが大きすぎます。質問や選択肢を減らしてください'
+							: ''}
+					</span>
 				{/if}
 			</p>
 		</div>

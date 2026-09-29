@@ -21,6 +21,7 @@ import { parseJstLocal } from '../datetime';
 import {
 	hasOptions,
 	MAX_DESCRIPTION,
+	MAX_FORM_BYTES,
 	MAX_HELP_TEXT,
 	MAX_LABEL,
 	MAX_OPTION_ID,
@@ -28,12 +29,14 @@ import {
 	MAX_OPTIONS,
 	MAX_OTHER_ANSWER,
 	MAX_QUESTIONS,
+	MAX_RESPONSE_BYTES,
 	MAX_TEXT_ANSWER,
 	MAX_TITLE,
 	OTHER_OPTION_ID,
 	QUESTION_TYPES,
 	sameAnswers,
 	SUBMIT_SCOPES,
+	utf8Bytes,
 	VISIBILITIES,
 	type AnswerValue,
 	type QuestionType,
@@ -213,7 +216,19 @@ export function parseQuestions(raw: FormDataEntryValue | null): QuestionDraft[] 
 	});
 }
 
+/** What MAX_FORM_BYTES counts. */
+function formBytes(data: FormData): number {
+	return ['title', 'description', 'questions'].reduce((total, name) => {
+		const value = data.get(name);
+		return total + (typeof value === 'string' ? utf8Bytes(value) : 0);
+	}, 0);
+}
+
 export function parseCreateFormPayload(data: FormData): CreateFormInput {
+	if (formBytes(data) > MAX_FORM_BYTES) {
+		throw new FormInputError('フォームが大きすぎます。質問や選択肢を減らしてください');
+	}
+
 	const deadline = optionalDate(data.get('deadline'), '締切');
 	const closesAt = optionalDate(data.get('closesAt'), '受付終了');
 
@@ -404,6 +419,16 @@ export function collectAnswerInputs(data: FormData, questions: Question[]): Answ
 	return inputs;
 }
 
+/** What MAX_RESPONSE_BYTES counts, "その他" text left unchosen included: it was sent all the same. */
+function answerInputBytes(inputs: AnswerInputs): number {
+	let total = 0;
+	for (const input of inputs.values()) {
+		for (const value of input.values) total += utf8Bytes(value);
+		if (input.other !== null) total += utf8Bytes(input.other);
+	}
+	return total;
+}
+
 export type SubmitFailure = 'not_found' | 'forbidden' | 'closed' | 'already_submitted';
 
 export type SubmitResult =
@@ -427,6 +452,9 @@ export async function submitResponse(
 	if (!target) return { ok: false, reason: 'not_found' };
 	if (isClosed(target)) return { ok: false, reason: 'closed' };
 	if (!canSubmit(target, member)) return { ok: false, reason: 'forbidden' };
+	if (answerInputBytes(inputs) > MAX_RESPONSE_BYTES) {
+		throw new FormInputError('回答が大きすぎます。入力を短くしてください');
+	}
 
 	const questions = await loadQuestions(formId);
 	const values = questions
@@ -980,14 +1008,22 @@ export function tallyChoices(questions: Question[], rows: ResultRow[]): ChoiceTa
 
 export type CloseResult =
 	| { ok: true; frozen: number }
-	| { ok: false; reason: 'not_found' | 'already_closed' };
+	| { ok: false; reason: 'not_found' | 'already_closed' | 'not_due' };
+
+/**
+ * The time recorded as closed_at. 'closes_at' is the scheduler's: submissions stopped at closes_at,
+ * whenever the close runs. It is read under the lock, and a form whose closes_at has not passed
+ * by then is left open as 'not_due'.
+ */
+export type CloseTime = 'now' | 'closes_at';
 
 /**
  * Closing writes a permanent record, so the mirror is refreshed from Discord first: freezing a
  * stale roster would name the wrong people forever. A Discord failure propagates and the form
- * stays open rather than being frozen on old data.
+ * stays open rather than being frozen on old data. The roster is frozen as it stands when the close
+ * runs, whatever `at` records.
  */
-export async function closeForm(formId: string): Promise<CloseResult> {
+export async function closeForm(formId: string, at: CloseTime = 'now'): Promise<CloseResult> {
 	try {
 		await syncAllMembers();
 	} catch (cause) {
@@ -1006,11 +1042,19 @@ export async function closeForm(formId: string): Promise<CloseResult> {
 		if (!target) return { ok: false, reason: 'not_found' } as const;
 		if (target.closedAt) return { ok: false, reason: 'already_closed' } as const;
 
+		let closedAt = new Date();
+		if (at === 'closes_at') {
+			if (!target.closesAt || !closesAtPassed(target, closedAt)) {
+				return { ok: false, reason: 'not_due' } as const;
+			}
+			closedAt = target.closesAt;
+		}
+
 		const { targetIds, nonSubmitters } = await rosterStatus(tx, target);
 
 		await tx
 			.update(form)
-			.set({ closedAt: new Date(), finalNonSubmitters: nonSubmitters, finalTargetIds: targetIds })
+			.set({ closedAt, finalNonSubmitters: nonSubmitters, finalTargetIds: targetIds })
 			.where(and(eq(form.id, formId), isNull(form.closedAt)));
 
 		return { ok: true, frozen: nonSubmitters.length } as const;

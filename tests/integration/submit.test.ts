@@ -3,7 +3,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { answer, response, responseRevision } from '$lib/server/db/schema';
 import { closeForm, FormInputError, loadOwnResponse, type QuestionDraft } from '$lib/server/forms';
-import { MAX_OTHER_ANSWER, MAX_TEXT_ANSWER, OTHER_OPTION_ID } from '$lib/forms';
+import { MAX_OTHER_ANSWER, MAX_RESPONSE_BYTES, MAX_TEXT_ANSWER, OTHER_OPTION_ID } from '$lib/forms';
 import { OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
 import {
 	createUser,
@@ -265,6 +265,24 @@ describe('submitResponse: building answers', () => {
 			`${MAX_TEXT_ANSWER}文字以内`
 		);
 		expect(await submit(id, who, [], inputs(questions, { 0: 'x'.repeat(MAX_TEXT_ANSWER) }))).toMatchObject({ ok: true });
+	});
+
+	test('a response of exactly MAX_RESPONSE_BYTES is taken, and one byte more is refused', async () => {
+		const { id, questions, who } = await formWith([
+			...Array.from({ length: 5 }, () => text(false)),
+			choice('single', true)
+		]);
+		// Four full Japanese answers of 12,000 bytes each, the choice 'a', and "その他" text that
+		// was sent unchosen: it counts even though it is dropped.
+		const full = 'あ'.repeat(MAX_TEXT_ANSWER);
+		const other = 'x'.repeat(MAX_OTHER_ANSWER);
+		const rest = MAX_RESPONSE_BYTES - 4 * 3 * MAX_TEXT_ANSWER - 1 - MAX_OTHER_ANSWER;
+		const answers = (last: string) =>
+			inputs(questions, { 0: full, 1: full, 2: full, 3: full, 4: last, 5: { values: ['a'], other } });
+
+		await expect(submit(id, who, [], answers('x'.repeat(rest + 1)))).rejects.toThrow('回答が大きすぎます');
+		expect(await counts(id)).toMatchObject({ responses: 0 });
+		expect(await submit(id, who, [], answers('x'.repeat(rest)))).toMatchObject({ ok: true });
 	});
 
 	test('dates must be real calendar dates', async () => {

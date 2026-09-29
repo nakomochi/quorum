@@ -4,12 +4,8 @@ import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { form, formDraft, question } from '$lib/server/db/schema';
 import { createForm } from '$lib/server/forms';
-import {
-	draftPayload,
-	MAX_DRAFT_BYTES,
-	MAX_DRAFT_LENGTH,
-	readDraftPayload
-} from '$lib/form-draft';
+import { draftPayload, MAX_DRAFT_BYTES, readDraftPayload } from '$lib/form-draft';
+import { utf8Bytes } from '$lib/forms';
 import { POST } from '../../src/routes/forms/drafts/+server';
 import { DELETE, PUT } from '../../src/routes/forms/drafts/[id]/+server';
 import { actions as newActions, load as newLoad } from '../../src/routes/forms/new/+page.server';
@@ -184,12 +180,21 @@ describe('saving a draft', () => {
 		expect(await db.$count(formDraft)).toBe(1);
 	});
 
-	test('a body past the size limit is a 413', async () => {
+	test('a body of exactly MAX_DRAFT_BYTES is saved, and one byte more is a 413', async () => {
 		const { author } = await setup();
 		const { id } = await created(author);
-		const huge = JSON.stringify({ version: 1, payload: payload('x'.repeat(MAX_DRAFT_LENGTH)) });
+		/** A body of `bytes` UTF-8 bytes, mostly Japanese, so that bytes rather than characters count. */
+		const body = (version: number, bytes: number) => {
+			const bare = JSON.stringify({ version, payload: payload('') });
+			const room = bytes - utf8Bytes(bare);
+			const title = 'あ'.repeat(Math.floor(room / 3)) + 'x'.repeat(room % 3);
+			const text = JSON.stringify({ version, payload: payload(title) });
+			expect(utf8Bytes(text)).toBe(bytes);
+			return text;
+		};
 
-		const tooLong = await call(PUT, { who: author, method: 'PUT', id, raw: huge });
+		const exact = await call(PUT, { who: author, method: 'PUT', id, raw: body(1, MAX_DRAFT_BYTES) });
+		const over = await call(PUT, { who: author, method: 'PUT', id, raw: body(2, MAX_DRAFT_BYTES + 1) });
 		const declared = await call(POST, {
 			who: author,
 			method: 'POST',
@@ -197,9 +202,11 @@ describe('saving a draft', () => {
 			headers: { 'content-length': String(MAX_DRAFT_BYTES + 1) }
 		});
 
-		expect(tooLong.status).toBe(413);
+		expect(exact.status).toBe(200);
+		expect(over.status).toBe(413);
+		expect(over.body?.message).toContain('大きすぎる');
 		expect(declared.status).toBe(413);
-		expect((await stored(id))?.version).toBe(1);
+		expect((await stored(id))?.version).toBe(2);
 	});
 
 	test('the body must be JSON with an object payload, and an update needs a version', async () => {

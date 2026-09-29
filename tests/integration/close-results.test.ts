@@ -11,12 +11,14 @@ import {
 	RosterRefreshError
 } from '$lib/server/forms';
 import { syncAllMembers } from '$lib/server/guild-sync';
+import { runTick } from '$lib/server/scheduler';
 import { discord, OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
 import {
 	createUsers,
 	inputs,
 	makeForm,
 	member,
+	patchForm,
 	seedGuild,
 	snowflake,
 	submit
@@ -106,6 +108,57 @@ describe('closeForm', () => {
 
 		expect(await loadResults((await loadForm(id))!)).toEqual(before);
 		expect(await counted(id)).toEqual(countsBefore);
+	});
+});
+
+describe('closed_at', () => {
+	test('by hand it is the time of the close, even past closes_at', async () => {
+		const [creator] = await createUsers([snowflake(1)]);
+		await seedGuild([member(creator.discordId)]);
+		const plain = await makeForm(creator);
+		const passed = await makeForm(creator);
+		const closesAt = new Date(Date.now() - 3_600_000);
+		await patchForm(passed.id, { closesAt });
+
+		const before = Date.now();
+		await closeForm(plain.id);
+		await closeForm(passed.id);
+		const after = Date.now();
+
+		for (const id of [plain.id, passed.id]) {
+			const closedAt = (await formRow(id)).closedAt!.getTime();
+			expect(closedAt).toBeGreaterThanOrEqual(before);
+			expect(closedAt).toBeLessThanOrEqual(after);
+		}
+		expect((await formRow(passed.id)).closesAt).toEqual(closesAt);
+	});
+
+	test('on schedule it is closes_at, while the roster is frozen as it stands at the close', async () => {
+		const [creator, early, late] = await createUsers([1, 2, 3].map(snowflake));
+		await seedGuild([member(creator.discordId, [OTHER_ROLE]), member(early.discordId)]);
+		const { id } = await makeForm(creator);
+		const closesAt = new Date(Date.now() - 3_600_000);
+		await patchForm(id, { closesAt });
+		// Given the role after closes_at, before the tick got to the form.
+		discord.members = [...discord.members, member(late.discordId)];
+
+		expect(await runTick()).toEqual({ reminded: [], closed: [id], failed: [] });
+
+		const row = await formRow(id);
+		expect(row.closedAt).toEqual(closesAt);
+		expect([...row.finalTargetIds!].sort()).toEqual([early.discordId, late.discordId].sort());
+	});
+
+	test('on schedule, a form whose closes_at is not past or not set stays open', async () => {
+		const [creator] = await createUsers([snowflake(1)]);
+		await seedGuild([member(creator.discordId)]);
+		const unset = await makeForm(creator);
+		const future = await makeForm(creator, { closesAt: new Date(Date.now() + 3_600_000) });
+
+		expect(await closeForm(unset.id, 'closes_at')).toEqual({ ok: false, reason: 'not_due' });
+		expect(await closeForm(future.id, 'closes_at')).toEqual({ ok: false, reason: 'not_due' });
+		expect((await formRow(unset.id)).closedAt).toBeNull();
+		expect((await formRow(future.id)).closedAt).toBeNull();
 	});
 });
 

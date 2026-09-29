@@ -33,7 +33,7 @@ bun run test
 
 | job | 間隔 | 内容 |
 | --- | --- | --- |
-| `tick` | 5 分 | 締切 24 時間前を過ぎたフォームに自動リマインドを送り、受付終了時刻を過ぎたフォームを閉じる |
+| `tick` | 1 分 | 締切 24 時間前を過ぎたフォームに自動リマインドを送り、受付終了時刻を過ぎたフォームを閉じる |
 | `sync-members` | 1 時間 | サーバーメンバーの名簿を全件同期する |
 
 同じ job が実行中なら 409 を返して何もしない。開発環境では自動で動かないので、
@@ -69,7 +69,7 @@ https://discord.com/oauth2/authorize?client_id=<CLIENT_ID>&scope=bot&permissions
 
    | Command | Frequency |
    | --- | --- |
-   | `node scripts/cron.js tick` | `*/5 * * * *` |
+   | `node scripts/cron.js tick` | `* * * * *` |
    | `node scripts/cron.js sync-members` | `0 * * * *` |
 
    アプリコンテナが止まっている間のタスクはスキップされ、次の実行で追いつく。

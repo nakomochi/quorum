@@ -7,13 +7,15 @@
  * - One request at a time. Changes made while it runs are sent once, with the latest content,
  *   after it returns.
  * - A 409 stops saving for good: another tab moved the draft on, created the form or discarded it.
+ * - A 413 is not retried, since the same content would be refused again. The next change is saved
+ *   as usual.
  */
 
 export type SaveStatus =
 	| { kind: 'idle' }
 	| { kind: 'saving' }
 	| { kind: 'saved'; at: Date }
-	| { kind: 'failed' }
+	| { kind: 'failed'; tooLarge: boolean }
 	| { kind: 'conflict' };
 
 export type SaveRequest = {
@@ -27,7 +29,7 @@ export type SaveRequest = {
 
 export type SaveResult =
 	| { ok: true; id: string; version: number; updatedAt: Date }
-	| { ok: false; conflict: boolean };
+	| { ok: false; reason: 'conflict' | 'too_large' | 'error' };
 
 export type SaveTransport = (request: SaveRequest) => Promise<SaveResult>;
 
@@ -56,8 +58,9 @@ export const fetchTransport: SaveTransport = async ({ id, version, payload, keep
 		body: id === null ? `{"payload":${payload}}` : `{"version":${version},"payload":${payload}}`,
 		keepalive
 	});
-	if (response.status === 409) return { ok: false, conflict: true };
-	if (!response.ok) return { ok: false, conflict: false };
+	if (response.status === 409) return { ok: false, reason: 'conflict' };
+	if (response.status === 413) return { ok: false, reason: 'too_large' };
+	if (!response.ok) return { ok: false, reason: 'error' };
 
 	const body = (await response.json()) as { id?: string; version: number; updatedAt: string };
 	return {
@@ -179,7 +182,7 @@ export class DraftAutosave {
 				keepalive: keepalive && byteLength(payload) <= KEEPALIVE_BYTES
 			});
 		} catch {
-			result = { ok: false, conflict: false };
+			result = { ok: false, reason: 'error' };
 		}
 
 		if (result.ok) {
@@ -196,7 +199,7 @@ export class DraftAutosave {
 		// Stopped for a submission: a 409 there is the submission deleting the draft.
 		if (this.#stopped) return;
 
-		if (result.conflict) {
+		if (result.reason === 'conflict') {
 			this.#conflict = true;
 			this.#stopped = true;
 			this.#dirty = false;
@@ -205,8 +208,14 @@ export class DraftAutosave {
 			return;
 		}
 
+		// Left to a change made meanwhile, or to the next one: the same content would fail again.
+		if (result.reason === 'too_large') {
+			this.#report({ kind: 'failed', tooLarge: true });
+			return;
+		}
+
 		// Kept unsaved and tried again later, or sooner when the editor changes.
-		this.#report({ kind: 'failed' });
+		this.#report({ kind: 'failed', tooLarge: false });
 		this.#dirty = true;
 		this.#firstChangeAt = this.#lastChangeAt = Date.now();
 		this.#clearTimer();

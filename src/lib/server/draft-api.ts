@@ -1,7 +1,7 @@
 import { error, type RequestEvent } from '@sveltejs/kit';
 import type { SessionUser } from './auth';
 import { requireMember } from './guards';
-import { MAX_DRAFT_BYTES, MAX_DRAFT_LENGTH } from '../form-draft';
+import { MAX_DRAFT_BYTES } from '../form-draft';
 
 export const DRAFT_NOT_FOUND = '下書きが見つかりません';
 
@@ -64,7 +64,7 @@ export async function readDraftBody(
 	if (Number(request.headers.get('content-length')) > MAX_DRAFT_BYTES) error(413, TOO_LARGE);
 
 	const raw = await readCapped(request, MAX_DRAFT_BYTES);
-	if (raw === null || raw.length > MAX_DRAFT_LENGTH) error(413, TOO_LARGE);
+	if (raw === null) error(413, TOO_LARGE);
 
 	let body: unknown;
 	try {

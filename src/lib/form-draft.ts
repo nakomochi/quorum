@@ -5,14 +5,7 @@
 
 import {
 	hasOptions,
-	MAX_DESCRIPTION,
-	MAX_HELP_TEXT,
-	MAX_LABEL,
-	MAX_OPTION_ID,
-	MAX_OPTION_LABEL,
-	MAX_OPTIONS,
-	MAX_QUESTIONS,
-	MAX_TITLE,
+	MAX_FORM_BYTES,
 	QUESTION_TYPES,
 	SUBMIT_SCOPES,
 	VISIBILITIES,
@@ -41,25 +34,14 @@ export function draftPayload(
 }
 
 /**
- * Upper bound on a draft request body, counted in UTF-16 code units like the MAX_* limits.
+ * Upper bound on a draft request body, in UTF-8 bytes like MAX_FORM_BYTES.
  *
- * Text a valid form can hold:
- *   title 200 + description 4,000
- *   + 100 questions × (label 500 + help 1,000 + 50 options × (label 200 + id 64)) = 1,474,200.
- * Structure: the questions JSON is nested in a string, so its quotes are escaped once more;
- *   about 30 per option and 120 per question, 100 × (120 + 50 × 30) = 162,000.
- * Together about 1.64M. Rounded up to 2M to leave room for escaped quotes, backslashes and
- * newlines in the text itself.
+ * A draft carries the title, description and questions field that MAX_FORM_BYTES counts, each as a
+ * JSON string. Escaping at most doubles a byte (a quote in the questions JSON becomes \"), so the
+ * draft of any form within the limit stays within twice it. The other fields and the JSON around
+ * them take well under the 10,000 added. The body is JSON, sent without percent-encoding.
  */
-export const DRAFT_TEXT_LIMIT =
-	MAX_TITLE +
-	MAX_DESCRIPTION +
-	MAX_QUESTIONS * (MAX_LABEL + MAX_HELP_TEXT + MAX_OPTIONS * (MAX_OPTION_LABEL + MAX_OPTION_ID));
-
-export const MAX_DRAFT_LENGTH = 2_000_000;
-
-/** A UTF-16 code unit takes at most 3 bytes in UTF-8, so no longer body can fit the limit. */
-export const MAX_DRAFT_BYTES = MAX_DRAFT_LENGTH * 3;
+export const MAX_DRAFT_BYTES = 2 * MAX_FORM_BYTES + 10_000;
 
 export type DraftOption = { id: string; label: string };
 

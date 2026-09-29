@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import {
+	MAX_FORM_BYTES,
 	MAX_LABEL,
 	MAX_OPTIONS,
 	MAX_QUESTIONS,
@@ -7,6 +8,7 @@ import {
 	OTHER_OPTION_ID
 } from '$lib/forms';
 import { FormInputError, parseCreateFormPayload, parseQuestions } from '$lib/server/forms';
+import { formOfSize, formTextBytes } from '../helpers/sizes';
 
 const single = (options: unknown, extra: Record<string, unknown> = {}) => ({
 	type: 'single',
@@ -168,5 +170,17 @@ describe('parseCreateFormPayload', () => {
 			payload({ deadline: '2099-01-10T00:00', closesAt: '2099-01-05T00:00' })
 		);
 		expect(parsed.closesAt!.getTime()).toBeLessThan(parsed.deadline!.getTime());
+	});
+
+	test('takes a form of exactly MAX_FORM_BYTES and refuses one byte more', () => {
+		for (const char of ['あ', 'a', '"']) {
+			const exact = formOfSize(MAX_FORM_BYTES, char);
+			expect(formTextBytes(exact)).toBe(MAX_FORM_BYTES);
+			expect(parseCreateFormPayload(payload(exact)).questions.length).toBeGreaterThan(0);
+
+			const over = { ...exact, title: `${exact.title}a` };
+			expect(formTextBytes(over)).toBe(MAX_FORM_BYTES + 1);
+			rejects(() => parseCreateFormPayload(payload(over)), 'フォームが大きすぎます');
+		}
 	});
 });

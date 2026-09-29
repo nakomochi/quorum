@@ -93,10 +93,13 @@ export async function runTick(): Promise<TickResult> {
 
 	for (const id of await dueForClose()) {
 		try {
-			const closed = await closeForm(id);
+			// closed_at records closes_at, when submissions actually stopped, not when this pass ran.
+			const closed = await closeForm(id, 'closes_at');
 			if (closed.ok) {
 				result.closed.push(id);
-			} else {
+			} else if (closed.reason !== 'not_due') {
+				// not_due is not a failure: a close and reopen by hand, which clears a passed closes_at,
+				// got in between the query above and this close.
 				result.failed.push(id);
 				console.warn(`auto close not applied to ${id}: ${closed.reason}`);
 			}
@@ -121,16 +124,16 @@ export function isCronJob(name: string): name is CronJob {
 }
 
 /**
- * Per job rather than one flag: the daily sync's schedule always coincides with a tick, so a
- * shared flag would refuse one of them every day. Running them side by side is already the norm,
+ * Per job rather than one flag: the hourly sync's schedule always coincides with a tick, so a
+ * shared flag would refuse one of them every hour. Running them side by side is already the norm,
  * since every close and reminder inside a tick runs the same sync.
  */
 const running = new Set<CronJob>();
 
 /**
- * Null when the previous run of the same job is still in flight. A tick can outlast the cron
- * interval because closing refreshes the whole roster from Discord, and two overlapping passes
- * would work the same forms twice. Errors propagate to the caller.
+ * Null when the previous run of the same job is still in flight. A tick can outlast its one-minute
+ * interval because every close and reminder refreshes the whole roster from Discord, and two
+ * overlapping passes would work the same forms twice. Errors propagate to the caller.
  */
 export async function runCronJob(job: CronJob): Promise<TickResult | SyncAllResult | null> {
 	if (running.has(job)) return null;

@@ -18,6 +18,7 @@ function harness(options: { latency?: number; answer?: (request: SaveRequest) =>
 	let maxInflight = 0;
 	const requests: (SaveRequest & { at: number })[] = [];
 	const statuses: SaveStatus['kind'][] = [];
+	const reports: SaveStatus[] = [];
 	const created: string[] = [];
 	const began = Date.now();
 
@@ -39,7 +40,10 @@ function harness(options: { latency?: number; answer?: (request: SaveRequest) =>
 				}
 			);
 		},
-		onStatus: (status) => statuses.push(status.kind),
+		onStatus: (status) => {
+			statuses.push(status.kind);
+			reports.push(status);
+		},
 		onCreated: (id) => created.push(id),
 		debounceMs: DEBOUNCE,
 		maxWaitMs: MAX_WAIT,
@@ -51,6 +55,7 @@ function harness(options: { latency?: number; answer?: (request: SaveRequest) =>
 		autosave,
 		requests,
 		statuses,
+		reports,
 		created,
 		maxInflight: () => maxInflight,
 		edit(next: string) {
@@ -131,7 +136,7 @@ describe('DraftAutosave', () => {
 	});
 
 	test('a conflict stops saving for good', async () => {
-		const h = harness({ answer: () => ({ ok: false, conflict: true }) });
+		const h = harness({ answer: () => ({ ok: false, reason: 'conflict' }) });
 		h.edit('a');
 		await sleep(DEBOUNCE + 20);
 		h.edit('b');
@@ -148,17 +153,38 @@ describe('DraftAutosave', () => {
 		const h = harness({
 			answer: (request) =>
 				fail
-					? { ok: false, conflict: false }
+					? { ok: false, reason: 'error' }
 					: { ok: true, id: 'draft-1', version: request.version + 1, updatedAt: new Date() }
 		});
 		h.edit('a');
 		await sleep(DEBOUNCE + 20);
 		expect(h.statuses).toEqual(['saving', 'failed']);
+		expect(h.reports.at(-1)).toEqual({ kind: 'failed', tooLarge: false });
 
 		fail = false;
 		await sleep(RETRY + 30);
 
 		expect(h.requests.map((r) => r.payload)).toEqual(['a', 'a']);
+		expect(h.statuses.at(-1)).toBe('saved');
+	});
+
+	test('a body too large is reported as such and not retried until the editor changes', async () => {
+		const h = harness({
+			answer: (request) =>
+				request.payload.length > 3
+					? { ok: false, reason: 'too_large' }
+					: { ok: true, id: 'draft-1', version: request.version + 1, updatedAt: new Date() }
+		});
+		h.edit('large');
+		await sleep(DEBOUNCE + 20);
+		expect(h.reports.at(-1)).toEqual({ kind: 'failed', tooLarge: true });
+
+		await sleep(RETRY + 30);
+		expect(h.requests.map((r) => r.payload)).toEqual(['large']);
+
+		h.edit('ok');
+		await sleep(DEBOUNCE + 20);
+		expect(h.requests.map((r) => r.payload)).toEqual(['large', 'ok']);
 		expect(h.statuses.at(-1)).toBe('saved');
 	});
 

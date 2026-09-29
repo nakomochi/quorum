@@ -44,6 +44,20 @@ export const fromSaved = (q: DraftQuestion): EditorQuestion => ({
 			: q.options.map((option) => ({ ...option }))
 });
 
+// The options get ids of their own: the copy is a question of its own, and ids stay unique.
+export const duplicateQuestion = (q: EditorQuestion): EditorQuestion => ({
+	...q,
+	id: nanoid(8),
+	options: q.options.map((option) => ({ ...newOption(), label: option.label }))
+});
+
+/**
+ * What `required` would stop on were the question's fields drawn. Only the open card draws them,
+ * so the browser alone cannot tell about the others.
+ */
+export const incomplete = (q: EditorQuestion) =>
+	q.label === '' || (hasOptions(q.type) && q.options.some((option) => option.label === ''));
+
 export const cloneQuestions = (items: EditorQuestion[]): EditorQuestion[] =>
 	items.map((q) => ({ ...q, options: q.options.map((option) => ({ ...option })) }));
 

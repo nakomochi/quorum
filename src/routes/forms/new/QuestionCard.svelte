@@ -36,7 +36,8 @@
 	}
 </script>
 
-<!-- The card's frame is the list's: animate:flip has to sit on the element the each block draws. -->
+<!-- The open card. Its frame is the list's: animate:flip has to sit on the element the each block
+     draws. -->
 <div
 	use:dragHandle
 	aria-label="質問 {index + 1} をドラッグして並び替え"
@@ -66,14 +67,8 @@
 		>
 			<Icon name="chevron-down" />
 		</button>
-		<!-- The server rejects an empty question set, so the last one must stay. -->
-		<button
-			type="button"
-			class="chip"
-			aria-label="質問 {index + 1} を削除"
-			disabled={count === 1}
-			onclick={onremove}
-		>
+		<!-- The last one may go too: the list then offers 質問を追加, and the server refuses an empty set. -->
+		<button type="button" class="chip" aria-label="質問 {index + 1} を削除" onclick={onremove}>
 			削除
 		</button>
 	</div>
@@ -82,6 +77,7 @@
 <div class="grid gap-3 sm:grid-cols-[1fr_10rem]">
 	<input
 		bind:value={question.label}
+		data-question-label
 		aria-label="質問 {index + 1} の質問文"
 		placeholder="質問文"
 		required

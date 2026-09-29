@@ -11,7 +11,14 @@
 		type SaveStatus as DraftSaveStatus
 	} from '$lib/draft-autosave';
 	import { draftPayload, questionsField } from '$lib/form-draft';
-	import { cloneQuestions, fromSaved, midDrag, newQuestion, type EditorQuestion } from './editor';
+	import {
+		cloneQuestions,
+		fromSaved,
+		incomplete,
+		midDrag,
+		newQuestion,
+		type EditorQuestion
+	} from './editor';
 	import FormSettings from './FormSettings.svelte';
 	import { EditHistory } from './history.svelte';
 	import QuestionList from './QuestionList.svelte';
@@ -94,6 +101,13 @@
 	// --- draft autosave ---
 
 	let formElement: HTMLFormElement;
+	let questionList: ReturnType<typeof QuestionList>;
+
+	/** The server names a question by its place, counted from 1: "質問3: …". */
+	function questionInError(message: unknown): number | null {
+		const match = typeof message === 'string' ? /^質問(\d+):/.exec(message) : null;
+		return match ? Number(match[1]) - 1 : null;
+	}
 
 	/**
 	 * The whole form as FormData sees it, rather than the undo snapshot: the title, description
@@ -136,7 +150,9 @@
 	});
 </script>
 
-<main class="page max-w-3xl">
+<!-- From md the sides widen by the width of the open card's toolbar, which floats in the right one;
+     the column itself stays as wide as before. -->
+<main class="page max-w-3xl md:max-w-[55rem] md:px-20">
 	<header>
 		<h1 class="page-title">フォームを作成</h1>
 	</header>
@@ -151,13 +167,27 @@
 	<form
 		method="POST"
 		bind:this={formElement}
-		use:enhance={async ({ formData }) => {
+		use:enhance={async ({ formData, cancel }) => {
+			// The browser checked only the open card's fields; the closed cards draw none. Open the
+			// first that would fail and let the browser report on it as usual.
+			const unfinished = questions.findIndex(incomplete);
+			if (unfinished !== -1) {
+				cancel();
+				await questionList.reveal(unfinished);
+				formElement.reportValidity();
+				return;
+			}
+
 			// Nothing may be saved once the form exists: the draft is deleted with its creation.
 			await autosave.stop();
 			if (autosave.id) formData.set('draftId', autosave.id);
 			return async ({ result, update }) => {
 				await update();
 				if (result.type !== 'redirect') autosave.resume();
+				if (result.type === 'failure') {
+					const index = questionInError(result.data?.message);
+					if (index !== null) await questionList.reveal(index);
+				}
 			};
 		}}
 		onfocusin={rememberField}
@@ -176,7 +206,7 @@
 			bind:closesAtTouched
 		/>
 
-		<QuestionList bind:questions {history} />
+		<QuestionList bind:this={questionList} bind:questions {history} />
 
 		<SaveStatus
 			status={saveStatus}

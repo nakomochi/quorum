@@ -102,7 +102,7 @@
 							src="/dev/ui/{entry.id}{themeQuery}"
 							title={entry.title}
 							loading="lazy"
-							style="width: {width}; height: {height}px"
+							style="width: {entry.width ?? width}; height: {height}px"
 							class="border-border bg-bg max-w-full rounded-lg border"
 						></iframe>
 					</article>

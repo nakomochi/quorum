@@ -1,10 +1,14 @@
 <script lang="ts">
+	import { tick, untrack } from 'svelte';
 	import { flip } from 'svelte/animate';
 	import { dragHandleZone, type DndEvent } from 'svelte-dnd-action';
+	import { MAX_QUESTIONS } from '$lib/forms';
 	import Icon from '$lib/icons/Icon.svelte';
-	import { FLIP_MS, newQuestion, type EditorQuestion } from './editor';
+	import { duplicateQuestion, FLIP_MS, newQuestion, type EditorQuestion } from './editor';
 	import type { HistoryControls } from './history.svelte';
 	import QuestionCard from './QuestionCard.svelte';
+	import QuestionPreview from './QuestionPreview.svelte';
+	import QuestionToolbar from './QuestionToolbar.svelte';
 
 	type Props = {
 		questions: EditorQuestion[];
@@ -12,6 +16,42 @@
 	};
 
 	let { questions = $bindable(), history }: Props = $props();
+
+	// The open card. Kept out of the history: undo and redo change the form, not where the admin is
+	// looking. Held by id, so a question that undo or redo takes away closes with it, and opens
+	// again if it comes back.
+	let selectedId = $state<string | null>(untrack(() => questions[0]?.id ?? null));
+	const selected = $derived(questions.some((q) => q.id === selectedId) ? selectedId : null);
+
+	const canAdd = $derived(questions.length < MAX_QUESTIONS);
+
+	let zone: HTMLElement;
+
+	const cardOf = (id: string) =>
+		[...zone.children].find(
+			(el): el is HTMLElement => el instanceof HTMLElement && el.dataset.questionId === id
+		);
+
+	async function open(id: string, then: 'focus' | 'reveal') {
+		selectedId = id;
+		await tick();
+		const card = cardOf(id);
+		if (then === 'reveal') card?.scrollIntoView({ block: 'center' });
+		else card?.querySelector<HTMLInputElement>('[data-question-label]')?.focus();
+	}
+
+	/** Opens the question at `index` and scrolls it into view. */
+	export async function reveal(index: number) {
+		const q = questions[index];
+		if (q) await open(q.id, 'reveal');
+	}
+
+	function insert(index: number, question: EditorQuestion) {
+		history.step(
+			() => (questions = [...questions.slice(0, index + 1), question, ...questions.slice(index + 1)])
+		);
+		open(question.id, 'focus');
+	}
 
 	function move(index: number, delta: number) {
 		const to = index + delta;
@@ -23,8 +63,12 @@
 		});
 	}
 
-	const remove = (id: string) =>
+	// Closing the open card hands the selection to its neighbour above, as Google Forms does.
+	function remove(index: number) {
+		const id = questions[index].id;
 		history.step(() => (questions = questions.filter((item) => item.id !== id)));
+		if (id === selected) selectedId = questions[Math.max(0, index - 1)]?.id ?? null;
+	}
 
 	// Both events must be handled: `consider` opens the gap, `finalize` commits the drop.
 	function onDnd(event: CustomEvent<DndEvent<EditorQuestion>>) {
@@ -58,33 +102,51 @@
 			>
 				<Icon name="redo-2" />
 			</button>
-			<button
-				type="button"
-				class="chip"
-				onclick={() => history.step(() => (questions = [...questions, newQuestion()]))}
-			>
-				質問を追加
-			</button>
+			<!-- Once there is a question, the open card's toolbar adds the next one where it is. -->
+			{#if questions.length === 0}
+				<button type="button" class="chip" onclick={() => insert(-1, newQuestion())}>
+					質問を追加
+				</button>
+			{/if}
 		</div>
 	</div>
 
 	<!-- The zone's children must be the questions and nothing else, hence the extra wrapper. -->
 	<div
+		bind:this={zone}
 		class="flex flex-col gap-4"
 		use:dragHandleZone={{ items: questions, flipDurationMs: FLIP_MS, dropTargetStyle: {} }}
 		onconsider={onDnd}
 		onfinalize={onDnd}
 	>
 		{#each questions as q, index (q.id)}
-			<div class="card flex flex-col gap-3 p-5" animate:flip={{ duration: FLIP_MS }}>
-				<QuestionCard
-					bind:question={questions[index]}
-					{index}
-					count={questions.length}
-					{history}
-					onmove={(delta) => move(index, delta)}
-					onremove={() => remove(q.id)}
-				/>
+			<!-- The open card is marked by an accent band down its left edge, border included. -->
+			<div
+				data-question-id={q.id}
+				class={[
+					'card relative flex flex-col gap-3 p-5',
+					q.id === selected && 'border-l-accent shadow-[inset_5px_0_0_0_var(--color-accent)]'
+				]}
+				animate:flip={{ duration: FLIP_MS }}
+			>
+				{#if q.id === selected}
+					<QuestionCard
+						bind:question={questions[index]}
+						{index}
+						count={questions.length}
+						{history}
+						onmove={(delta) => move(index, delta)}
+						onremove={() => remove(index)}
+					/>
+					<QuestionToolbar
+						{index}
+						{canAdd}
+						onadd={() => insert(index, newQuestion())}
+						onduplicate={() => insert(index, duplicateQuestion(q))}
+					/>
+				{:else}
+					<QuestionPreview question={q} {index} onselect={() => open(q.id, 'focus')} />
+				{/if}
 			</div>
 		{/each}
 	</div>

@@ -29,7 +29,9 @@
 			'M17 22v-4.172a2 2 0 0 0-.586-1.414L12 12l-4.414 4.414A2 2 0 0 0 7 17.828V22',
 			'M7 2v4.172a2 2 0 0 0 .586 1.414L12 12l4.414-4.414A2 2 0 0 0 17 6.172V2'
 		],
-		lock: ['M7 11V7a5 5 0 0 1 10 0v4']
+		lock: ['M7 11V7a5 5 0 0 1 10 0v4'],
+		'circle-plus': ['M8 12h8', 'M12 8v8'],
+		copy: ['M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2']
 	} as const;
 
 	export type IconName = keyof typeof paths;
@@ -37,6 +39,7 @@
 	// Lucide draws these partly out of circles: `[cx, cy]` with r=1, or `[cx, cy, r]`.
 	const circles: Partial<Record<IconName, [number, number, number?][]>> = {
 		clock: [[12, 12, 10]],
+		'circle-plus': [[12, 12, 10]],
 		ellipsis: [
 			[12, 12],
 			[19, 12],
@@ -63,7 +66,8 @@
 	type Rect = { x: number; y: number; width: number; height: number; rx: number };
 
 	const rects: Partial<Record<IconName, Rect[]>> = {
-		lock: [{ x: 3, y: 11, width: 18, height: 11, rx: 2 }]
+		lock: [{ x: 3, y: 11, width: 18, height: 11, rx: 2 }],
+		copy: [{ x: 8, y: 8, width: 14, height: 14, rx: 2 }]
 	};
 </script>
 

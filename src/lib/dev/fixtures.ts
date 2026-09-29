@@ -37,6 +37,8 @@ export type UiCase<Data, Form = null> = {
 	setup?: (doc: Document) => Promise<void>;
 	/** Defaults to 'ok'. */
 	draftApi?: DraftApiMode;
+	/** Pins the catalogue's frame to this width, for a layout that only that width shows. */
+	width?: string;
 };
 
 /** Fixed so that the status line reads the same on every run. */
@@ -2142,11 +2144,64 @@ async function editTitle(doc: Document) {
 	await tick();
 }
 
+/** Opens the question at `index` (from 0), as a click on its closed card does. */
+const openQuestion = (index: number) => async (doc: Document) => {
+	doc.querySelectorAll('[data-question-id]')[index]?.querySelector('button')?.click();
+	await tick();
+};
+
+/** A second question left blank: no question text and one option still empty. */
+const UNTITLED_STATE: DraftState = {
+	...DRAFT_STATE,
+	questions: [
+		DRAFT_STATE.questions[0],
+		{
+			type: 'multi',
+			label: '',
+			helpText: '',
+			required: false,
+			options: [
+				{ id: 'bus', label: 'バス' },
+				{ id: 'blank', label: '' }
+			],
+			allowOther: false
+		},
+		DRAFT_STATE.questions[1]
+	]
+};
+
 export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 	{
 		id: 'new-default',
-		title: 'ロール / チャンネルあり',
+		title: 'ロール / チャンネルあり（最初の質問を開いている）',
 		data: FRESH_EDITOR
+	},
+	{
+		id: 'new-second-open',
+		title: '2問目を開いた（右にツールバー）',
+		data: draftData(),
+		setup: openQuestion(1)
+	},
+	{
+		id: 'new-untitled',
+		title: '質問文が空の質問（閉じたカードに「無題の質問」）',
+		data: draftData(UNTITLED_STATE)
+	},
+	{
+		id: 'new-no-questions',
+		title: '質問0件（最後の1問を削除した）',
+		data: FRESH_EDITOR,
+		setup: async (doc) => {
+			doc.querySelector<HTMLButtonElement>('[aria-label="質問 1 を削除"]')?.click();
+			await tick();
+		}
+	},
+	{
+		id: 'new-toolbar-phone',
+		title: 'スマホ幅（ツールバーはカードの下端）',
+		data: draftData(),
+		setup: openQuestion(1),
+		width: '375px'
 	},
 	{
 		id: 'new-error',
@@ -2325,15 +2380,18 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 	}
 ];
 
-export const CASE_GROUPS: { label: string; route: string; cases: { id: string; title: string }[] }[] =
-	[
-		{ label: 'トップ', route: '/', cases: HOME_CASES },
-		{ label: '回答画面', route: '/forms/[id]', cases: ANSWER_CASES },
-		{ label: '結果画面', route: '/forms/[id]/results', cases: RESULTS_CASES },
-		{ label: '回答履歴', route: '/forms/[id]/results/[responseId]', cases: HISTORY_CASES },
-		{ label: 'フォーム作成', route: '/forms/new', cases: NEW_CASES },
-		{ label: '管理一覧', route: '/admin/forms', cases: ADMIN_CASES }
-	];
+export const CASE_GROUPS: {
+	label: string;
+	route: string;
+	cases: { id: string; title: string; width?: string }[];
+}[] = [
+	{ label: 'トップ', route: '/', cases: HOME_CASES },
+	{ label: '回答画面', route: '/forms/[id]', cases: ANSWER_CASES },
+	{ label: '結果画面', route: '/forms/[id]/results', cases: RESULTS_CASES },
+	{ label: '回答履歴', route: '/forms/[id]/results/[responseId]', cases: HISTORY_CASES },
+	{ label: 'フォーム作成', route: '/forms/new', cases: NEW_CASES },
+	{ label: '管理一覧', route: '/admin/forms', cases: ADMIN_CASES }
+];
 
 export const CASE_IDS: string[] = CASE_GROUPS.flatMap((group) =>
 	group.cases.map((entry) => entry.id)

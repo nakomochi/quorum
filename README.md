@@ -34,7 +34,7 @@ bun run test
 | job | 間隔 | 内容 |
 | --- | --- | --- |
 | `tick` | 5 分 | 締切 24 時間前を過ぎたフォームに自動リマインドを送り、受付終了時刻を過ぎたフォームを閉じる |
-| `sync-members` | 1 日 | サーバーメンバーの名簿を全件同期する |
+| `sync-members` | 1 時間 | サーバーメンバーの名簿を全件同期する |
 
 同じ job が実行中なら 409 を返して何もしない。開発環境では自動で動かないので、
 `.env` に `CRON_SECRET` を入れて dev サーバーを起動し、`bun run cron tick` で手動実行する。
@@ -70,10 +70,9 @@ https://discord.com/oauth2/authorize?client_id=<CLIENT_ID>&scope=bot&permissions
    | Command | Frequency |
    | --- | --- |
    | `node scripts/cron.js tick` | `*/5 * * * *` |
-   | `node scripts/cron.js sync-members` | `0 19 * * *` |
+   | `node scripts/cron.js sync-members` | `0 * * * *` |
 
-   cron 式はサーバー設定の Server Timezone で解釈される。UTC なら `0 19 * * *` が JST 4:00。
-   アプリコンテナが止まっている間のタスクはスキップされる。日次同期はその日の分が飛び、翌日に追いつく。
+   アプリコンテナが止まっている間のタスクはスキップされ、次の実行で追いつく。
 
 ビルドに秘密情報は要らない（`$env/dynamic/private` は実行時に読む）。ビルド引数に DB や
 トークンを渡さないこと。

@@ -58,7 +58,14 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	if (!manage && !(await gateMember(locals))) {
 		error(403, 'このサーバーのメンバーではありません');
 	}
-	if (!canViewResults(target, manage)) error(403, 'この結果はまだ公開されていません');
+	if (!canViewResults(target, manage)) {
+		error(
+			403,
+			target.visibility === 'after_deadline'
+				? 'この結果は締切後またはクローズ後に公開されます'
+				: 'この結果は管理者のみが閲覧できます'
+		);
+	}
 
 	// Reads the mirror only; a manager refreshes it with ?/syncRoster.
 	const questions = await loadQuestions(params.id);

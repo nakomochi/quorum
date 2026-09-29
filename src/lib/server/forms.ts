@@ -599,7 +599,7 @@ export type CreatedFormSummary = {
 };
 
 export function canViewResults(
-	target: Pick<Form, 'visibility' | 'deadline'>,
+	target: Pick<Form, 'visibility' | 'deadline' | 'closesAt' | 'closedAt'>,
 	manage: boolean,
 	now = new Date()
 ): boolean {
@@ -609,9 +609,12 @@ export function canViewResults(
 			return true;
 		case 'admin_only':
 			return false;
-		// A form with no deadline never reaches "after the deadline", so it stays managers-only.
+		// Closing opens the results too: a form may have no deadline, or be closed before it.
 		case 'after_deadline':
-			return target.deadline !== null && target.deadline.getTime() <= now.getTime();
+			return (
+				(target.deadline !== null && target.deadline.getTime() <= now.getTime()) ||
+				isClosed(target, now)
+			);
 	}
 }
 

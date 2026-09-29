@@ -312,7 +312,7 @@
 					<select name="visibility" class="field mt-1">
 						<option value="public">公開</option>
 						<option value="admin_only">管理者のみ</option>
-						<option value="after_deadline">締切後に公開</option>
+						<option value="after_deadline">締切後またはクローズ後に公開</option>
 					</select>
 				</label>
 

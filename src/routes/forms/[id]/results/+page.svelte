@@ -1,4 +1,5 @@
 <script lang="ts">
+	import AdminPanel from '$lib/components/AdminPanel.svelte';
 	import ContextLink from '$lib/components/ContextLink.svelte';
 	import MetaLine from '$lib/components/MetaLine.svelte';
 	import { displayJst } from '$lib/display-date';
@@ -28,6 +29,12 @@
 	const rosterMissing = $derived(
 		data.manage && !data.frozen && data.rosterSyncedAt === null && data.targetCount === 0
 	);
+
+	// Shown in the managers' panel and again beside the non-submitters it was counted from.
+	const rosterItem = $derived({
+		label: '名簿',
+		value: data.rosterSyncedAt ? `${displayJst(data.rosterSyncedAt)} 時点` : '未同期'
+	});
 
 	let syncingRoster = $state(false);
 
@@ -186,103 +193,131 @@
 		</div>
 	</section>
 
-	{#if data.manage}
-		<section class="card action-row px-5 py-4">
-			<p class="min-w-0 flex-1 text-sm text-text-subtle">
-				{#if data.form.closedAt}
-					<span class="whitespace-nowrap">{displayJst(data.form.closedAt)}</span> に締め切りました。
-				{:else}
-					締め切ると、Discord から最新のメンバー一覧を取得して未提出者を確定し、以後の提出を受け付けません。受付はあとから再開できます。
-				{/if}
-			</p>
-			{#if data.form.closedAt}
-				<form method="POST" action="?/reopen" onsubmit={confirmReopen} class="shrink-0">
-					<button type="submit" class="btn-secondary px-4 py-2">受付を再開する</button>
-				</form>
-			{:else}
-				<form method="POST" action="?/close" class="shrink-0">
-					<button type="submit" class="btn-primary px-4 py-2">締め切って確定する</button>
-				</form>
-			{/if}
-		</section>
-	{/if}
-
+	<!-- Everything only the creator and admins may do, in one frame the members never see. Each
+	     part reads heading, explanation, then its buttons, which sit to the right from `sm`. -->
 	{#if data.manage && data.announcement}
-		<section class="card flex flex-col gap-4 p-5">
-			<div class="action-row">
-				<div class="min-w-0 flex-1 text-sm">
-					<h2 class="section-title">Discord への告知とリマインド</h2>
-					<p class="mt-1 text-text-muted">
-						{#if !data.announcement.hasChannel}
-							告知チャンネルが未設定のフォームです。告知の投稿もリマインドの送信もできません。
-						{:else if data.closed}
-							受付を終了したフォームのため、リマインドは送信できません。
-						{:else if data.announcement.url}
-							リマインドは告知メッセージへの返信として投稿し、未提出者を個別にメンションします。
-						{:else}
-							告知がまだ投稿されていません。リマインドは送信できますが、告知への返信にはなりません。
-						{/if}
-					</p>
-					{#if data.announcement.url}
-						<p class="mt-2 text-xs">
-							{@render discordLink(data.announcement.url, '告知メッセージを Discord で開く', false)}
+		<AdminPanel class="flex flex-col gap-4 p-5">
+			<div class="divide-border flex flex-col divide-y *:py-4 *:first:pt-0 *:last:pb-0">
+				<section class="action-row">
+					<div class="min-w-0 flex-1 text-sm">
+						<h3 class="section-title">受付</h3>
+						<p class="mt-1 text-text-muted">
+							{#if data.form.closedAt}
+								<span class="whitespace-nowrap">{displayJst(data.form.closedAt)}</span> に締め切りました。
+							{:else}
+								締め切ると、Discord から最新のメンバー一覧を取得して未提出者を確定し、以後の提出を受け付けません。受付はあとから再開できます。
+							{/if}
 						</p>
+					</div>
+					{#if data.form.closedAt}
+						<form method="POST" action="?/reopen" onsubmit={confirmReopen} class="shrink-0">
+							<button type="submit" class="btn-secondary px-4 py-2">受付を再開する</button>
+						</form>
+					{:else}
+						<form method="POST" action="?/close" class="shrink-0">
+							<button type="submit" class="btn-primary px-4 py-2">締め切って確定する</button>
+						</form>
 					{/if}
-				</div>
-				{#if canAnnounce || canRemind}
-					<div class="flex shrink-0 flex-wrap gap-2">
-						{#if canAnnounce}
-							<form method="POST" action="?/announce">
-								<button type="submit" class="btn-secondary px-4 py-2">告知を投稿する</button>
-							</form>
-						{/if}
-						{#if canRemind}
-							<form method="POST" action="?/remind">
-								<button type="submit" class="btn-primary px-4 py-2">未提出者にリマインド</button>
-							</form>
+				</section>
+
+				<section class="flex flex-col gap-3">
+					<div class="action-row">
+						<div class="min-w-0 flex-1 text-sm">
+							<h3 class="section-title">Discord への告知とリマインド</h3>
+							<p class="mt-1 text-text-muted">
+								{#if !data.announcement.hasChannel}
+									告知チャンネルが未設定のフォームです。告知の投稿もリマインドの送信もできません。
+								{:else if data.closed}
+									受付を終了したフォームのため、リマインドは送信できません。
+								{:else if data.announcement.url}
+									リマインドは告知メッセージへの返信として投稿し、未提出者を個別にメンションします。
+								{:else}
+									告知がまだ投稿されていません。リマインドは送信できますが、告知への返信にはなりません。
+								{/if}
+							</p>
+							{#if data.announcement.url}
+								<p class="mt-2 text-xs">
+									{@render discordLink(data.announcement.url, '告知メッセージを Discord で開く', false)}
+								</p>
+							{/if}
+						</div>
+						{#if canAnnounce || canRemind}
+							<div class="flex shrink-0 flex-wrap gap-2">
+								{#if canAnnounce}
+									<form method="POST" action="?/announce">
+										<button type="submit" class="btn-secondary px-4 py-2">告知を投稿する</button>
+									</form>
+								{/if}
+								{#if canRemind}
+									<form method="POST" action="?/remind">
+										<button type="submit" class="btn-primary px-4 py-2">未提出者にリマインド</button>
+									</form>
+								{/if}
+							</div>
 						{/if}
 					</div>
-				{/if}
-			</div>
 
-			<div class="border-t border-border pt-3">
-				{#if data.reminders.length === 0}
-					<p class="text-xs text-text-muted">リマインドの送信履歴はありません。</p>
-				{:else}
-					<!-- A table so that each column lines up across the rows; the counts align right. -->
-					<table class="text-xs text-text-muted">
-						<caption class="sr-only">リマインドの送信履歴</caption>
-						<thead class="text-left text-text-subtle">
-							<tr>
-								<th scope="col" class="pr-4 pb-1 font-medium">送信日時</th>
-								<th scope="col" class="pr-4 pb-1 font-medium">種類</th>
-								<th scope="col" class="pb-1 text-right font-medium">対象</th>
-								<th scope="col" class="pb-1"><span class="sr-only">通数</span></th>
-								<th scope="col" class="pb-1"><span class="sr-only">メッセージ</span></th>
-							</tr>
-						</thead>
-						<tbody class="tabular-nums">
-							{#each data.reminders as entry (entry.id)}
+					{#if data.reminders.length === 0}
+						<p class="text-xs text-text-muted">リマインドの送信履歴はありません。</p>
+					{:else}
+						<!-- A table so that each column lines up across the rows; the counts align right. -->
+						<table class="self-start text-xs text-text-muted">
+							<caption class="sr-only">リマインドの送信履歴</caption>
+							<thead class="text-left text-text-subtle">
 								<tr>
-									<td class="pr-4 py-0.5 whitespace-nowrap">{displayJst(entry.sentAt)}</td>
-									<td class="pr-4 py-0.5 whitespace-nowrap">{REMINDER_KIND[entry.kind]}</td>
-									<td class="py-0.5 text-right whitespace-nowrap">{entry.targetCount}名</td>
-									<!-- A single message is the usual case and goes unsaid. -->
-									<td class="py-0.5 whitespace-nowrap">
-										{entry.messageCount > 1 ? `（${entry.messageCount}通）` : ''}
-									</td>
-									<td class="py-0.5 pl-2 whitespace-nowrap">
-										{#if entry.url}
-											{@render discordLink(entry.url, 'Discord で開く', true)}
-										{/if}
-									</td>
+									<th scope="col" class="pr-4 pb-1 font-medium">送信日時</th>
+									<th scope="col" class="pr-4 pb-1 font-medium">種類</th>
+									<th scope="col" class="pb-1 text-right font-medium">対象</th>
+									<th scope="col" class="pb-1"><span class="sr-only">通数</span></th>
+									<th scope="col" class="pb-1"><span class="sr-only">メッセージ</span></th>
 								</tr>
-							{/each}
-						</tbody>
-					</table>
+							</thead>
+							<tbody class="tabular-nums">
+								{#each data.reminders as entry (entry.id)}
+									<tr>
+										<td class="pr-4 py-0.5 whitespace-nowrap">{displayJst(entry.sentAt)}</td>
+										<td class="pr-4 py-0.5 whitespace-nowrap">{REMINDER_KIND[entry.kind]}</td>
+										<td class="py-0.5 text-right whitespace-nowrap">{entry.targetCount}名</td>
+										<!-- A single message is the usual case and goes unsaid. -->
+										<td class="py-0.5 whitespace-nowrap">
+											{entry.messageCount > 1 ? `（${entry.messageCount}通）` : ''}
+										</td>
+										<td class="py-0.5 pl-2 whitespace-nowrap">
+											{#if entry.url}
+												{@render discordLink(entry.url, 'Discord で開く', true)}
+											{/if}
+										</td>
+									</tr>
+								{/each}
+							</tbody>
+						</table>
+					{/if}
+				</section>
+
+				<!-- A frozen list no longer follows the roster, and the action refuses a refresh then. -->
+				{#if !data.frozen}
+					<section class="action-row">
+						<div class="min-w-0 flex-1 text-sm">
+							<h3 class="section-title">未提出者の名簿</h3>
+							<p class="mt-1 text-text-muted">
+								未提出者は、Discord のメンバー一覧を写した名簿から数えています。ロールを付け外ししたあとは更新してください。
+							</p>
+							<MetaLine class="mt-2" items={[rosterItem]} />
+						</div>
+						<form
+							method="POST"
+							action="?/syncRoster"
+							onsubmit={() => (syncingRoster = true)}
+							class="shrink-0"
+						>
+							<button type="submit" class="btn-secondary px-4 py-2" disabled={syncingRoster}>
+								{syncingRoster ? '更新中…' : '名簿を更新'}
+							</button>
+						</form>
+					</section>
 				{/if}
 			</div>
-		</section>
+		</AdminPanel>
 	{/if}
 
 	{#if data.tallies.length > 0}
@@ -320,32 +355,13 @@
 				<span class="badge badge-muted">確定済み</span>
 			{/if}
 		</h2>
+		<!-- The refresh itself sits in the managers' panel; the list says which roster it is from. -->
 		{#if data.manage && !data.frozen}
-			<div class="action-row">
-				<MetaLine
-					class="min-w-0"
-					items={[
-						{
-							label: '名簿',
-							value: data.rosterSyncedAt ? `${displayJst(data.rosterSyncedAt)} 時点` : '未同期'
-						}
-					]}
-				/>
-				<form
-					method="POST"
-					action="?/syncRoster"
-					onsubmit={() => (syncingRoster = true)}
-					class="shrink-0"
-				>
-					<button type="submit" class="btn-secondary btn-sm" disabled={syncingRoster}>
-						{syncingRoster ? '更新中…' : '名簿を更新'}
-					</button>
-				</form>
-			</div>
+			<MetaLine items={[rosterItem]} />
 		{/if}
 		{#if rosterMissing}
 			<p class="alert-warning">
-				名簿がまだ同期されていないため表示できません。「名簿を更新」を押してください。
+				名簿がまだ同期されていないため表示できません。上の管理パネルの「名簿を更新」を押してください。
 			</p>
 		{:else if data.nonSubmitters.length === 0}
 			<p class="text-sm text-text-muted">未提出者はいません。</p>

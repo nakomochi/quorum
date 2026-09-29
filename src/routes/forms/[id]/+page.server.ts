@@ -89,6 +89,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 
 	return {
 		resultsVisible: canViewResults(target, manage),
+		// Frames the link as a manager's control while the members cannot see the results. Only a
+		// manager can get true, so a member learns nothing about the form's visibility from it.
+		resultsManagersOnly: manage && !canViewResults(target, false),
 		form: {
 			id: target.id,
 			title: target.title,

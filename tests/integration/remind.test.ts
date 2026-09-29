@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { reminder } from '$lib/server/db/schema';
 import { closeForm } from '$lib/server/forms';
-import { sendReminder } from '$lib/server/notify';
+import { announceForm, sendReminder } from '$lib/server/notify';
 import { runTick } from '$lib/server/scheduler';
 import { CHANNEL_ID, discord, OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
 import {
@@ -33,6 +33,33 @@ async function guild(size: number) {
 }
 
 const soon = () => new Date(Date.now() + 3_600_000);
+
+describe('Discord posts', () => {
+	test('the announcement and the reminder give the deadline with its year, this year’s too', async () => {
+		const { creator } = await guild(1);
+		// January 2 of the current JST year: a date the page would show without its year.
+		const year = new Date(Date.now() + 9 * 3_600_000).getUTCFullYear();
+		const deadline = new Date(`${year}-01-02T10:00:00+09:00`);
+		const { id } = await makeForm(creator, { announcementChannelId: CHANNEL_ID, deadline });
+
+		expect((await announceForm(id)).ok).toBe(true);
+		expect((await sendReminder(id, { kind: 'manual', sentBy: creator.id })).ok).toBe(true);
+
+		const contents = discord.posts().map((post) => (post.body as { content: string }).content);
+		expect(contents).toHaveLength(2);
+		for (const content of contents) expect(content).toContain(`締切: ${year}/01/02 10:00\n`);
+	});
+
+	test('a form without a deadline says so', async () => {
+		const { creator } = await guild(1);
+		const { id } = await makeForm(creator, { announcementChannelId: CHANNEL_ID });
+
+		expect((await announceForm(id)).ok).toBe(true);
+
+		const [post] = discord.posts();
+		expect((post.body as { content: string }).content).toContain('締切: 未設定\n');
+	});
+});
 
 describe('sendReminder', () => {
 	test('mentions only the non-submitters, replying to the announcement', async () => {

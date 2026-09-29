@@ -5,7 +5,7 @@ import { form, reminder, type Form } from './db/schema';
 import { messageUrl, postMessage, type CreateMessage } from './discord';
 import { isClosed, loadForm, rosterStatus } from './forms';
 import { syncAllMembers } from './guild-sync';
-import { formatJst } from '../datetime';
+import { formatJstWithYear } from '../datetime';
 
 /**
  * allowed_mentions.users is capped at 100 by Discord. Half of that keeps a chunk's mentions
@@ -39,7 +39,8 @@ export function formUrl(formId: string): string {
 
 function announcementContent(target: Form): string {
 	const head = `📋 **${truncate(target.title, TITLE_IN_MESSAGE)}**`;
-	const tail = `締切: ${formatJst(target.deadline, NO_DEADLINE)}\n${formUrl(target.id)}`;
+	// With the year even for this year's date: the message stays in the channel past New Year.
+	const tail = `締切: ${formatJstWithYear(target.deadline, NO_DEADLINE)}\n${formUrl(target.id)}`;
 
 	// Descriptions may be 4000 characters, twice what a message can carry.
 	const room = MAX_CONTENT - head.length - tail.length - 4;
@@ -51,7 +52,7 @@ function announcementContent(target: Form): string {
 function reminderContent(target: Form, discordIds: string[]): string {
 	const head = [
 		`🔔 **${truncate(target.title, TITLE_IN_MESSAGE)}** が未提出です。回答をお願いします。`,
-		`締切: ${formatJst(target.deadline, NO_DEADLINE)}`,
+		`締切: ${formatJstWithYear(target.deadline, NO_DEADLINE)}`,
 		formUrl(target.id)
 	].join('\n');
 

@@ -267,6 +267,21 @@ describe('what a member receives', () => {
 		expect(discord.count()).toBe(0);
 	});
 
+	test('form page: whether the results are hidden from members reaches their managers only', async () => {
+		const { creator, viewer, open, adminOnly, afterClose } = await scene();
+		const flags = async (who: TestUser, id: string) => {
+			const data = await formLoad(event(who, { id }, `/forms/${id}`));
+			return { resultsVisible: data.resultsVisible, resultsManagersOnly: data.resultsManagersOnly };
+		};
+
+		expect(await flags(creator, adminOnly.id)).toEqual({ resultsVisible: true, resultsManagersOnly: true });
+		// Closed, so its results are open to the members as well.
+		expect(await flags(creator, afterClose.id)).toEqual({ resultsVisible: true, resultsManagersOnly: false });
+		expect(await flags(viewer, adminOnly.id)).toEqual({ resultsVisible: false, resultsManagersOnly: false });
+		expect(await flags(viewer, open.id)).toEqual({ resultsVisible: true, resultsManagersOnly: false });
+		expect(discord.count()).toBe(0);
+	});
+
 	test('results page of a public form: names without ids, no manager fields', async () => {
 		const { viewer, open, secrets } = await scene();
 

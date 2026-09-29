@@ -635,6 +635,7 @@ describe('opening the answer page', () => {
 				'form',
 				'history',
 				'questions',
+				'resultsManagersOnly',
 				'resultsVisible',
 				'submittedAt',
 				'updatedAt'

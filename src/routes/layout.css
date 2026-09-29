@@ -192,6 +192,17 @@ main {
 		@apply border-border bg-surface rounded-xl border;
 	}
 
+	/* Controls that only the form's creator and admins see. The tinted fill and dashed frame set
+	   them apart from everything a member sees on the same page. */
+	.panel-admin {
+		@apply border-border-strong bg-surface-alt rounded-xl border border-dashed;
+	}
+
+	/* The panel's "管理（作成者・管理者のみ）" label. */
+	.panel-admin-title {
+		@apply text-text-muted flex items-center gap-1.5 text-xs font-medium;
+	}
+
 	/* Text with its controls: stacked on phones, side by side from `sm`. The children keep their
 	   own `min-w-0 flex-1` (text) and `shrink-0` (controls) so each role reads at the call site. */
 	.action-row {

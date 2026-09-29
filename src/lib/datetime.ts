@@ -53,6 +53,14 @@ export function parseJstLocal(value: string): Date | null {
 	return toJstLocal(parsed) === `${date}T${hour}:${minute}` ? parsed : null;
 }
 
+function jstParts(value: Date): { year: string; date: string } {
+	const parts = new Map(displayFormat.formatToParts(value).map((part) => [part.type, part.value]));
+	return {
+		year: parts.get('year') ?? '',
+		date: `${parts.get('month')}/${parts.get('day')} ${parts.get('hour')}:${parts.get('minute')}`
+	};
+}
+
 /**
  * "2025/10/14 04:00", or "10/14 04:00" for a date in the same JST year as `now`. Markup goes
  * through `$lib/display-date` instead, which picks a `now` the server and the hydrating browser
@@ -60,9 +68,18 @@ export function parseJstLocal(value: string): Date | null {
  */
 export function formatJst(value: Date | null, fallback = '—', now: Date = new Date()): string {
 	if (!value) return fallback;
-	const parts = new Map(displayFormat.formatToParts(value).map((part) => [part.type, part.value]));
-	const date = `${parts.get('month')}/${parts.get('day')} ${parts.get('hour')}:${parts.get('minute')}`;
-	return parts.get('year') === yearFormat.format(now) ? date : `${parts.get('year')}/${date}`;
+	const { year, date } = jstParts(value);
+	return year === yearFormat.format(now) ? date : `${year}/${date}`;
+}
+
+/**
+ * "2025/10/14 04:00" whatever the year. For text that outlives the page, such as a Discord
+ * message, which may still be read after New Year.
+ */
+export function formatJstWithYear(value: Date | null, fallback = '—'): string {
+	if (!value) return fallback;
+	const { year, date } = jstParts(value);
+	return `${year}/${date}`;
 }
 
 /** Hours and minutes only, for something that happened moments ago. */

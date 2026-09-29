@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test';
-import { formatJst, formatJstTime, parseJstLocal, toJstLocal } from '$lib/datetime';
+import {
+	formatJst,
+	formatJstTime,
+	formatJstWithYear,
+	parseJstLocal,
+	toJstLocal
+} from '$lib/datetime';
 import { ADMIN_PERMISSIONS, hasAdminPermissions, rolePermissions } from '$lib/server/permissions';
 
 describe('formatJst / formatJstTime', () => {
@@ -44,6 +50,21 @@ describe('formatJst / formatJstTime', () => {
 	test('falls back when there is no date', () => {
 		expect(formatJst(null)).toBe('—');
 		expect(formatJst(null, 'なし')).toBe('なし');
+	});
+});
+
+describe('formatJstWithYear', () => {
+	test('keeps the year for this year too, judged in JST', () => {
+		const thisYear = new Date();
+		expect(formatJstWithYear(new Date('2026-10-13T19:00:00Z'))).toBe('2026/10/14 04:00');
+		expect(formatJstWithYear(thisYear)).toBe(formatJst(thisYear, '—', new Date('1999-06-01T00:00:00Z')));
+		// 2027 in JST while UTC is still in 2026.
+		expect(formatJstWithYear(new Date('2026-12-31T15:30:00Z'))).toBe('2027/01/01 00:30');
+	});
+
+	test('falls back when there is no date', () => {
+		expect(formatJstWithYear(null)).toBe('—');
+		expect(formatJstWithYear(null, '未設定')).toBe('未設定');
 	});
 });
 

@@ -2,6 +2,7 @@
 	import { onMount, tick, untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
 	import type { SubmitFunction } from '@sveltejs/kit';
+	import AdminPanel from '$lib/components/AdminPanel.svelte';
 	import AnswerList from '$lib/components/AnswerList.svelte';
 	import ContextLink from '$lib/components/ContextLink.svelte';
 	import { displayJst } from '$lib/display-date';
@@ -213,7 +214,19 @@
 
 <main class="page">
 	<div class="flex flex-col gap-3">
-		{#if data.resultsVisible}
+		{#if data.resultsManagersOnly}
+			<!-- The members see no link here, so it is framed as the managers' own control. -->
+			<AdminPanel
+				labelTag="p"
+				class="flex flex-wrap items-center gap-x-4 gap-y-1 self-start px-3 py-2"
+			>
+				<ContextLink
+					href="/forms/{data.form.id}/results"
+					label="回答状況を見る"
+					direction="forward"
+				/>
+			</AdminPanel>
+		{:else if data.resultsVisible}
 			<ContextLink href="/forms/{data.form.id}/results" label="回答状況を見る" direction="forward" />
 		{/if}
 		<FormHeader form={data.form} {closed} {submitted} />

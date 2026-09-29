@@ -1005,6 +1005,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1016,11 +1017,46 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		}
 	},
 	{
+		id: 'answer-manager-private',
+		title: '作成者・管理者 / 結果を一般に見せないフォーム（「回答状況を見る」を管理の枠に入れる）',
+		data: {
+			...SESSION,
+			resultsVisible: true,
+			resultsManagersOnly: true,
+			form: answerForm(),
+			questions: QUESTIONS,
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {},
+			...NO_DRAFT
+		}
+	},
+	{
+		id: 'answer-manager-private-long-title',
+		title: '作成者・管理者 / 管理の枠と、折り返す長いタイトルに印が2つ',
+		data: {
+			...SESSION,
+			resultsVisible: true,
+			resultsManagersOnly: true,
+			form: answerForm({ title: LONG_TITLE, closesAt: at('2026-04-20T23:59:00') }),
+			questions: QUESTIONS,
+			closed: true,
+			editable: false,
+			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-12T21:40:00'),
+			answers: FILLED_ANSWERS,
+			...NO_DRAFT
+		}
+	},
+	{
 		id: 'answer-other',
 		title: '回答中（その他あり）',
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: OTHER_QUESTIONS,
 			closed: false,
@@ -1038,6 +1074,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: OTHER_QUESTIONS,
 			closed: false,
@@ -1055,6 +1092,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1072,6 +1110,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1088,6 +1127,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1104,6 +1144,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm({ closesAt: at('2026-04-20T23:59:00') }),
 			questions: OTHER_QUESTIONS,
 			closed: true,
@@ -1120,6 +1161,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm({ title: LONG_TITLE, closesAt: at('2026-04-20T23:59:00') }),
 			questions: QUESTIONS,
 			closed: true,
@@ -1136,6 +1178,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm({
 				title: LONG_TITLE,
 				deadline: lastYear('10-14T04:00:00'),
@@ -1160,6 +1203,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm({ closesAt: at('2026-04-20T23:59:00') }),
 			questions: QUESTIONS,
 			closed: true,
@@ -1176,6 +1220,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1196,6 +1241,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm({ closesAt: fromNow(-1) }),
 			questions: QUESTIONS,
 			closed: false,
@@ -1214,6 +1260,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm({ closesAt: null }),
 			questions: QUESTIONS,
 			closed: true,
@@ -1232,6 +1279,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm({ closesAt: null }),
 			questions: OTHER_QUESTIONS,
 			closed: true,
@@ -1250,6 +1298,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1267,6 +1316,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: CHECKED_QUESTIONS,
 			closed: false,
@@ -1283,6 +1333,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: CHECKED_QUESTIONS,
 			closed: false,
@@ -1305,6 +1356,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1321,6 +1373,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1337,6 +1390,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1355,6 +1409,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1372,6 +1427,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1390,6 +1446,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1408,6 +1465,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: false,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1426,6 +1484,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm(),
 			questions: QUESTIONS,
 			closed: false,
@@ -1443,6 +1502,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm({ closesAt: at('2026-04-20T23:59:00') }),
 			questions: QUESTIONS,
 			closed: true,
@@ -1460,6 +1520,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 		data: {
 			...SESSION,
 			resultsVisible: true,
+			resultsManagersOnly: false,
 			form: answerForm({ title: LONG_TITLE, description: LONG_DESCRIPTION, deadline: null }),
 			questions: OVERFLOW_QUESTIONS,
 			closed: false,
@@ -1475,7 +1536,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	{
 		id: 'results-viewer',
-		title: '一般閲覧（manage: false）',
+		title: '一般閲覧（manage: false・管理パネルなし）',
 		data: {
 			...SESSION,
 			form: viewerForm(),
@@ -1498,7 +1559,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-manager',
-		title: '管理者（操作ボタンあり）',
+		title: '管理者（管理パネル: 受付中・告知済み）',
 		data: {
 			...SESSION,
 			form: resultsForm(),
@@ -1613,7 +1674,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-closed',
-		title: '確定済み（凍結表示・リマインド不可）',
+		title: '確定済み（管理パネル: 再開ボタン・名簿の更新なし / 凍結表示・リマインド不可）',
 		data: {
 			...SESSION,
 			form: resultsForm({ closedAt: at('2026-05-01T00:05:00') }),
@@ -1823,6 +1884,11 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			outsiders: [],
 			nonSubmitters: NON_SUBMITTERS
 		}
+	},
+	{
+		id: 'results-not-announced',
+		title: '管理者（管理パネル: 告知未投稿・「告知を投稿する」とリマインドの両方）',
+		data: rosterResults({ announcement: NOT_ANNOUNCED, reminders: REMINDERS.slice(0, 2) })
 	},
 	{
 		id: 'results-other',

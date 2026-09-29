@@ -1,13 +1,17 @@
 import { describe, expect, test } from 'bun:test';
 import { isHttpError } from '@sveltejs/kit';
+import { eq } from 'drizzle-orm';
 import { draftPayload } from '$lib/form-draft';
+import { db } from '$lib/server/db';
+import { reminder } from '$lib/server/db/schema';
 import { createDraft } from '$lib/server/drafts';
 import { closeForm } from '$lib/server/forms';
+import { announceForm, sendReminder } from '$lib/server/notify';
 import { load as layoutLoad } from '../../src/routes/+layout.server';
 import { load as topLoad } from '../../src/routes/+page.server';
 import { load as formLoad } from '../../src/routes/forms/[id]/+page.server';
 import { load as resultsLoad } from '../../src/routes/forms/[id]/results/+page.server';
-import { CHANNEL_ID, discord, OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
+import { CHANNEL_ID, discord, GUILD_ID, OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
 import {
 	createUsers,
 	inputs,
@@ -25,6 +29,9 @@ const FORBIDDEN_KEYS = [
 	'finalTargetIds',
 	'announcementChannelId',
 	'announcementMessageId',
+	'channelId',
+	'messageId',
+	'messageIds',
 	'createdBy',
 	'targetRoleId',
 	'submitScope',
@@ -105,10 +112,44 @@ describe('what a member receives', () => {
 
 		const data = await layoutLoad(event(viewer));
 
-		// toEqual, not toMatchObject: any extra field, such as the email or an id, fails it. The bare
-		// snowflake is left out of the string check only because the test user's name embeds it.
-		expect(data).toEqual({ user: { name: viewer.name, image: null }, member: true, isAdmin: false });
-		expectNoLeak(data, [...secrets, SECRET_NAME, viewer.id, `${viewer.discordId}@example.invalid`]);
+		// toEqual, not toMatchObject: any extra field, such as the email or an id, fails it. The name
+		// is the guild nickname, not the account name.
+		expect(data).toEqual({ user: { name: '閲覧者', image: null }, member: true, isAdmin: false });
+		expectNoLeak(data, [
+			...secrets,
+			SECRET_NAME,
+			viewer.id,
+			viewer.discordId,
+			viewer.name,
+			`${viewer.discordId}@example.invalid`
+		]);
+		expect(discord.count()).toBe(0);
+	});
+
+	test('root layout: nickname, then display name, then username, and the account name off the roster', async () => {
+		const [nicked, globalOnly, bare, outsider] = await createUsers([11, 12, 13, 14].map(snowflake));
+		await seedGuild([
+			member(nicked.discordId, [TARGET_ROLE], {
+				nick: 'ニックネーム',
+				globalName: '表示名A',
+				username: 'user-a'
+			}),
+			member(globalOnly.discordId, [TARGET_ROLE], { globalName: '表示名B', username: 'user-b' }),
+			member(bare.discordId, [TARGET_ROLE], { username: 'user-c' })
+		]);
+
+		const names: unknown[] = [];
+		for (const who of [nicked, globalOnly, bare, outsider]) {
+			const data = (await layoutLoad(event(who))) as { user: unknown };
+			names.push(data.user);
+		}
+
+		expect(names).toEqual([
+			{ name: 'ニックネーム', image: null },
+			{ name: '表示名B', image: null },
+			{ name: 'user-c', image: null },
+			{ name: outsider.name, image: null }
+		]);
 		expect(discord.count()).toBe(0);
 	});
 
@@ -172,6 +213,50 @@ describe('what a member receives', () => {
 		expect((data.form as Record<string, unknown>).closedAt).toBeNull();
 		expect(data.nonSubmitters).toEqual(expect.arrayContaining(['閲覧者', SECRET_NAME]));
 		expectNoLeak(data, [...secrets, viewer.discordId]);
+		expect(discord.count()).toBe(0);
+	});
+
+	test('results page: Discord message links go to managers only, built without asking Discord', async () => {
+		const { creator, viewer, open, secrets } = await scene();
+		const announced = await announceForm(open.id);
+		const reminded = await sendReminder(open.id, { kind: 'manual', sentBy: creator.id });
+		expect(announced.ok && reminded.ok).toBe(true);
+		const announcementId = announced.ok ? announced.messageId : '';
+		const [sent] = await db
+			.select({ messageIds: reminder.messageIds })
+			.from(reminder)
+			.where(eq(reminder.formId, open.id));
+		// The row an automatic reminder leaves when nobody is pending: nothing was posted.
+		await db.insert(reminder).values({
+			formId: open.id,
+			kind: 'auto',
+			sentBy: null,
+			targetDiscordIds: [],
+			sentAt: new Date(Date.now() + 60_000)
+		});
+		discord.calls = [];
+
+		const url = (messageId: string) => `https://discord.com/channels/${GUILD_ID}/${CHANNEL_ID}/${messageId}`;
+		const path = `/forms/${open.id}/results`;
+
+		const seen = (await resultsLoad(event(viewer, { id: open.id }, path))) as Record<string, unknown>;
+		expect(seen).toMatchObject({ manage: false, announcement: null, reminders: [] });
+		expectNoLeak(seen, [
+			...secrets,
+			viewer.discordId,
+			announcementId,
+			...sent.messageIds,
+			'discord.com'
+		]);
+
+		const managed = (await resultsLoad(event(creator, { id: open.id }, path))) as {
+			announcement: unknown;
+			reminders: { url: string | null }[];
+		};
+		expect(managed.announcement).toEqual({ hasChannel: true, url: url(announcementId) });
+		expect(managed.reminders.map((entry) => entry.url)).toEqual([null, url(sent.messageIds[0])]);
+		const keys = keysOf(managed);
+		expect(['channelId', 'messageId', 'messageIds'].filter((key) => keys.has(key))).toEqual([]);
 		expect(discord.count()).toBe(0);
 	});
 

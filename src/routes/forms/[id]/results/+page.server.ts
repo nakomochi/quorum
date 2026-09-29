@@ -20,6 +20,7 @@ import {
 	requireFormManager,
 	requireUser
 } from '$lib/server/guards';
+import { messageUrl } from '$lib/server/discord';
 import { lastSyncedAt, syncAllMembers, syncedGuildRoles } from '$lib/server/guild-sync';
 import { announceForm, listReminders, sendReminder } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
@@ -98,10 +99,17 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		rosterSyncedAt,
 		// Set by the redirect the creation page takes when the announcement could not be posted.
 		announceFailed: manage && url.searchParams.get('announce') === 'failed',
+		// Links, not ids: the page only needs to open the messages.
 		announcement: manage
-			? { channelId: target.announcementChannelId, messageId: target.announcementMessageId }
+			? {
+					hasChannel: target.announcementChannelId !== null,
+					url:
+						target.announcementChannelId && target.announcementMessageId
+							? messageUrl(target.announcementChannelId, target.announcementMessageId)
+							: null
+				}
 			: null,
-		reminders: manage ? await listReminders(params.id) : [],
+		reminders: manage ? await listReminders(params.id, target.announcementChannelId) : [],
 		questions: questions.map((q) => ({
 			id: q.id,
 			label: q.label,
@@ -180,6 +188,7 @@ export const actions: Actions = {
 		return { reminded: { targets: result.targets, messages: result.messages } };
 	},
 
+	// Posted to from the top page's menu; this page has no button for it.
 	// Only reads the form, so viewing rights are enough: the copy is a draft of the manager's own.
 	duplicate: async ({ locals, params }) => {
 		const { user, target } = await requireFormManager(locals, params.id, 'view');

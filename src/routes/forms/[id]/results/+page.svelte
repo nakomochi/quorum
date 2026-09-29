@@ -19,8 +19,8 @@
 
 	const answerTotal = $derived(data.submitted.length + data.outsiders.length);
 
-	const canAnnounce = $derived(!!data.announcement?.channelId && !data.announcement.messageId);
-	const canRemind = $derived(!!data.announcement?.channelId && !data.closed);
+	const canAnnounce = $derived(!!data.announcement?.hasChannel && !data.announcement.url);
+	const canRemind = $derived(!!data.announcement?.hasChannel && !data.closed);
 
 	// An empty mirror has nothing to count. One that predates guild_sync still has people in it.
 	const rosterMissing = $derived(
@@ -45,6 +45,19 @@
 		</span>
 		<span class="w-10 shrink-0 text-right tabular-nums text-text-muted">{count}</span>
 	</li>
+{/snippet}
+
+<!-- A compact link shows only its icon on a phone, where the history table has no room for text. -->
+{#snippet discordLink(url: string, label: string, compact: boolean)}
+	<a
+		href={url}
+		target="_blank"
+		rel="noopener noreferrer"
+		class="inline-flex items-center gap-1 text-text-muted underline underline-offset-2 hover:text-text-subtle"
+	>
+		<span class={compact ? 'max-sm:sr-only' : ''}>{label}</span>
+		<Icon name="external-link" class="size-3.5 shrink-0" />
+	</a>
 {/snippet}
 
 {#snippet answerTable(rows: Row[])}
@@ -105,30 +118,16 @@
 			</a>
 		</nav>
 
-		<div class="flex items-start justify-between gap-4">
-			<header class="min-w-0">
-				<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
-				<p class="mt-1.5 text-xs text-text-muted">
-					<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
-					<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt, '指定なし')}</span>
-					{#if data.manage && data.form.visibility}
-						<span class="whitespace-nowrap">/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}</span>
-					{/if}
-				</p>
-			</header>
-			{#if data.manage}
-				<!-- Starts a new draft from this form's content; the form itself is left as it is. -->
-				<form method="POST" action="?/duplicate" class="shrink-0">
-					<button
-						type="submit"
-						class="btn-secondary px-3 py-1.5 text-xs"
-						title="この内容を下書きにして新しいフォームを作ります"
-					>
-						複製
-					</button>
-				</form>
-			{/if}
-		</div>
+		<header class="min-w-0">
+			<h1 class="text-xl font-semibold tracking-tight">{data.form.title}</h1>
+			<p class="mt-1.5 text-xs text-text-muted">
+				<span class="whitespace-nowrap">締切: {formatJst(data.form.deadline, 'なし')}</span>
+				<span class="whitespace-nowrap">/ 受付終了: {formatJst(data.form.closesAt, '指定なし')}</span>
+				{#if data.manage && data.form.visibility}
+					<span class="whitespace-nowrap">/ 公開範囲: {VISIBILITY_LABELS[data.form.visibility]}</span>
+				{/if}
+			</p>
+		</header>
 	</div>
 
 	{#if data.roleDeleted}
@@ -155,12 +154,12 @@
 		<p role="status" class="alert-success">告知を投稿しました。</p>
 	{:else if form?.closed !== undefined}
 		<p role="status" class="alert-success">
-			締め切りました。未提出者 {form.closed}名を確定しました。
+			{form.closed === 0
+				? '締め切りました。未提出者はいません。'
+				: `締め切りました。未提出者 ${form.closed}名を確定しました。`}
 		</p>
 	{:else if form?.reopened}
-		<p role="status" class="alert-success">
-			受付を再開しました。対象者と未提出者の確定は破棄されました。
-		</p>
+		<p role="status" class="alert-success">受付を再開しました。</p>
 	{:else if form?.rosterSynced}
 		<p role="status" class="alert-success">名簿を更新しました。</p>
 	{/if}
@@ -190,7 +189,7 @@
 		<section class="card action-row px-5 py-4">
 			<p class="min-w-0 flex-1 text-sm text-text-subtle">
 				{#if data.form.closedAt}
-					<span class="whitespace-nowrap">{formatJst(data.form.closedAt)}</span> に締め切りました。対象者と未提出者は確定済みで、メンバー情報が更新されても変わりません。
+					<span class="whitespace-nowrap">{formatJst(data.form.closedAt)}</span> に締め切りました。
 				{:else}
 					締め切ると、Discord から最新のメンバー一覧を取得して未提出者を確定します。以後の提出は受け付けません。
 				{/if}
@@ -213,16 +212,21 @@
 				<div class="min-w-0 flex-1 text-sm">
 					<h2 class="font-medium text-text-subtle">Discord への告知とリマインド</h2>
 					<p class="mt-1 text-text-muted">
-						{#if !data.announcement.channelId}
+						{#if !data.announcement.hasChannel}
 							告知チャンネルが未設定のフォームです。告知の投稿もリマインドの送信もできません。
 						{:else if data.closed}
 							受付を終了したフォームのため、リマインドは送信できません。
-						{:else if data.announcement.messageId}
+						{:else if data.announcement.url}
 							リマインドは告知メッセージへの返信として投稿し、未提出者を個別にメンションします。
 						{:else}
 							告知がまだ投稿されていません。リマインドは送信できますが、告知への返信にはなりません。
 						{/if}
 					</p>
+					{#if data.announcement.url}
+						<p class="mt-2 text-xs">
+							{@render discordLink(data.announcement.url, '告知メッセージを Discord で開く', false)}
+						</p>
+					{/if}
 				</div>
 				{#if canAnnounce || canRemind}
 					<div class="flex shrink-0 flex-wrap gap-2">
@@ -253,6 +257,7 @@
 								<th scope="col" class="pr-4 pb-1 font-medium">種類</th>
 								<th scope="col" class="pb-1 text-right font-medium">対象</th>
 								<th scope="col" class="pb-1"><span class="sr-only">通数</span></th>
+								<th scope="col" class="pb-1"><span class="sr-only">メッセージ</span></th>
 							</tr>
 						</thead>
 						<tbody class="tabular-nums">
@@ -264,6 +269,11 @@
 									<!-- A single message is the usual case and goes unsaid. -->
 									<td class="py-0.5 whitespace-nowrap">
 										{entry.messageCount > 1 ? `（${entry.messageCount}通）` : ''}
+									</td>
+									<td class="py-0.5 pl-2 whitespace-nowrap">
+										{#if entry.url}
+											{@render discordLink(entry.url, 'Discord で開く', true)}
+										{/if}
 									</td>
 								</tr>
 							{/each}

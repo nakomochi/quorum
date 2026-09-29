@@ -115,16 +115,6 @@ export async function discardResponseDraft(formId: string): Promise<boolean> {
 	}
 }
 
-/** True once the draft is gone, including when something else removed it first. */
-export async function discardDraft(id: string): Promise<boolean> {
-	try {
-		const response = await fetch(draftUrl(id), { method: 'DELETE', headers: JSON_HEADERS });
-		return response.ok || response.status === 404;
-	} catch {
-		return false;
-	}
-}
-
 /** Browsers refuse a keepalive request once the pending keepalive bodies pass 64 KiB. */
 const KEEPALIVE_BYTES = 60_000;
 

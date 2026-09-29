@@ -91,9 +91,17 @@ const HOUR_MS = 3_600_000;
 const fromNow = (hours: number) =>
 	new Date(Math.floor(Date.now() / HOUR_MS) * HOUR_MS + hours * HOUR_MS);
 
+const GUILD_ID = '900000000000000000';
 const ROLE_ID = '900000000000000001';
 const CHANNEL_ID = '900000000000000002';
-const MESSAGE_ID = '900000000000000003';
+
+/** Built the way the results page's load builds it. */
+const discordMessage = (messageId: string) =>
+	`https://discord.com/channels/${GUILD_ID}/${CHANNEL_ID}/${messageId}`;
+
+const ANNOUNCED = { hasChannel: true, url: discordMessage('900000000000000003') };
+const NOT_ANNOUNCED = { hasChannel: true, url: null };
+const NO_CHANNEL = { hasChannel: false, url: null };
 
 const USER: SessionUser = {
 	name: 'なこもち',
@@ -577,12 +585,34 @@ const NON_SUBMITTERS = [3, 4, 5].map(member);
 const MANY_NON_SUBMITTERS = Array.from({ length: 42 }, (_, i) => member(i + 3));
 
 // One to three digits and one to three messages, so that the columns can be seen to line up.
+const reminderEntry = (
+	id: number,
+	kind: ReminderEntry['kind'],
+	sentAt: string,
+	targetCount: number,
+	messageCount: number
+): ReminderEntry => ({
+	id,
+	kind,
+	sentAt: at(sentAt),
+	targetCount,
+	messageCount,
+	url: messageCount > 0 ? discordMessage(`9000000000000001${String(id).padStart(2, '0')}`) : null
+});
+
 const REMINDERS: ReminderEntry[] = [
-	{ id: 5, kind: 'manual', sentAt: at('2026-04-29T21:15:00'), targetCount: 7, messageCount: 1 },
-	{ id: 4, kind: 'manual', sentAt: at('2026-04-28T19:00:00'), targetCount: 42, messageCount: 1 },
-	{ id: 3, kind: 'auto', sentAt: at('2026-04-27T09:00:00'), targetCount: 51, messageCount: 2 },
-	{ id: 2, kind: 'manual', sentAt: at('2026-04-20T12:30:00'), targetCount: 60, messageCount: 2 },
-	{ id: 1, kind: 'manual', sentAt: at('2026-04-14T08:00:00'), targetCount: 118, messageCount: 3 }
+	reminderEntry(5, 'manual', '2026-04-29T21:15:00', 7, 1),
+	reminderEntry(4, 'manual', '2026-04-28T19:00:00', 42, 1),
+	reminderEntry(3, 'auto', '2026-04-27T09:00:00', 51, 2),
+	reminderEntry(2, 'manual', '2026-04-20T12:30:00', 60, 2),
+	reminderEntry(1, 'manual', '2026-04-14T08:00:00', 118, 3)
+];
+
+/** With the row an automatic reminder leaves when nobody was pending: nothing posted, no link. */
+const REMINDERS_WITH_EMPTY: ReminderEntry[] = [
+	reminderEntry(7, 'auto', '2026-04-29T23:59:00', 0, 0),
+	reminderEntry(6, 'manual', '2026-04-29T22:30:00', 3, 1),
+	...REMINDERS
 ];
 
 // Relative for the same reason as `fromNow`: the page locks itself once closesAt passes, so a
@@ -736,7 +766,7 @@ const rosterResults = (over: Partial<ResultsData> = {}): ResultsData => ({
 	roleDeleted: false,
 	rosterSyncedAt: ROSTER_SYNCED_AT,
 	announceFailed: false,
-	announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+	announcement: ANNOUNCED,
 	reminders: [],
 	questions: RESULT_QUESTIONS,
 	tallies: TALLIES,
@@ -751,7 +781,7 @@ const rosterResults = (over: Partial<ResultsData> = {}): ResultsData => ({
 /** Without a mirror nobody can pass the membership check, so there are no responses either. */
 const UNSYNCED_ROSTER: Partial<ResultsData> = {
 	rosterSyncedAt: null,
-	announcement: { channelId: CHANNEL_ID, messageId: null },
+	announcement: NOT_ANNOUNCED,
 	tallies: EMPTY_TALLIES,
 	targetCount: 0,
 	submitted: [],
@@ -1376,7 +1406,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
 			tallies: TALLIES,
@@ -1399,7 +1429,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
 			tallies: EDITED_TALLIES,
@@ -1445,7 +1475,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
 			tallies: TALLIES,
@@ -1468,7 +1498,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
 			tallies: TALLIES,
@@ -1492,7 +1522,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			// A frozen roster does not depend on the mirror, so the load leaves these out.
 			rosterSyncedAt: null,
 			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			announcement: ANNOUNCED,
 			reminders: REMINDERS,
 			questions: RESULT_QUESTIONS,
 			tallies: TALLIES,
@@ -1515,7 +1545,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: null },
+			announcement: NOT_ANNOUNCED,
 			reminders: REMINDERS,
 			questions: RESULT_QUESTIONS,
 			tallies: TALLIES,
@@ -1538,7 +1568,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			announcement: ANNOUNCED,
 			reminders: REMINDERS,
 			questions: RESULT_QUESTIONS,
 			tallies: TALLIES,
@@ -1573,6 +1603,30 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		form: { closed: 3 }
 	},
 	{
+		id: 'results-closed-now-none',
+		title: '「締め切って確定する」の直後（未提出者0名）',
+		data: rosterResults({
+			form: resultsForm({ closedAt: at('2026-04-29T22:00:00') }),
+			closed: true,
+			rosterSyncedAt: null,
+			frozen: true,
+			targetCount: SUBMITTED.length,
+			nonSubmitters: []
+		}),
+		form: { closed: 0 }
+	},
+	{
+		id: 'results-reopened',
+		title: '「受付を再開する」の直後',
+		data: rosterResults({ reminders: REMINDERS }),
+		form: { reopened: true }
+	},
+	{
+		id: 'results-reminder-links',
+		title: '送信履歴の Discord へのリンク（投稿のない行はリンクなし）',
+		data: rosterResults({ reminders: REMINDERS_WITH_EMPTY })
+	},
+	{
 		id: 'results-empty',
 		title: '回答0件',
 		data: {
@@ -1584,7 +1638,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
 			tallies: EMPTY_TALLIES,
@@ -1607,7 +1661,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
-			announcement: { channelId: null, messageId: null },
+			announcement: NO_CHANNEL,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
 			tallies: TALLIES,
@@ -1630,7 +1684,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: true,
-			announcement: { channelId: CHANNEL_ID, messageId: null },
+			announcement: NOT_ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
 			tallies: TALLIES,
@@ -1653,7 +1707,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
 			tallies: OTHER_TALLIES,
@@ -1677,7 +1731,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: true,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
 			tallies: TALLIES,
@@ -1701,7 +1755,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
-			announcement: { channelId: CHANNEL_ID, messageId: MESSAGE_ID },
+			announcement: ANNOUNCED,
 			reminders: [],
 			questions: WIDE_QUESTIONS.map(toResultQuestion),
 			tallies: tallyOf(WIDE_QUESTIONS, [...WIDE_SUBMITTED, ...WIDE_OUTSIDERS]),
@@ -1907,7 +1961,7 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 	},
 	{
 		id: 'new-draft',
-		title: '下書きを開いた（保存済みの時刻・破棄ボタン）',
+		title: '下書きを開いた（保存済みの時刻）',
 		data: draftData()
 	},
 	{

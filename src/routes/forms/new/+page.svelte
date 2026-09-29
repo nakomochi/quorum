@@ -9,15 +9,10 @@
 		type DndEvent
 	} from 'svelte-dnd-action';
 	import { enhance } from '$app/forms';
-	import { goto, replaceState } from '$app/navigation';
+	import { replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import { formatJstTime } from '$lib/datetime';
-	import {
-		DraftAutosave,
-		discardDraft,
-		fetchTransport,
-		type SaveStatus
-	} from '$lib/draft-autosave';
+	import { DraftAutosave, fetchTransport, type SaveStatus } from '$lib/draft-autosave';
 	import { draftPayload, questionsField, type DraftQuestion } from '$lib/form-draft';
 	import {
 		hasOptions,
@@ -299,7 +294,6 @@
 		return JSON.stringify(draftPayload(fields, closesAtTouched));
 	}
 
-	let draftId = $state<string | null>(restored?.id ?? null);
 	let saveStatus = $state<SaveStatus>(
 		restored ? { kind: 'saved', at: restored.updatedAt } : { kind: 'idle' }
 	);
@@ -310,7 +304,6 @@
 		transport: fetchTransport,
 		onStatus: (status) => (saveStatus = status),
 		onCreated: (id) => {
-			draftId = id;
 			// Replaced, not pushed: a reload opens the draft again, and Back still leaves the editor.
 			const url = new URL(page.url);
 			url.searchParams.set('draft', id);
@@ -344,25 +337,6 @@
 		savedKey = key;
 		autosave.changed();
 	});
-
-	let discarding = $state(false);
-	let discardFailed = $state(false);
-
-	async function discard() {
-		const id = autosave.id;
-		if (!id || !confirm('この下書きを削除します')) return;
-
-		discarding = true;
-		discardFailed = false;
-		await autosave.stop();
-		if (await discardDraft(id)) {
-			await goto('/');
-			return;
-		}
-		discarding = false;
-		discardFailed = true;
-		autosave.resume();
-	}
 </script>
 
 <main class="mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-8 pb-12">
@@ -738,24 +712,8 @@
 			</div>
 		{/if}
 
-		{#if discardFailed}
-			<p role="alert" class="alert-error">
-				下書きを破棄できませんでした。時間をおいてもう一度お試しください。
-			</p>
-		{/if}
-
 		<div class="flex flex-wrap items-center gap-x-4 gap-y-3">
 			<button type="submit" class="btn-primary px-5 py-2.5">作成する</button>
-			{#if draftId}
-				<button
-					type="button"
-					class="btn-secondary px-4 py-2.5"
-					disabled={discarding}
-					onclick={discard}
-				>
-					下書きを破棄
-				</button>
-			{/if}
 			<p role="status" class="text-xs text-text-muted">
 				{#if saveStatus.kind === 'saving'}
 					保存中…

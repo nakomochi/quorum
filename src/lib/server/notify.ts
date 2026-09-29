@@ -2,7 +2,7 @@ import { desc, eq, sql } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { db } from './db';
 import { form, reminder, type Form } from './db/schema';
-import { postMessage, type CreateMessage } from './discord';
+import { messageUrl, postMessage, type CreateMessage } from './discord';
 import { isClosed, loadForm, rosterStatus } from './forms';
 import { syncAllMembers } from './guild-sync';
 import { formatJst } from '../datetime';
@@ -206,18 +206,30 @@ export type ReminderLogEntry = {
 	sentAt: Date;
 	targetCount: number;
 	messageCount: number;
+	/** The first message of the send. Null when nothing was posted. */
+	url: string | null;
 };
 
-export async function listReminders(formId: string): Promise<ReminderLogEntry[]> {
-	return db
+/** `channelId` is the form's announcement channel, where every reminder of the form was posted. */
+export async function listReminders(
+	formId: string,
+	channelId: string | null
+): Promise<ReminderLogEntry[]> {
+	const rows = await db
 		.select({
 			id: reminder.id,
 			kind: reminder.kind,
 			sentAt: reminder.sentAt,
 			targetCount: sql<number>`jsonb_array_length(${reminder.targetDiscordIds})`,
-			messageCount: sql<number>`jsonb_array_length(${reminder.messageIds})`
+			messageCount: sql<number>`jsonb_array_length(${reminder.messageIds})`,
+			firstMessageId: sql<string | null>`${reminder.messageIds} ->> 0`
 		})
 		.from(reminder)
 		.where(eq(reminder.formId, formId))
 		.orderBy(desc(reminder.sentAt), desc(reminder.id));
+
+	return rows.map(({ firstMessageId, ...entry }) => ({
+		...entry,
+		url: channelId && firstMessageId ? messageUrl(channelId, firstMessageId) : null
+	}));
 }

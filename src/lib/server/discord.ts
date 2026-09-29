@@ -107,6 +107,11 @@ export function guildId(): string {
 	return credentials().guildId;
 }
 
+/** A link that opens the message in Discord. Built locally; nothing is asked of the API. */
+export function messageUrl(channelId: string, messageId: string): string {
+	return `https://discord.com/channels/${guildId()}/${channelId}/${messageId}`;
+}
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function retryAfterMs(res: Response): Promise<number> {

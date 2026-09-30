@@ -296,7 +296,7 @@
 										<td class="py-0.5 whitespace-nowrap">
 											{entry.messageCount > 1 ? `（${entry.messageCount}通）` : ''}
 										</td>
-										<!-- Left by a send that failed partway, until the next one of its kind continues it. -->
+										<!-- Left by a send that failed partway, until the next one of either kind continues it. -->
 										<td class="py-0.5 pl-2 whitespace-nowrap text-warning">
 											{entry.pendingCount > 0 ? `残り${entry.pendingCount}名は未送信` : ''}
 										</td>

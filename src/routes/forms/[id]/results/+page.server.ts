@@ -185,7 +185,9 @@ export const actions: Actions = {
 		}
 
 		const split = result.messages > 1 ? `（${result.messages}通に分けて送信）` : '';
-		return { notice: `未提出者 ${result.targets}名にリマインドを送信しました。${split}` };
+		// A reminder left unfinished is sent on before any new one, so this click may only have done that.
+		const lead = result.continued ? '途中で止まっていた前回の送信の続きとして、' : '';
+		return { notice: `${lead}未提出者 ${result.targets}名にリマインドを送信しました。${split}` };
 	},
 
 	// Posted to from the top page's menu; this page has no button for it.

@@ -5,6 +5,7 @@ import { reminder } from '$lib/server/db/schema';
 import { closeForm } from '$lib/server/forms';
 import { announceForm, listReminders, sendReminder } from '$lib/server/notify';
 import { runTick } from '$lib/server/scheduler';
+import { actions as resultsActions } from '../../src/routes/forms/[id]/results/+page.server';
 import { CHANNEL_ID, discord, OTHER_ROLE, status, TARGET_ROLE, type Call } from '../helpers/discord';
 import {
 	createUsers,
@@ -14,6 +15,7 @@ import {
 	patchForm,
 	quietly,
 	seedGuild,
+	sessionLocals,
 	snowflake,
 	submit
 } from '../helpers/fixtures';
@@ -80,7 +82,7 @@ describe('sendReminder', () => {
 
 		const result = await sendReminder(id, { kind: 'manual', sentBy: creator.id });
 
-		expect(result).toEqual({ ok: true, targets: 2, messages: 1 });
+		expect(result).toEqual({ ok: true, targets: 2, messages: 1, continued: false });
 		const [post] = discord.posts();
 		const body = post.body as { content: string; allowed_mentions: { users: string[] }; message_reference: { message_id: string } };
 		expect(post.url.pathname).toBe(`/api/v10/channels/${CHANNEL_ID}/messages`);
@@ -100,7 +102,8 @@ describe('sendReminder', () => {
 		expect(await sendReminder(id, { kind: 'manual', sentBy: creator.id })).toEqual({
 			ok: true,
 			targets: 120,
-			messages: 3
+			messages: 3,
+			continued: false
 		});
 		expect(discord.posts().map((p) => (p.body as { allowed_mentions: { users: string[] } }).allowed_mentions.users.length)).toEqual([50, 50, 20]);
 	});
@@ -203,7 +206,7 @@ describe('sendReminder', () => {
 		await submit(id, answered, [TARGET_ROLE], inputs(questions, { 0: 'x' }));
 		discord.calls = [];
 
-		expect(await sendReminder(id, manual)).toEqual({ ok: true, targets: 69, messages: 2 });
+		expect(await sendReminder(id, manual)).toEqual({ ok: true, targets: 69, messages: 2, continued: true });
 		const rest = discord.posts().flatMap(mentioned);
 		expect(rest).toHaveLength(69);
 		expect(rest.filter((discordId) => first.includes(discordId))).toEqual([]);
@@ -218,7 +221,7 @@ describe('sendReminder', () => {
 
 		// Once finished, a manual reminder goes to every non-submitter again.
 		discord.calls = [];
-		expect(await sendReminder(id, manual)).toEqual({ ok: true, targets: 119, messages: 3 });
+		expect(await sendReminder(id, manual)).toEqual({ ok: true, targets: 119, messages: 3, continued: false });
 		expect(await reminders(id)).toHaveLength(2);
 	});
 
@@ -325,5 +328,93 @@ describe('runTick', () => {
 		discord.calls = [];
 		expect(await runTick()).toEqual({ reminded: [], closed: [], closePosted: [], failed: [] });
 		expect(discord.count()).toBe(0);
+	});
+});
+
+describe('an unfinished reminder is continued by the next send of either kind', () => {
+	const sorted = (ids: string[]) => [...ids].sort();
+
+	test('the manual button finishes an automatic send that failed partway, and the tick then sends nothing', async () => {
+		const { creator } = await guild(120);
+		const { id } = await makeForm(creator, { announcementChannelId: CHANNEL_ID, deadline: soon() });
+		failNthPost(2);
+		await quietly(() => runTick());
+		const first = mentioned(discord.posts()[0]);
+		const [auto] = await reminders(id);
+		expect(auto.pendingDiscordIds).toHaveLength(70);
+		discord.calls = [];
+
+		const result = await resultsActions.remind({ locals: sessionLocals(creator), params: { id } } as never);
+
+		expect(result).toEqual({
+			notice: '途中で止まっていた前回の送信の続きとして、未提出者 70名にリマインドを送信しました。（2通に分けて送信）'
+		});
+		const rest = discord.posts().flatMap(mentioned);
+		expect(sorted(rest)).toEqual(sorted(auto.pendingDiscordIds));
+		expect(new Set([...first, ...rest]).size).toBe(120);
+
+		// The automatic send was the one continued, and the deadline has had it.
+		const rows = await reminders(id);
+		expect(rows).toHaveLength(1);
+		expect(rows[0]).toMatchObject({ kind: 'auto', pendingDiscordIds: [] });
+		expect(rows[0].targetDiscordIds).toHaveLength(120);
+
+		discord.calls = [];
+		expect(await runTick()).toEqual({ reminded: [], closed: [], closePosted: [], failed: [] });
+		expect(discord.count()).toBe(0);
+	});
+
+	test('the tick finishes a manual send that failed partway first, and a later tick sends the automatic one', async () => {
+		const { creator } = await guild(120);
+		const { id } = await makeForm(creator, { announcementChannelId: CHANNEL_ID, deadline: soon() });
+		failNthPost(2);
+		const { value } = await quietly(() => sendReminder(id, { kind: 'manual', sentBy: creator.id }));
+		expect(value).toEqual({ ok: false, reason: 'post_failed', targets: 50, remaining: 70 });
+		const first = mentioned(discord.posts()[0]);
+		const [manual] = await reminders(id);
+		discord.calls = [];
+
+		expect(await runTick()).toEqual({ reminded: [id], closed: [], closePosted: [], failed: [] });
+		const rest = discord.posts().flatMap(mentioned);
+		expect(sorted(rest)).toEqual(sorted(manual.pendingDiscordIds));
+		expect(new Set([...first, ...rest]).size).toBe(120);
+		const continued = await reminders(id);
+		expect(continued).toHaveLength(1);
+		expect(continued[0]).toMatchObject({ kind: 'manual', pendingDiscordIds: [] });
+
+		// Finishing the manual send is not the deadline's automatic reminder, which is a send of its own.
+		discord.calls = [];
+		expect(await runTick()).toEqual({ reminded: [id], closed: [], closePosted: [], failed: [] });
+		expect(discord.posts().flatMap(mentioned)).toHaveLength(120);
+		expect((await reminders(id)).map((r) => r.kind).sort()).toEqual(['auto', 'manual']);
+
+		discord.calls = [];
+		expect(await runTick()).toEqual({ reminded: [], closed: [], closePosted: [], failed: [] });
+		expect(discord.count()).toBe(0);
+	});
+
+	test('a send continues the oldest unfinished one and stops there', async () => {
+		const { creator, users } = await guild(4);
+		const deadline = soon();
+		const { id } = await makeForm(creator, { announcementChannelId: CHANNEL_ID, deadline });
+		const [a, b, c, d] = users.map((u) => u.discordId);
+		// Left by a manual send and then by an automatic one, both failed partway.
+		await db.insert(reminder).values([
+			{ formId: id, kind: 'manual', sentBy: creator.id, targetDiscordIds: [a], pendingDiscordIds: [b], targetDeadline: deadline },
+			{ formId: id, kind: 'auto', sentBy: null, targetDiscordIds: [c], pendingDiscordIds: [d], targetDeadline: deadline }
+		]);
+		const manual = { kind: 'manual', sentBy: creator.id } as const;
+
+		expect(await sendReminder(id, manual)).toEqual({ ok: true, targets: 1, messages: 1, continued: true });
+		expect(discord.posts().flatMap(mentioned)).toEqual([b]);
+		discord.calls = [];
+
+		expect(await sendReminder(id, AUTO)).toEqual({ ok: true, targets: 1, messages: 1, continued: true });
+		expect(discord.posts().flatMap(mentioned)).toEqual([d]);
+		discord.calls = [];
+
+		// Nothing is left unfinished, so the next one is a new send to every non-submitter.
+		expect(await sendReminder(id, manual)).toEqual({ ok: true, targets: 4, messages: 1, continued: false });
+		expect(await reminders(id)).toHaveLength(3);
 	});
 });

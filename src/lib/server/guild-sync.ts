@@ -20,6 +20,10 @@ export type SyncAllResult = {
 	present: number;
 	/** Rows that were in the mirror as active but are no longer in the guild. */
 	markedLeft: number;
+	/**
+	 * When the member list was fetched, as the mirror records it. A sync kept out by a newer one
+	 * writes nothing and reports that one's time, with markedLeft 0.
+	 */
 	syncedAt: Date;
 };
 
@@ -63,27 +67,52 @@ function chunk<T>(items: T[], size: number): T[][] {
 }
 
 let runningSync: Promise<SyncAllResult> | null = null;
+let queuedSync: Promise<SyncAllResult> | null = null;
 
 /**
- * The mirror's only writer. Concurrent callers share the sync already in flight instead of paging
- * the whole guild again. Departed rows are kept rather than deleted so old answers stay
- * attributable.
+ * The mirror's only writer. The sync it returns started fetching no earlier than the call: callers
+ * sync because something just changed, and a sync already in flight may have fetched before that.
+ * A call during a sync therefore waits for one queued after it, which every such call shares, so a
+ * process runs at most one sync and queues at most one more. Departed rows are kept rather than
+ * deleted so old answers stay attributable.
  */
 export function syncAllMembers(): Promise<SyncAllResult> {
-	// Cleared on failure too: a rejected promise left in place would fail every later sync.
-	runningSync ??= runFullSync().finally(() => {
-		runningSync = null;
-	});
-	return runningSync;
+	// Not started yet, so it starts after this call.
+	if (queuedSync) return queuedSync;
+	if (!runningSync) return startSync();
+
+	// Runs whatever the outcome of the one before: that failure belongs to that sync's callers.
+	queuedSync = runningSync
+		.catch(() => undefined)
+		.then(() => {
+			queuedSync = null;
+			return startSync();
+		});
+	return queuedSync;
 }
 
+function startSync(): Promise<SyncAllResult> {
+	// Cleared on failure too: a rejected promise left in place would fail every later sync.
+	const run = runFullSync().finally(() => {
+		if (runningSync === run) runningSync = null;
+	});
+	runningSync = run;
+	return run;
+}
+
+let lastStartedAt = 0;
+
 async function runFullSync(): Promise<SyncAllResult> {
+	// Taken before the fetch: the list is current as of this time at least, and it is what the mirror
+	// records. Kept strictly after this process's previous sync, which has finished by now, so that a
+	// tie within one millisecond does not make this one look stale to the check below.
+	lastStartedAt = Math.max(Date.now(), lastStartedAt + 1);
+	const syncedAt = new Date(lastStartedAt);
 	const [members, guild, roles] = await Promise.all([
 		listGuildMembers(),
 		getGuild(),
 		listGuildRoles()
 	]);
-	const syncedAt = new Date();
 	const rows = members.map((member) => toRow(member, syncedAt));
 
 	// A guild always contains at least the bot itself, so an empty list means the request
@@ -95,10 +124,20 @@ async function runFullSync(): Promise<SyncAllResult> {
 	const presentIds = rows.map((row) => row.discordId);
 
 	return db.transaction(async (tx) => {
-		// The single-flight above is per process. Two processes (e.g. old and new containers during
+		// The queue above is per process. Two processes (e.g. old and new containers during
 		// a deploy) holding member lists that disagree would upsert and mark departed the same rows
 		// in opposite orders and deadlock, so full syncs are serialized across processes too.
 		await tx.execute(sql`select pg_advisory_xact_lock(${FULL_SYNC_LOCK_KEY}::bigint)`);
+
+		// A sync that started fetching later, in another process, committed while this one fetched
+		// or waited for the lock. Its list is the newer one and is kept.
+		const [newer] = await tx
+			.select({ at: guildSync.lastFullSyncAt })
+			.from(guildSync)
+			.where(eq(guildSync.id, 1));
+		if (newer && newer.at.getTime() >= syncedAt.getTime()) {
+			return { present: rows.length, markedLeft: 0, syncedAt: newer.at };
+		}
 
 		for (const batch of chunk(rows, UPSERT_CHUNK_SIZE)) {
 			await tx

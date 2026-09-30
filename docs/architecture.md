@@ -57,7 +57,7 @@ erDiagram
 | --- | --- |
 | `user` `session` `account` `verification` | Better Auth。`user.discord_id` は OAuth のプロフィールからだけ入る |
 | `guild_member` | 名簿。Discord サーバーのメンバーを全員同期で写したもの。抜けた人も行を残し `left_at` を入れる。アバターはアカウント用（`avatar_hash`）とサーバー用（`guild_avatar_hash`）を持つ |
-| `guild_sync` | 1 行だけ。最後に成功した全員同期の時刻と、その時点のオーナー・ロール権限 |
+| `guild_sync` | 1 行だけ。名簿を最後に書いた全員同期が Discord から取得を始めた時刻と、そのときのオーナー・ロール権限 |
 | `form` | フォーム。`deadline`（告知した締切）・`closes_at`（受付終了の予定）・`closed_at`（クローズした時刻。自動クローズでは `closes_at` と同じ値）を別々に持つ。クローズで対象者（`final_target_ids`）と未提出者（`final_non_submitters`）を確定する。締め切りの投稿は `close_notice_claimed_at` で予約し、`close_message_id` に結果を持つ |
 | `question` | 質問。削除は `deleted_at` の論理削除 |
 | `response` / `answer` | 最新の回答。1 人 1 フォーム 1 件 |
@@ -74,7 +74,7 @@ erDiagram
 | クローズ `closeForm` | `form` を `FOR UPDATE` → 名簿と回答を読む → `form` を UPDATE → そのフォームの `response_draft` の DELETE |
 | 締め切りの投稿 `postCloseNotice` | `form` の条件付き UPDATE で予約（未予約のときだけ）→ 投稿はトランザクションの外 → 予約が残っているときだけ `form` を UPDATE。クローズのトランザクションの後に走る |
 | 回答の下書きの保存 `saveResponseDraft` | `form` を `FOR SHARE` → `isClosed` なら 409 → `response_draft` を版 0 なら INSERT（重複は DO NOTHING）、それ以外は条件付き UPDATE。`response` には触れない |
-| 全員同期 `runFullSync` | advisory lock → `guild_member` の upsert・離脱の UPDATE → `guild_sync` の upsert |
+| 全員同期 `runFullSync` | advisory lock → `guild_sync` を読み、後から取得を始めた同期がコミット済みなら何も書かずに終える → `guild_member` の upsert・離脱の UPDATE → `guild_sync` の upsert |
 | フォームの作成 `createForm` | `form_draft` の DELETE → `form` と `question` の INSERT。`form` の行のロックは取らない |
 | 下書きの保存 `updateDraft` | `form_draft` の条件付き UPDATE だけ。ほかの行には触れない |
 | リマインドの送信 `sendReminder` | 1 通ごとに `reminder` を `FOR UPDATE` → 未送信から 50 人をメンション済みに移す。投稿はトランザクションの外 |
@@ -146,12 +146,13 @@ Coolify の Scheduled Tasks が `node scripts/cron.js <job>` を実行し、`POS
 
 - 同じ job が実行中なら 409 を返して何もしない。`CRON_SECRET` が未設定なら常に拒否する。
 - 自動リマインドは送信前に予約の行を入れ、締切ごとの部分ユニークで重複を防ぐ。
-- 途中で失敗した送信は、送れた分を記録して残す。続きは自動なら次の tick、手動なら次の手動のリマインドで、まだメンションしていない未提出者にだけ送る。自動と手動の記録は別々。
+- 途中で失敗した送信は、送れた分を記録して残す。次のリマインドは自動・手動を問わず、残った送信があればその続き（古いものから 1 件）を、まだメンションしていない未提出者にだけ送って終える。残った送信がないときだけ新しく送る。
+- 自動が手動の送信の続きを送っても、その締切の自動リマインドを送ったことにはならず、後の tick が新しく送る。
 - 締め切りの投稿は、クローズの直後に行う。失敗してもクローズは成功のままで、次の tick が送り直す。
 
 ## 同期のタイミング
 
-名簿（`guild_member`）と `guild_sync` を書くのは全員同期（`syncAllMembers`）だけ。全員同期は、同じプロセス内では実行中のものを共有し、プロセスをまたいでは advisory lock で 1 本ずつにする。
+名簿（`guild_member`）と `guild_sync` を書くのは全員同期（`syncAllMembers`）だけ。`syncAllMembers` は、呼ばれた後に Discord から取得を始めた同期の結果を返す。同じプロセス内で同期が実行中なら、その後に 1 本だけ続けて走らせ、実行中に来た呼び出しはみなそれを待つ。プロセスをまたいでは advisory lock で 1 本ずつにし、後から取得を始めた同期が先にコミットしていれば、古い一覧で上書きしない。名簿の `synced_at` と `guild_sync.last_full_sync_at` は、取得を始めた時刻。
 
 | タイミング | 理由 |
 | --- | --- |

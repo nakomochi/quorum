@@ -1,4 +1,4 @@
-import { and, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
+import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { db } from './db';
 import { form, reminder, type Form } from './db/schema';
@@ -157,13 +157,19 @@ export async function postCloseNotice(formId: string): Promise<CloseNoticeResult
 export type ReminderOptions = { kind: 'manual' | 'auto'; sentBy: string | null };
 
 export type ReminderResult =
-	| { ok: true; targets: number; messages: number }
+	| {
+			ok: true;
+			targets: number;
+			messages: number;
+			/** True when this finished an earlier send that had failed partway, of either kind. */
+			continued: boolean;
+	  }
 	| {
 			ok: false;
 			reason: 'post_failed';
 			/** Mentioned by this attempt before the failure. */
 			targets: number;
-			/** Left for the next send of the same kind. 0 when the failure left no record at all. */
+			/** Left for the next send of either kind. 0 when the failure left no record at all. */
 			remaining: number;
 	  }
 	| {
@@ -178,35 +184,17 @@ export type ReminderResult =
 				| 'sync_failed';
 	  };
 
-type ReminderKind = ReminderOptions['kind'];
-
-/**
- * The latest send of this kind that still has members pending. An automatic one belongs to its
- * deadline; a manual one is continued whatever the deadline.
- */
-async function findUnfinished(
-	formId: string,
-	kind: ReminderKind,
-	deadline: Date | null
-): Promise<number | null> {
-	const [row] = await db
-		.select({ id: reminder.id })
+/** The form's sends that still have members pending, of either kind and any deadline, oldest first. */
+async function findUnfinished(formId: string) {
+	return db
+		.select({ id: reminder.id, kind: reminder.kind, deadline: reminder.targetDeadline })
 		.from(reminder)
-		.where(
-			and(
-				eq(reminder.formId, formId),
-				eq(reminder.kind, kind),
-				sql`${reminder.pendingDiscordIds} <> '[]'::jsonb`,
-				kind === 'auto'
-					? deadline
-						? eq(reminder.targetDeadline, deadline)
-						: isNull(reminder.targetDeadline)
-					: undefined
-			)
-		)
-		.orderBy(desc(reminder.id))
-		.limit(1);
-	return row?.id ?? null;
+		.where(and(eq(reminder.formId, formId), sql`${reminder.pendingDiscordIds} <> '[]'::jsonb`))
+		.orderBy(asc(reminder.id));
+}
+
+function sameDeadline(a: Date | null, b: Date | null): boolean {
+	return (a?.getTime() ?? null) === (b?.getTime() ?? null);
 }
 
 type Progress = { pending: string[]; mentioned: string[] };
@@ -286,13 +274,18 @@ async function releaseBatch(id: number, batch: string[]): Promise<number> {
 }
 
 /** Posts the pending members of one reminder, a message at a time, until none are left. */
-async function postPending(target: Form, channelId: string, id: number): Promise<ReminderResult> {
+async function postPending(
+	target: Form,
+	channelId: string,
+	id: number,
+	continued: boolean
+): Promise<ReminderResult> {
 	let targets = 0;
 	let messages = 0;
 
 	for (;;) {
 		const batch = await claimBatch(id);
-		if (batch.length === 0) return { ok: true, targets, messages };
+		if (batch.length === 0) return { ok: true, targets, messages, continued };
 
 		let message;
 		try {
@@ -341,16 +334,21 @@ export async function sendReminder(
 	const { targetIds, nonSubmitters: targets } = await rosterStatus(db, target);
 	const discordIds = targets.map((member) => member.discordId);
 
-	// A send that failed partway is continued, never started over: whoever it mentioned already is
-	// not mentioned again.
-	const unfinished = await findUnfinished(formId, options.kind, target.deadline);
-	if (unfinished !== null) {
-		if ((await narrowPending(unfinished, discordIds)) > 0) {
-			return postPending(target, channelId, unfinished);
+	// A send that failed partway is continued, never started over, and before anything new is sent
+	// whatever the kind of either: a fresh send would mention its pending members, and the
+	// continuation would mention them again.
+	let ownAutoDone = false;
+	for (const unfinished of await findUnfinished(formId)) {
+		if ((await narrowPending(unfinished.id, discordIds)) > 0) {
+			return postPending(target, channelId, unfinished.id, true);
 		}
-		// Everyone the automatic send had left has answered or left. Its one send for this deadline
-		// is done, and the members it mentioned are not mentioned again. A manual one starts afresh.
-		if (options.kind === 'auto' && discordIds.length > 0) return { ok: false, reason: 'no_targets' };
+		ownAutoDone ||= unfinished.kind === 'auto' && sameDeadline(unfinished.deadline, target.deadline);
+	}
+	// Everyone the automatic send for this deadline had left has answered or left. Its one send for
+	// the deadline is done, and the members it mentioned are not mentioned again. A manual send starts
+	// afresh, and so does an automatic one whose deadline has no send of its own yet.
+	if (options.kind === 'auto' && ownAutoDone && discordIds.length > 0) {
+		return { ok: false, reason: 'no_targets' };
 	}
 
 	if (targets.length === 0) {
@@ -393,7 +391,7 @@ export async function sendReminder(
 		.returning({ id: reminder.id });
 	if (!reserved) return { ok: false, reason: 'already_sent' };
 
-	return postPending(target, channelId, reserved.id);
+	return postPending(target, channelId, reserved.id, false);
 }
 
 export type ReminderLogEntry = {
@@ -402,7 +400,7 @@ export type ReminderLogEntry = {
 	sentAt: Date;
 	/** Mentioned so far. */
 	targetCount: number;
-	/** Not mentioned yet: a send that failed partway, until the next send of its kind continues it. */
+	/** Not mentioned yet: a send that failed partway, until the next send of either kind continues it. */
 	pendingCount: number;
 	messageCount: number;
 	/** The first message of the send. Null when nothing was posted. */

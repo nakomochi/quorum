@@ -185,6 +185,15 @@
 					{ label: '受付終了', value: displayJst(data.form.closesAt, '指定なし') },
 					...(data.manage && data.form.visibility
 						? [{ label: '公開範囲', value: VISIBILITY_LABELS[data.form.visibility] }]
+						: []),
+					{
+						label: '提出',
+						value: rosterMissing
+							? `${data.submitted.length}名`
+							: `${data.submitted.length}/${data.targetCount}名`
+					},
+					...(data.outsiders.length > 0
+						? [{ label: '対象外', value: `${data.outsiders.length}名` }]
 						: [])
 				]}
 			/>
@@ -196,27 +205,6 @@
 			対象ロールが Discord で削除されています。対象者は0名として扱われます。
 		</p>
 	{/if}
-
-	<section class="card divide-border grid grid-cols-3 divide-x">
-		<div class="px-5 py-4">
-			<p class="text-xs text-text-muted">対象者</p>
-			<p class="mt-1 text-2xl font-semibold tabular-nums">
-				{rosterMissing ? '—' : data.targetCount}
-			</p>
-		</div>
-		<div class="px-5 py-4">
-			<p class="text-xs text-text-muted">提出済み</p>
-			<p class="mt-1 text-2xl font-semibold text-success tabular-nums">
-				{data.submitted.length}
-			</p>
-		</div>
-		<div class="px-5 py-4">
-			<p class="text-xs text-text-muted">未提出</p>
-			<p class="mt-1 text-2xl font-semibold text-warning tabular-nums">
-				{rosterMissing ? '—' : data.nonSubmitters.length}
-			</p>
-		</div>
-	</section>
 
 	<!-- Everything only the creator and admins may do, in one frame the members never see. Each
 	     part reads heading, explanation, then its buttons, which sit to the right from `sm`. -->

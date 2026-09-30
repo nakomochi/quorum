@@ -57,7 +57,7 @@
 						<th>タイトル</th>
 						<th class="whitespace-nowrap">対象ロール</th>
 						<th class="whitespace-nowrap">締切</th>
-						<th class="whitespace-nowrap">提出 / 対象</th>
+						<th class="whitespace-nowrap">提出/対象</th>
 						<th class="whitespace-nowrap">状態</th>
 					</tr>
 				</thead>
@@ -77,7 +77,7 @@
 								{displayJst(row.deadline)}
 							</td>
 							<td class="tabular-nums whitespace-nowrap text-text-subtle">
-								{row.submitted} / {row.targetCount}
+								{row.submitted}/{row.targetCount}
 								{#if row.outsiders > 0}
 									<span class="block text-xs text-text-muted" title="対象外からの回答 {row.outsiders}名">
 										対象外 +{row.outsiders}

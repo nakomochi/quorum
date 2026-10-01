@@ -19,28 +19,14 @@
 		question: EditorQuestion;
 		/** The question's place in the list, counted from 0. */
 		index: number;
-		/** How many questions the list holds. */
-		count: number;
 		history: HistoryControls;
 		/** Why the server refused this question. */
 		error: string | null;
 		/** The type stays as published: the form has responses to this question's type. */
 		typeLocked: boolean;
-		/** Swaps the question with its neighbour: -1 above, 1 below. */
-		onmove: (delta: number) => void;
-		onremove: () => void;
 	};
 
-	let {
-		question = $bindable(),
-		index,
-		count,
-		history,
-		error,
-		typeLocked,
-		onmove,
-		onremove
-	}: Props = $props();
+	let { question = $bindable(), index, history, error, typeLocked }: Props = $props();
 
 	const errorId = $derived(`question-${question.id}-error`);
 	const typeNoteId = $derived(`question-${question.id}-type-note`);
@@ -64,38 +50,7 @@
 	<Icon name="grip-horizontal" />
 </div>
 
-<div class="flex items-center justify-between gap-2">
-	<span class="text-xs text-text-muted">質問 {index + 1}</span>
-	<div class="flex gap-1">
-		<button
-			type="button"
-			class="chip p-1.5"
-			aria-label="質問 {index + 1} を上へ移動"
-			disabled={index === 0}
-			onclick={() => onmove(-1)}
-		>
-			<Icon name="chevron-up" />
-		</button>
-		<button
-			type="button"
-			class="chip p-1.5"
-			aria-label="質問 {index + 1} を下へ移動"
-			disabled={index === count - 1}
-			onclick={() => onmove(1)}
-		>
-			<Icon name="chevron-down" />
-		</button>
-		<button
-			type="button"
-			class="chip"
-			aria-label="質問 {index + 1} を削除"
-			disabled={count === 1}
-			onclick={onremove}
-		>
-			削除
-		</button>
-	</div>
-</div>
+<span class="text-xs text-text-muted">質問 {index + 1}</span>
 
 <!-- The message may concern any part of the question, so it heads the fields rather than one of them. -->
 <FieldError id={errorId} message={error} />

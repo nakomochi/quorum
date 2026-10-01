@@ -2469,6 +2469,45 @@ const openQuestion = (index: number) => async (doc: Document) => {
 	await tick();
 };
 
+/** Presses the open card's toolbar buttons in turn, by their labels. */
+const pressToolbar =
+	(...labels: string[]) =>
+	async (doc: Document) => {
+		for (const label of labels) {
+			doc
+				.querySelector<HTMLButtonElement>(`[data-question-toolbar] [aria-label="${label}"]`)
+				?.click();
+			await tick();
+		}
+	};
+
+const inTurn =
+	(...steps: ((doc: Document) => Promise<void>)[]) =>
+	async (doc: Document) => {
+		for (const step of steps) await step(doc);
+	};
+
+/** Three questions, so that the middle one can move either way. */
+const THREE_STATE: DraftState = {
+	...DRAFT_STATE,
+	questions: [
+		DRAFT_STATE.questions[0],
+		{
+			sourceId: null,
+			type: 'multi',
+			label: '利用する交通手段',
+			helpText: '',
+			required: false,
+			options: [
+				{ id: 'bus', label: 'バス' },
+				{ id: 'train', label: '電車' }
+			],
+			allowOther: false
+		},
+		DRAFT_STATE.questions[1]
+	]
+};
+
 /** A second question left blank: no question text and one option still empty. */
 const UNTITLED_STATE: DraftState = {
 	...DRAFT_STATE,
@@ -2493,14 +2532,37 @@ const UNTITLED_STATE: DraftState = {
 export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 	{
 		id: 'new-default',
-		title: 'ロール / チャンネルあり（最初の質問を開いている）',
+		title: 'ロール / チャンネルあり（質問が1つだけ: 移動と削除は使えない）',
 		data: FRESH_EDITOR
 	},
 	{
+		id: 'new-first-open',
+		title: '最初の質問を開いている（上へ移動は使えない）',
+		data: draftData(THREE_STATE)
+	},
+	{
+		id: 'new-middle-open',
+		title: '真ん中の質問を開いた（右にツールバー）',
+		data: draftData(THREE_STATE),
+		setup: openQuestion(1)
+	},
+	{
 		id: 'new-second-open',
-		title: '2問目を開いた（右にツールバー）',
+		title: '最後の質問を開いた（下へ移動は使えない）',
 		data: draftData(),
 		setup: openQuestion(1)
+	},
+	{
+		id: 'new-moved',
+		title: '開いた質問を上へ移動した（開いたまま、下へ移動にフォーカス）',
+		data: draftData(THREE_STATE),
+		setup: inTurn(openQuestion(1), pressToolbar('上へ移動'))
+	},
+	{
+		id: 'new-undo-added',
+		title: '追加を元に戻した（開いていた質問の上が開く）',
+		data: draftData(THREE_STATE),
+		setup: inTurn(openQuestion(1), pressToolbar('質問を追加', '元に戻す'))
 	},
 	{
 		id: 'new-untitled',
@@ -2512,6 +2574,13 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 		title: 'スマホ幅（ツールバーはカードの下端）',
 		data: draftData(),
 		setup: openQuestion(1),
+		width: '375px'
+	},
+	{
+		id: 'new-toolbar-phone-moved',
+		title: 'スマホ幅 / 真ん中へ移動した直後（やり直す以外はすべて使える）',
+		data: draftData(THREE_STATE),
+		setup: inTurn(openQuestion(2), pressToolbar('上へ移動')),
 		width: '375px'
 	},
 	{

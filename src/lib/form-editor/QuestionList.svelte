@@ -3,12 +3,11 @@
 	import { flip } from 'svelte/animate';
 	import { dragHandleZone, type DndEvent } from 'svelte-dnd-action';
 	import { MAX_QUESTIONS, type InputError } from '$lib/forms';
-	import Icon from '$lib/icons/Icon.svelte';
 	import { duplicateQuestion, FLIP_MS, newQuestion, type EditorQuestion } from './editor';
 	import type { HistoryControls } from './history.svelte';
 	import QuestionCard from './QuestionCard.svelte';
 	import QuestionPreview from './QuestionPreview.svelte';
-	import QuestionToolbar from './QuestionToolbar.svelte';
+	import QuestionToolbar, { type ToolbarAction } from './QuestionToolbar.svelte';
 
 	type Props = {
 		questions: EditorQuestion[];
@@ -28,10 +27,18 @@
 			: null;
 
 	// The open card. Kept out of the history: undo and redo change the form, not where the admin is
-	// looking. Held by id, so a question that undo or redo takes away closes with it, and opens
-	// again if it comes back.
+	// looking. Held by id, so a question that undo or redo takes away hands the card to the one
+	// above it, as deleting does, and opens again if it comes back. One card is always open: the
+	// toolbar, undo and redo included, is drawn in it.
 	let selectedId = $state(untrack(() => questions[0].id));
-	const selected = $derived(questions.some((q) => q.id === selectedId) ? selectedId : null);
+	// Where the open question last stood, to find the one above it once it is gone.
+	let lastIndex = 0;
+	const selected = $derived.by(() => {
+		const index = questions.findIndex((q) => q.id === selectedId);
+		if (index !== -1) lastIndex = index;
+		const at = index !== -1 ? index : Math.min(Math.max(0, lastIndex - 1), questions.length - 1);
+		return questions[at]?.id ?? null;
+	});
 
 	const canAdd = $derived(questions.length < MAX_QUESTIONS);
 
@@ -63,9 +70,11 @@
 		open(question.id, 'focus');
 	}
 
+	// The moved card stays open.
 	function move(index: number, delta: number) {
 		const to = index + delta;
 		if (to < 0 || to >= questions.length) return;
+		selectedId = questions[index].id;
 		history.step(() => {
 			const next = [...questions];
 			[next[index], next[to]] = [next[to], next[index]];
@@ -73,12 +82,73 @@
 		});
 	}
 
-	// Closing the open card hands the selection to its neighbour above, as Google Forms does.
-	// Compared with `selectedId`: `selected` already reads null once the question is gone.
+	// Only the open card can be deleted, and the selection goes to its neighbour above, as Google
+	// Forms does.
 	function remove(index: number) {
 		const id = questions[index].id;
 		history.step(() => (questions = questions.filter((item) => item.id !== id)));
-		if (id === selectedId) selectedId = questions[Math.max(0, index - 1)].id;
+		selectedId = questions[Math.max(0, index - 1)].id;
+	}
+
+	// The button that takes focus when the one pressed has gone dead, so that a keyboard can go on.
+	const PARTNER: Partial<Record<ToolbarAction, ToolbarAction>> = {
+		up: 'down',
+		down: 'up',
+		undo: 'redo',
+		redo: 'undo'
+	};
+
+	/**
+	 * Puts focus back on the toolbar button pressed: a move can take the card out of the document
+	 * for a moment, and a deletion or undo can hand the toolbar to another card. A disabled button
+	 * hands it to its partner, or else to the first that is not.
+	 */
+	async function refocus(action: ToolbarAction, preventScroll: boolean) {
+		await tick();
+		const buttons = [
+			...zone.querySelectorAll<HTMLButtonElement>('[data-question-toolbar] [data-toolbar-action]')
+		].filter((button) => !button.disabled);
+		const find = (name: ToolbarAction | undefined) =>
+			buttons.find((button) => button.dataset.toolbarAction === name);
+		(find(action) ?? find(PARTNER[action]) ?? buttons[0])?.focus({ preventScroll });
+	}
+
+	/** Scrolls the moved card into view once animate:flip has brought it to where it now stands. */
+	async function follow(id: string) {
+		const card = cardOf(id);
+		if (!card) return;
+		await Promise.all(card.getAnimations().map((animation) => animation.finished.catch(() => {})));
+		card.scrollIntoView({ block: 'nearest' });
+		// A card taller than the window can leave its toolbar out of view.
+		const focused = document.activeElement;
+		if (focused instanceof HTMLElement && card.contains(focused)) {
+			focused.scrollIntoView({ block: 'nearest' });
+		}
+	}
+
+	async function act(index: number, action: ToolbarAction) {
+		const q = questions[index];
+		switch (action) {
+			case 'add':
+				return insert(index, newQuestion());
+			case 'duplicate':
+				return insert(index, duplicateQuestion(q));
+			case 'up':
+			case 'down':
+				move(index, action === 'up' ? -1 : 1);
+				await refocus(action, true);
+				return follow(q.id);
+			case 'remove':
+				remove(index);
+				break;
+			case 'undo':
+				history.undo();
+				break;
+			case 'redo':
+				history.redo();
+				break;
+		}
+		await refocus(action, false);
 	}
 
 	// Both events must be handled: `consider` opens the gap, `finalize` commits the drop.
@@ -89,32 +159,7 @@
 </script>
 
 <section class="flex flex-col gap-4">
-	<div class="flex items-center justify-between gap-2">
-		<h2 class="section-title">質問</h2>
-		<div class="flex gap-1">
-			<!-- Ctrl+Z does the same, but a phone has no Ctrl and a shortcut is invisible. -->
-			<button
-				type="button"
-				class="chip p-1.5"
-				aria-label="元に戻す"
-				title="元に戻す"
-				disabled={!history.canUndo}
-				onclick={history.undo}
-			>
-				<Icon name="undo-2" />
-			</button>
-			<button
-				type="button"
-				class="chip p-1.5"
-				aria-label="やり直す"
-				title="やり直す"
-				disabled={!history.canRedo}
-				onclick={history.redo}
-			>
-				<Icon name="redo-2" />
-			</button>
-		</div>
-	</div>
+	<h2 class="section-title">質問</h2>
 
 	<!-- The zone's children must be the questions and nothing else, hence the extra wrapper. -->
 	<div
@@ -138,18 +183,16 @@
 					<QuestionCard
 						bind:question={questions[index]}
 						{index}
-						count={questions.length}
 						{history}
 						error={errorOf(index)}
 						typeLocked={typesLocked && q.sourceId !== null}
-						onmove={(delta) => move(index, delta)}
-						onremove={() => remove(index)}
 					/>
 					<QuestionToolbar
 						{index}
+						count={questions.length}
 						{canAdd}
-						onadd={() => insert(index, newQuestion())}
-						onduplicate={() => insert(index, duplicateQuestion(q))}
+						{history}
+						onaction={(action) => act(index, action)}
 					/>
 				{:else}
 					<QuestionPreview

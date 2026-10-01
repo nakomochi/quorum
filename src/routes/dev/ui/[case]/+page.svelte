@@ -11,7 +11,7 @@
 	} from '$lib/dev/fixtures';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
 	import ToastItem from '$lib/components/ToastItem.svelte';
-	import { toastOf } from '$lib/toast.svelte';
+	import { toastOf } from '$lib/action-toast';
 	// The real pages, not copies: a markup change must show up here without being mirrored.
 	import HomePage from '../../../+page.svelte';
 	import AnswerPage from '../../../forms/[id]/+page.svelte';

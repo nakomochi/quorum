@@ -13,27 +13,16 @@
 		tooLargeHint: string;
 		/** Why autosave stopped after a 409 conflict. */
 		conflictMessage: string;
-		/** Set once the page no longer takes input; shown in place of the conflict notice. */
-		closedMessage?: string | null;
 		/** The form's buttons, which the status line follows. */
 		children: Snippet;
 	};
 
-	let {
-		status,
-		savedLabel,
-		failedLabel,
-		tooLargeHint,
-		conflictMessage,
-		closedMessage = null,
-		children
-	}: Props = $props();
+	let { status, savedLabel, failedLabel, tooLargeHint, conflictMessage, children }: Props = $props();
 </script>
 
-<!-- No wrapper: the notice and the row are spaced by the form they sit in. -->
-{#if closedMessage}
-	<p role="alert" class="alert-warning">{closedMessage}</p>
-{:else if status.kind === 'conflict'}
+<!-- No wrapper: the notice and the row are spaced by the form they sit in. Inline rather than a
+     toast, since its button is the way out. -->
+{#if status.kind === 'conflict'}
 	<div role="alert" class="alert-warning action-row">
 		<p class="min-w-0 flex-1">{conflictMessage}</p>
 		<button

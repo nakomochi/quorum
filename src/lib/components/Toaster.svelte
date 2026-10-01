@@ -2,7 +2,8 @@
 	import { fly } from 'svelte/transition';
 	import { prefersReducedMotion } from 'svelte/motion';
 	import { page } from '$app/state';
-	import { toast, toastOf } from '$lib/toast.svelte';
+	import { toastOf } from '$lib/action-toast';
+	import { toast } from '$lib/toast.svelte';
 	import ToastItem from './ToastItem.svelte';
 
 	// Every action result reaches here once, however the form was posted: a full POST sets it for the

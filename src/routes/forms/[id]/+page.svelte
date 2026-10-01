@@ -144,6 +144,15 @@
 	);
 	const canEdit = $derived(data.editable && !closed);
 
+	// A form closed on arrival is drawn so by the page itself. One found closed during the visit,
+	// over the fields, is said once in a toast that stays: the button it locks may be far below.
+	let closeTold = untrack(() => data.closed && form?.reason !== 'closed');
+	$effect(() => {
+		if (!closed || !showForm || closeTold) return;
+		closeTold = true;
+		toast.warning('受付を終了したため送信できません。');
+	});
+
 	function openForm(source: Answers) {
 		formSource = source;
 		formKey++;
@@ -214,8 +223,8 @@
 			// and the reload only brought the edited questions in around them.
 			else if (!reason || reason === 'form_changed') autosave.resume();
 			// The confirmation is at the top, and the submit button at the bottom of the form. A
-			// close and a form-wide input error are shown beside the button, where the reader
-			// already is, and a passing fault in a toast.
+			// close, a form-wide input error and a passing fault are told in a toast, over the
+			// fields where the reader already is.
 			const at =
 				result.type === 'failure'
 					? (result.data?.inputError as InputError | undefined)?.at
@@ -233,7 +242,7 @@
 	<div class="flex flex-col gap-3">
 		{#if data.resultsManagersOnly}
 			<!-- The members see no link here, so it is framed as the managers' own control. -->
-			<AdminPanel labelTag="span" compact class="self-start">
+			<AdminPanel labelTag="span" class="self-start">
 				<ContextLink
 					href="/forms/{data.form.id}/results"
 					label="回答状況を見る"

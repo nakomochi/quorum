@@ -5,17 +5,25 @@
 	type Props = {
 		kind: ToastKind;
 		text: string;
-		/** The close button's action. An error always has the button, since it never fades. */
+		/** The close button's action. All but a success have the button, since they never fade. */
 		onclose?: () => void;
 	};
 
 	let { kind, text, onclose }: Props = $props();
+
+	const ICONS = {
+		success: 'circle-check',
+		error: 'circle-alert',
+		warning: 'triangle-alert'
+	} as const;
+
+	const persistent = $derived(kind !== 'success');
 </script>
 
-<div role={kind === 'error' ? 'alert' : 'status'} class="toast toast-{kind}">
-	<Icon name={kind === 'error' ? 'circle-alert' : 'circle-check'} class="mt-0.5 size-4 shrink-0" />
+<div role={persistent ? 'alert' : 'status'} class="toast toast-{kind}">
+	<Icon name={ICONS[kind]} class="mt-0.5 size-4 shrink-0" />
 	<p class="min-w-0 flex-1">{text}</p>
-	{#if kind === 'error'}
+	{#if persistent}
 		<button
 			type="button"
 			aria-label="閉じる"

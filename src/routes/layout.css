@@ -233,7 +233,7 @@ main {
 	}
 
 	/* An operation's result over the page. The tint is layered on the page colour, since the dark
-	   surfaces are translucent. `.toast-success` or `.toast-error` picks it. */
+	   surfaces are translucent. `.toast-success`, `.toast-error` or `.toast-warning` picks it. */
 	.toast {
 		@apply flex items-start gap-3 rounded-lg border px-4 py-3 text-sm shadow-lg;
 		background: linear-gradient(var(--toast-tint), var(--toast-tint)), var(--color-bg);
@@ -247,6 +247,11 @@ main {
 	.toast-error {
 		--toast-tint: var(--color-error-surface);
 		@apply border-error-line text-error-fg;
+	}
+
+	.toast-warning {
+		--toast-tint: var(--color-warning-surface);
+		@apply border-warning-line text-warning;
 	}
 
 	/* A disabled field reads as fixed: the edit page locks settings a response depends on. */

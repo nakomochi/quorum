@@ -1053,7 +1053,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-manager-private',
-		title: '作成者・管理者 / 結果を一般に見せないフォーム（「回答状況を見る」を管理の枠に入れる・枠は閉じている）',
+		title: '作成者・管理者 / 結果を一般に見せないフォーム（「回答状況を見る」を管理の枠に入れる・枠は畳めない）',
 		data: {
 			...SESSION,
 			resultsVisible: true,
@@ -1070,7 +1070,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-manager-private-long-title',
-		title: '作成者・管理者 / 開いた管理の枠と、折り返す長いタイトルに印が2つ',
+		title: '作成者・管理者 / 管理の枠と、折り返す長いタイトルに印が2つ',
 		data: {
 			...SESSION,
 			resultsVisible: true,
@@ -1083,8 +1083,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			updatedAt: at('2026-04-12T21:40:00'),
 			answers: FILLED_ANSWERS,
 			...NO_DRAFT
-		},
-		setup: openAdminPanel
+		}
 	},
 	{
 		id: 'answer-other',
@@ -1273,7 +1272,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-error-form',
-		title: '回答全体の入力エラー（送信ボタンの上に表示）',
+		title: '回答全体の入力エラー（エラーのトースト・入力あり）',
 		data: {
 			...SESSION,
 			resultsVisible: false,
@@ -1315,7 +1314,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	{
 		// The load said open, and closesAt has passed since: the page's own timer locks it.
 		id: 'answer-expired',
-		title: '回答中に受付終了日時を過ぎた（入力あり・送信不可）',
+		title: '回答中に受付終了日時を過ぎた（入力あり・送信不可・警告のトースト）',
 		data: {
 			...SESSION,
 			resultsVisible: false,
@@ -1334,7 +1333,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	{
 		// After the reload that follows the refusal: the data says closed, the form stays.
 		id: 'answer-refused-closed',
-		title: '送信したら受付終了していた（未提出・入力あり）',
+		title: '送信したら受付終了していた（未提出・入力あり・警告のトースト）',
 		data: {
 			...SESSION,
 			resultsVisible: false,
@@ -1353,7 +1352,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-edit-closed',
-		title: '編集を保存したら受付終了していた（入力あり）',
+		title: '編集を保存したら受付終了していた（入力あり・警告のトースト）',
 		data: {
 			...SESSION,
 			resultsVisible: true,
@@ -1578,7 +1577,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-draft-closed',
-		title: '下書きの保存で受付終了がわかった（409・入力の直後から）',
+		title: '下書きの保存で受付終了がわかった（409・入力の直後から・警告のトースト）',
 		data: {
 			...SESSION,
 			resultsVisible: false,
@@ -1744,7 +1743,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-panel-attention',
-		title: '管理者 / 要対応あり（閉じた管理パネルに警告と件数: 告知が古い・リマインドの未送信）',
+		title: '管理者 / 要対応あり（閉じた管理パネルに警告のアイコン: 告知が古い・リマインドの未送信）',
 		data: rosterResults({ announcement: STALE_ANNOUNCEMENT, reminders: REMINDERS_WITH_EMPTY })
 	},
 	{
@@ -1752,6 +1751,13 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		title: '要対応あり / スマホ幅（閉じた管理パネル）',
 		data: rosterResults({ announcement: STALE_ANNOUNCEMENT, reminders: REMINDERS_WITH_EMPTY }),
 		width: '375px'
+	},
+	{
+		id: 'results-reminder-history',
+		title:
+			'リマインドの送信履歴（日時が Discord へのリンク・投稿なしの行はリンクなし・未送信の残り）',
+		data: rosterResults({ reminders: REMINDERS_WITH_EMPTY }),
+		setup: openAdminPanel
 	},
 	{
 		id: 'results-edited-manager',
@@ -2533,7 +2539,7 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 	},
 	{
 		id: 'new-error-form',
-		title: 'フォーム全体の入力エラー（作成ボタンの上に表示）',
+		title: 'フォーム全体の入力エラー（エラーのトースト）',
 		data: draftData(),
 		form: {
 			inputError: {

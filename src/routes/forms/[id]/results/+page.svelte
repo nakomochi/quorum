@@ -46,7 +46,7 @@
 		data.manage && !data.frozen && data.rosterSyncedAt === null && data.targetCount === 0
 	);
 
-	// What a manager can put right from the panel, counted on its closed summary. A form that has
+	// What a manager can put right from the panel, marked on its closed summary. A form that has
 	// stopped taking answers needs no announcement nor reminder any more.
 	const attention = $derived(
 		[
@@ -140,11 +140,13 @@
 	</li>
 {/snippet}
 
-{#snippet discordLink(url: string, label: string)}
+<!-- `name` where the label alone does not say where the link goes. -->
+{#snippet discordLink(url: string, label: string, name?: string)}
 	<a
 		href={url}
 		target="_blank"
 		rel="noopener noreferrer"
+		aria-label={name}
 		class="inline-flex items-center gap-1 text-text-muted underline underline-offset-2 hover:text-text-subtle"
 	>
 		{label}
@@ -247,7 +249,7 @@
 	<!-- Everything only the creator and admins may do, in one frame the members never see. Each
 	     part reads heading, explanation, then its buttons in a row below, at every width. -->
 	{#if data.manage && data.announcement}
-		<AdminPanel bind:open={panelOpen} {attention}>
+		<AdminPanel collapsible bind:open={panelOpen} {attention}>
 			<div
 				class="divide-border flex flex-col divide-y border-t border-border pt-4 *:py-4 *:first:pt-0 *:last:pb-0"
 			>
@@ -343,10 +345,16 @@
 							<h4 class="font-medium text-text-subtle">リマインドの送信履歴</h4>
 							<ul class="flex flex-col gap-2.5 tabular-nums">
 								{#each data.reminders as entry (entry.id)}
+									{@const sentAt = displayJst(entry.sentAt)}
 									<li>
-										<!-- A single message is the usual case and goes unsaid. -->
+										<!-- The date links to the first message; a reminder with nobody to mention
+										     posted none. A single message is the usual case and goes unsaid. -->
 										<p>
-											<span class="whitespace-nowrap">{displayJst(entry.sentAt)}</span>
+											{#if entry.url}
+												{@render discordLink(entry.url, sentAt, `${sentAt} のリマインドを Discord で開く`)}
+											{:else}
+												<span class="whitespace-nowrap">{sentAt}</span>
+											{/if}
 											· {REMINDER_KIND[entry.kind]} ·
 											<span class="whitespace-nowrap">
 												対象{entry.targetCount}名{entry.messageCount > 1
@@ -354,18 +362,11 @@
 													: ''}
 											</span>
 										</p>
-										{#if entry.pendingCount > 0 || entry.url}
-											<p class="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-												<!-- Left by a send that failed partway, until the next one of either kind
-												     continues it. -->
-												{#if entry.pendingCount > 0}
-													<span class="text-warning">
-														残り{entry.pendingCount}名は未送信です。次にリマインドを送るとき、先にこの{entry.pendingCount}名に送ります。
-													</span>
-												{/if}
-												{#if entry.url}
-													{@render discordLink(entry.url, 'Discord で開く')}
-												{/if}
+										<!-- Left by a send that failed partway, until the next one of either kind
+										     continues it. -->
+										{#if entry.pendingCount > 0}
+											<p class="mt-0.5 text-warning">
+												残り{entry.pendingCount}名は未送信です。次にリマインドを送るとき、先にこの{entry.pendingCount}名に送ります。
 											</p>
 										{/if}
 									</li>

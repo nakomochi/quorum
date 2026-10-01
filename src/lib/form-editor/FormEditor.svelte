@@ -2,7 +2,6 @@
 	import { onMount, tick, untrack, type Snippet } from 'svelte';
 	import type { ActionResult } from '@sveltejs/kit';
 	import { enhance } from '$app/forms';
-	import FieldError from '$lib/components/FieldError.svelte';
 	import SaveStatus from '$lib/components/SaveStatus.svelte';
 	import {
 		DraftAutosave,
@@ -155,9 +154,9 @@
 	let formElement: HTMLFormElement;
 	let questionList: ReturnType<typeof QuestionList>;
 
-	// Shown until the next result. A 503 has no place on the form and goes to a toast instead.
+	// Shown until the next result. A 503, and an input error with no field or question to point at,
+	// have no place on the form and go to a toast instead.
 	const inputError = $derived(form?.inputError ?? null);
-	const formError = $derived(inputError && !inputError.at ? inputError.message : null);
 
 	/** Opens the question the server refused, or brings the refused field into view. */
 	async function showInputError(error: InputError | undefined) {
@@ -283,7 +282,6 @@
 			tooLargeHint="フォームが大きすぎます。質問や選択肢を減らしてください"
 			{conflictMessage}
 		>
-			<FieldError message={formError} class="w-full" />
 			<button type="submit" class="btn-primary px-5 py-2.5">{submitLabel}</button>
 			{@render actions?.()}
 		</SaveStatus>

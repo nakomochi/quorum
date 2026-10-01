@@ -3,14 +3,15 @@
  * between requests: push only from effects and event handlers, never while rendering.
  */
 
-export type ToastKind = 'success' | 'error';
+import type { ToastKind } from './action-toast';
+
+export type { ToastKind };
 
 export type Toast = { id: number; kind: ToastKind; text: string };
 
 /** The oldest is dropped past this many. */
 const MAX_VISIBLE = 3;
 
-/** A success fades on its own; an error stays until it is closed. */
 const SUCCESS_MS = 4000;
 
 class Toasts {
@@ -24,6 +25,11 @@ class Toasts {
 
 	error(text: string) {
 		this.#push('error', text);
+	}
+
+	/** Something changed that the reader has to know about, but nothing they did failed. */
+	warning(text: string) {
+		this.#push('warning', text);
 	}
 
 	dismiss(id: number) {
@@ -45,15 +51,3 @@ class Toasts {
 }
 
 export const toast = new Toasts();
-
-/**
- * What an action result says as a toast: `notice` on success, `message` on failure. Input errors
- * carry neither, and are drawn beside their field instead.
- */
-export function toastOf(result: unknown): { kind: ToastKind; text: string } | null {
-	if (!result || typeof result !== 'object') return null;
-	const { notice, message } = result as { notice?: unknown; message?: unknown };
-	if (typeof notice === 'string') return { kind: 'success', text: notice };
-	if (typeof message === 'string') return { kind: 'error', text: message };
-	return null;
-}

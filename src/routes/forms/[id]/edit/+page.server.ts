@@ -10,9 +10,12 @@ import {
 	withLocksApplied
 } from '$lib/server/form-edit';
 import {
+	closesAtPassed,
 	FormInputError,
 	loadQuestions,
+	NOT_CLOSED,
 	parseCreateFormPayload,
+	reopenForm,
 	selectableRoles
 } from '$lib/server/forms';
 import { FORM_NOT_FOUND, requireFormManager } from '$lib/server/guards';
@@ -20,12 +23,12 @@ import { syncAllMembers } from '$lib/server/guild-sync';
 import { postDeadlineChange, refreshAnnouncement } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
-const CLOSED = 'このフォームは確定済みのため編集できません。受付を再開してから編集してください。';
+const CLOSED = 'フォームを閉じているため編集できません。';
 
-const STALE = 'ほかの人が先に変更を公開しました。最新の内容を読み込み直してください。';
+const STALE = 'ほかの人が先に変更を保存しました。最新の内容を読み込み直してください。';
 
 const UNAVAILABLE =
-	'Discord に接続できないため、今は公開できません。時間をおいてもう一度公開してください。';
+	'Discord に接続できないため、今は保存できません。時間をおいてもう一度保存してください。';
 
 /**
  * Every refusal but an input error, in one type: inferred apart, the shape with a reason would be
@@ -54,12 +57,22 @@ async function reported(
 
 // Managers only. Opening the page starts the viewer's edit from the form as it is, or resumes the
 // one they saved earlier.
-export const load: PageServerLoad = async ({ locals, params }) => {
+export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const { user, target } = await requireFormManager(locals, params.id, 'view');
 
 	const form = { id: target.id, title: target.title };
-	// Nothing is read for the editor: the page only says to reopen the form first.
-	if (target.closedAt !== null) return { form, closed: true as const, editor: null };
+	// Set by the redirect the reopen below takes, for the page to say it once.
+	const reopened = url.searchParams.get('reopened') === '1';
+	// Nothing is read for the editor: the page only offers to reopen the form first.
+	if (target.closedAt !== null) {
+		return {
+			form,
+			closed: true as const,
+			reopenClearsClosesAt: closesAtPassed(target),
+			reopened,
+			editor: null
+		};
+	}
 
 	const draft = await openEditDraft(target, user.id);
 	const [roles, channels, locks, questions] = await Promise.all([
@@ -72,6 +85,8 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	return {
 		form,
 		closed: false as const,
+		reopenClearsClosesAt: false,
+		reopened,
 		editor: {
 			roles: roles.map((role) => ({ id: role.id, name: role.name })),
 			channels: channels
@@ -188,5 +203,14 @@ export const actions: Actions = {
 		await discardEditDraft(target.id, user.id);
 
 		redirect(303, `/forms/${target.id}/edit`);
+	},
+
+	// As the results page's reopen, from the closed edit page, which then opens the editor.
+	reopen: async ({ locals, params }) => {
+		const { target } = await requireFormManager(locals, params.id, 'act');
+
+		if (!(await reopenForm(target.id))) return fail(409, { message: NOT_CLOSED });
+
+		redirect(303, `/forms/${target.id}/edit?reopened=1`);
 	}
 };

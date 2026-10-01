@@ -82,7 +82,7 @@
 {:else if answer}
 	<AnswerPage data={answer.data} form={answer.form ?? null} />
 {:else if results}
-	<ResultsPage data={results.data} />
+	<ResultsPage data={results.data} form={results.form ?? null} />
 {:else if history}
 	<HistoryPage data={history.data} />
 {:else if created}

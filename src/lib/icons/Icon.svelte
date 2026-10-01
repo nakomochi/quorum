@@ -33,7 +33,13 @@
 		'circle-plus': ['M8 12h8', 'M12 8v8'],
 		'circle-alert': ['M12 8v4', 'M12 16h.01'],
 		'circle-check': ['m9 12 2 2 4-4'],
-		copy: ['M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2']
+		copy: ['M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2'],
+		download: ['M12 15V3', 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4', 'm7 10 5 5 5-5'],
+		'triangle-alert': [
+			'm21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3',
+			'M12 9v4',
+			'M12 17h.01'
+		]
 	} as const;
 
 	export type IconName = keyof typeof paths;

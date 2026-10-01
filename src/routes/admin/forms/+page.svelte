@@ -16,17 +16,16 @@
 		<a href="/forms/new" class="btn-primary px-4 py-2">新規作成</a>
 	</header>
 
-	<section class="card action-row px-5 py-4">
-		<div class="min-w-0 flex-1 text-sm">
-			<p class="text-text-subtle">
-				メンバー情報
-				{#if data.syncedAt}
-					<span class="whitespace-nowrap">{displayJst(data.syncedAt)}</span> に更新
-				{:else}
-					まだ同期していません
-				{/if}
-			</p>
-		</div>
+	<!-- The button stays at the right end at every width; the line wraps beside it instead. -->
+	<section class="card flex items-center gap-4 px-5 py-3">
+		<p class="min-w-0 flex-1 text-sm text-text-subtle">
+			メンバー情報
+			{#if data.syncedAt}
+				<span class="whitespace-nowrap">{displayJst(data.syncedAt)} に更新</span>
+			{:else}
+				まだ同期していません
+			{/if}
+		</p>
 		<form
 			method="POST"
 			action="?/sync"

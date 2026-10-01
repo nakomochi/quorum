@@ -7,6 +7,7 @@ import {
 	isClosed,
 	loadQuestions,
 	loadResults,
+	NOT_CLOSED,
 	reopenForm,
 	RosterRefreshError,
 	tallyChoices
@@ -90,9 +91,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		rosterSyncedAt,
 		// Set by the redirect the creation page takes when the announcement could not be posted.
 		announceFailed: manage && url.searchParams.get('announce') === 'failed',
-		// Set by the redirect the edit page takes once the edit is published.
+		// Set by the redirect the edit page takes once the edit is saved.
 		published: manage && url.searchParams.get('published') === '1',
-		// Set beside it when a Discord post after the publish failed.
+		// Set beside it when a Discord post after the save failed.
 		announceEditFailed: manage && url.searchParams.get('announce_edit') === 'failed',
 		deadlineNoticeFailed: manage && url.searchParams.get('deadline_notice') === 'failed',
 		// Links, not ids: the page only needs to open the messages. Whether the announcement is out of
@@ -167,7 +168,7 @@ export const actions: Actions = {
 		await requireFormManager(locals, params.id, 'act');
 
 		if (!(await reopenForm(params.id))) {
-			return fail(409, { message: 'このフォームはまだ確定していません' });
+			return fail(409, { message: NOT_CLOSED });
 		}
 
 		return { notice: '受付を再開しました。' };

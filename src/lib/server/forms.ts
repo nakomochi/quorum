@@ -1182,6 +1182,9 @@ export async function closeForm(formId: string, at: CloseTime = 'now'): Promise<
 	});
 }
 
+/** Why reopenForm did nothing, as the results and edit pages say it. */
+export const NOT_CLOSED = 'このフォームはまだ確定していません';
+
 /**
  * Recovery from a mistaken close. The frozen lists are discarded, not archived. A closes_at that
  * has already passed is cleared, since it would refuse submissions and let the scheduler close the

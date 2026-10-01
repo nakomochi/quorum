@@ -715,6 +715,13 @@ const openMenu =
 		await tick();
 	};
 
+/** Opens the managers' panel, closed on arrival, the way a click on its summary does. */
+async function openAdminPanel(doc: Document) {
+	const panel = doc.querySelector<HTMLDetailsElement>('details.panel-admin');
+	if (panel) panel.open = true;
+	await tick();
+}
+
 /** Fills `QUESTIONS` in the rendered form, for a state where typed input has to survive. */
 async function typeAnswers(doc: Document) {
 	const pick = (selector: string) => {
@@ -1046,7 +1053,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-manager-private',
-		title: '作成者・管理者 / 結果を一般に見せないフォーム（「回答状況を見る」を管理の枠に入れる）',
+		title: '作成者・管理者 / 結果を一般に見せないフォーム（「回答状況を見る」を管理の枠に入れる・枠は閉じている）',
 		data: {
 			...SESSION,
 			resultsVisible: true,
@@ -1063,7 +1070,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-manager-private-long-title',
-		title: '作成者・管理者 / 管理の枠と、折り返す長いタイトルに印が2つ',
+		title: '作成者・管理者 / 開いた管理の枠と、折り返す長いタイトルに印が2つ',
 		data: {
 			...SESSION,
 			resultsVisible: true,
@@ -1076,7 +1083,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			updatedAt: at('2026-04-12T21:40:00'),
 			answers: FILLED_ANSWERS,
 			...NO_DRAFT
-		}
+		},
+		setup: openAdminPanel
 	},
 	{
 		id: 'answer-other',
@@ -1726,7 +1734,24 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			submitted: SUBMITTED,
 			outsiders: [],
 			nonSubmitters: NON_SUBMITTERS
-		}
+		},
+		setup: openAdminPanel
+	},
+	{
+		id: 'results-panel-closed',
+		title: '管理者 / 開いたとき（管理パネルは閉じている・要対応なし）',
+		data: rosterResults()
+	},
+	{
+		id: 'results-panel-attention',
+		title: '管理者 / 要対応あり（閉じた管理パネルに警告と件数: 告知が古い・リマインドの未送信）',
+		data: rosterResults({ announcement: STALE_ANNOUNCEMENT, reminders: REMINDERS_WITH_EMPTY })
+	},
+	{
+		id: 'results-panel-attention-phone',
+		title: '要対応あり / スマホ幅（閉じた管理パネル）',
+		data: rosterResults({ announcement: STALE_ANNOUNCEMENT, reminders: REMINDERS_WITH_EMPTY }),
+		width: '375px'
 	},
 	{
 		id: 'results-edited-manager',
@@ -1857,7 +1882,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			submitted: SUBMITTED,
 			outsiders: OUTSIDERS,
 			nonSubmitters: NON_SUBMITTERS
-		}
+		},
+		setup: openAdminPanel
 	},
 	{
 		id: 'results-last-year',
@@ -1884,7 +1910,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 				const updatedAt = row.revisionCount > 1 ? lastYear('10-12T08:15:00') : submittedAt;
 				return { ...row, submittedAt, updatedAt };
 			})
-		})
+		}),
+		setup: openAdminPanel
 	},
 	{
 		id: 'results-expired',
@@ -1910,7 +1937,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			submitted: SUBMITTED,
 			outsiders: [],
 			nonSubmitters: NON_SUBMITTERS
-		}
+		},
+		setup: openAdminPanel
 	},
 	{
 		id: 'results-reminders',
@@ -1982,17 +2010,18 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-published',
-		title: '編集を公開した直後（成功のトースト）',
+		title: '編集を保存した直後（成功のトースト）',
 		data: rosterResults({ published: true })
 	},
 	{
 		id: 'results-announcement-stale',
 		title: '告知メッセージの内容が古い（「告知を更新」）',
-		data: rosterResults({ announcement: STALE_ANNOUNCEMENT, reminders: REMINDERS.slice(0, 2) })
+		data: rosterResults({ announcement: STALE_ANNOUNCEMENT, reminders: REMINDERS.slice(0, 2) }),
+		setup: openAdminPanel
 	},
 	{
 		id: 'results-published-announce-edit-failed',
-		title: '編集を公開したが、告知メッセージを更新できなかった（エラーのトースト）',
+		title: '編集を保存したが、告知メッセージを更新できなかった（エラーのトースト）',
 		data: rosterResults({
 			published: true,
 			announceEditFailed: true,
@@ -2001,12 +2030,12 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-published-deadline-notice-failed',
-		title: '編集を公開したが、締切の変更を投稿できなかった（エラーのトースト）',
+		title: '編集を保存したが、締切の変更を投稿できなかった（エラーのトースト）',
 		data: rosterResults({ published: true, deadlineNoticeFailed: true })
 	},
 	{
 		id: 'results-published-both-failed',
-		title: '編集を公開したが、告知の更新と締切の変更の投稿がどちらも失敗した',
+		title: '編集を保存したが、告知の更新と締切の変更の投稿がどちらも失敗した',
 		data: rosterResults({
 			published: true,
 			announceEditFailed: true,
@@ -2022,8 +2051,16 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-reminder-links',
-		title: '送信履歴の Discord へのリンク（投稿のない行はリンクなし、途中で失敗した行は未送信の人数つき）',
-		data: rosterResults({ reminders: REMINDERS_WITH_EMPTY })
+		title: '送信履歴の Discord へのリンク（投稿のない行はリンクなし、途中で失敗した行は未送信の案内つき）',
+		data: rosterResults({ reminders: REMINDERS_WITH_EMPTY }),
+		setup: openAdminPanel
+	},
+	{
+		id: 'results-reminder-links-phone',
+		title: '送信履歴 / スマホ幅（行は折り返し、横にはみ出さない）',
+		data: rosterResults({ reminders: REMINDERS_WITH_EMPTY }),
+		setup: openAdminPanel,
+		width: '375px'
 	},
 	{
 		id: 'results-empty',
@@ -2075,7 +2112,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			submitted: SUBMITTED,
 			outsiders: [],
 			nonSubmitters: NON_SUBMITTERS
-		}
+		},
+		setup: openAdminPanel
 	},
 	{
 		id: 'results-announce-failed',
@@ -2106,7 +2144,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	{
 		id: 'results-not-announced',
 		title: '管理者（管理パネル: 告知未投稿・「告知を投稿する」とリマインドの両方）',
-		data: rosterResults({ announcement: NOT_ANNOUNCED, reminders: REMINDERS.slice(0, 2) })
+		data: rosterResults({ announcement: NOT_ANNOUNCED, reminders: REMINDERS.slice(0, 2) }),
+		setup: openAdminPanel
 	},
 	{
 		id: 'results-other',
@@ -2206,6 +2245,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		title: '「名簿を更新」の送信中（ボタン無効）',
 		data: rosterResults(),
 		setup: async (doc) => {
+			await openAdminPanel(doc);
 			// A synthetic submit runs the handler without navigating.
 			doc
 				.querySelector('form[action="?/syncRoster"]')
@@ -2237,10 +2277,11 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	}
 ];
 
-const toHistoryQuestion = ({ id, label, options }: QuestionRow): HistoryQuestion => ({
+const toHistoryQuestion = ({ id, label, options, required }: QuestionRow): HistoryQuestion => ({
 	id,
 	label,
 	options,
+	required,
 	deleted: false
 });
 
@@ -2339,7 +2380,8 @@ export const HISTORY_CASES: UiCase<HistoryData>[] = [
 				},
 				toHistoryQuestion(QUESTIONS[1]),
 				toHistoryQuestion(QUESTIONS[3]),
-				{ ...toHistoryQuestion(QUESTIONS[2]), deleted: true }
+				// The load never marks a deleted question required.
+				{ ...toHistoryQuestion(QUESTIONS[2]), required: false, deleted: true }
 			]
 		}
 	}
@@ -2589,6 +2631,8 @@ const editData = (over: Partial<Editor> = {}): EditData => ({
 	...SESSION,
 	form: { id: 'fixtureform1', title: DRAFT_STATE.title },
 	closed: false,
+	reopenClearsClosesAt: false,
+	reopened: false,
 	editor: {
 		roles: ROLES,
 		channels: CHANNELS,
@@ -2603,7 +2647,16 @@ const editData = (over: Partial<Editor> = {}): EditData => ({
 	}
 });
 
-const STALE_MESSAGE = 'ほかの人が先に変更を公開しました。最新の内容を読み込み直してください。';
+const STALE_MESSAGE = 'ほかの人が先に変更を保存しました。最新の内容を読み込み直してください。';
+
+const closedEdit = (reopenClearsClosesAt: boolean): EditData => ({
+	...SESSION,
+	form: { id: 'fixtureform1', title: LONG_TITLE },
+	closed: true,
+	reopenClearsClosesAt,
+	reopened: false,
+	editor: null
+});
 
 export const EDIT_CASES: UiCase<EditData, EditAction>[] = [
 	{
@@ -2651,12 +2704,12 @@ export const EDIT_CASES: UiCase<EditData, EditAction>[] = [
 	},
 	{
 		id: 'edit-stale',
-		title: 'ほかの人が先に公開していた（開いたとき）',
+		title: 'ほかの人が先に保存していた（開いたとき）',
 		data: editData({ stale: true, resumed: true })
 	},
 	{
 		id: 'edit-stale-published',
-		title: '公開したら、ほかの人が先に公開していた（409・エラーのトースト）',
+		title: '保存したら、ほかの人が先に保存していた（409・エラーのトースト）',
 		data: editData(),
 		form: { reason: 'stale', message: STALE_MESSAGE }
 	},
@@ -2673,8 +2726,30 @@ export const EDIT_CASES: UiCase<EditData, EditAction>[] = [
 	},
 	{
 		id: 'edit-closed',
-		title: '確定済みのフォーム（受付の再開を案内）',
-		data: { ...SESSION, form: { id: 'fixtureform1', title: LONG_TITLE }, closed: true, editor: null }
+		title: '閉じたフォーム（その場で受付を再開できる）',
+		data: closedEdit(false)
+	},
+	{
+		id: 'edit-closed-expired',
+		title: '閉じたフォーム / 受付終了日時を過ぎている（再開で受付終了が解除される注記）',
+		data: closedEdit(true)
+	},
+	{
+		id: 'edit-closed-phone',
+		title: '閉じたフォーム / スマホ幅',
+		data: closedEdit(true),
+		width: '375px'
+	},
+	{
+		id: 'edit-reopen-refused',
+		title: '「受付を再開」がすでに再開済みで断られた（エラーのトースト・エディタを開く）',
+		data: editData(),
+		form: { message: 'このフォームはまだ確定していません' }
+	},
+	{
+		id: 'edit-reopened',
+		title: '「受付を再開」の直後（成功のトースト・エディタを開く）',
+		data: { ...editData(), reopened: true }
 	}
 ];
 

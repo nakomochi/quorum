@@ -8,6 +8,7 @@
 	} from '$lib/forms';
 	import { untrack } from 'svelte';
 	import FieldError from '$lib/components/FieldError.svelte';
+	import RequiredMark from '$lib/components/RequiredMark.svelte';
 	import type { PageData } from './$types';
 
 	type Props = {
@@ -146,7 +147,7 @@
 	>
 		<legend class="mb-3 block text-sm font-medium">
 			{question.label}
-			{#if question.required}<span class="text-danger">*</span>{/if}
+			{#if question.required}<RequiredMark />{/if}
 		</legend>
 		{#if question.helpText}
 			<p class="-mt-2 mb-3 text-xs text-text-muted">{question.helpText}</p>

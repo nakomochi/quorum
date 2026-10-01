@@ -35,6 +35,16 @@ export const AUDIENCE_LOCKED = '回答があるため変更できません。複
 export const TYPE_LOCKED = '回答があるため変更できません';
 export const CHANNEL_LOCKED = 'Discord に投稿済みのため変更できません';
 
+/** Beside the reopen button on the edit page, when the receiving end has passed. */
+export const REOPEN_CLEARS_CLOSES_AT =
+	'受付終了日時を過ぎているため、再開すると受付終了の設定は解除され、以後は手動で締め切るまで回答を受け付けます。';
+
+/** Asked before a closed form is reopened, on the results page and the edit page. */
+export const reopenConfirmation = (clearsClosesAt: boolean) =>
+	clearsClosesAt
+		? '対象者と未提出者の確定を破棄して受付を再開します。受付終了日時を過ぎているため、その設定は解除され、以後は手動で締め切るまで回答を受け付けます。元に戻せません。'
+		: '対象者と未提出者の確定を破棄して受付を再開します。元に戻せません。';
+
 /** How a form stands for its creator; the top page gets this instead of the times behind it. */
 export type FormStatus = 'open' | 'ended' | 'closed';
 

@@ -455,7 +455,13 @@ describe('what a member receives', () => {
 			editor: Record<string, unknown> & { draft: Record<string, unknown> };
 		};
 
-		expect(Object.keys(data).sort()).toEqual(['closed', 'editor', 'form']);
+		expect(Object.keys(data).sort()).toEqual([
+			'closed',
+			'editor',
+			'form',
+			'reopenClearsClosesAt',
+			'reopened'
+		]);
 		expect(Object.keys(data.editor).sort()).toEqual(
 			['baseVersion', 'channels', 'deadlineReply', 'draft', 'locks', 'resumed', 'roles', 'stale'].sort()
 		);
@@ -473,12 +479,18 @@ describe('what a member receives', () => {
 		expect(new Set(discord.calls.map((call) => call.route))).toEqual(new Set(['roles', 'channels']));
 	});
 
-	test('edit page: a closed form gives its title and nothing more', async () => {
+	test('edit page: a closed form gives its title and what reopening it would do, and nothing more', async () => {
 		const { creator, adminOnly } = await scene();
 
 		const data = await editLoad(event(creator, { id: adminOnly.id }, `/forms/${adminOnly.id}/edit`));
 
-		expect(data).toEqual({ form: { id: adminOnly.id, title: 'テストフォーム' }, closed: true, editor: null });
+		expect(data).toEqual({
+			form: { id: adminOnly.id, title: 'テストフォーム' },
+			closed: true,
+			reopenClearsClosesAt: false,
+			reopened: false,
+			editor: null
+		});
 	});
 
 	test('edit page actions answer with a sentence, a reason or an input error, and nothing else', async () => {
@@ -501,15 +513,23 @@ describe('what a member receives', () => {
 			questions: JSON.stringify([{ type: 'text', label: 'q' }])
 		};
 
+		// Refused, since the form is open: a success only redirects.
+		const reopen = (await editActions.reopen({
+			locals: sessionLocals(creator),
+			params: { id: open.id }
+		} as never)) as { status: number; data: Record<string, unknown> };
+
 		const results = [
 			await publish(open.id, { ...valid, title: '' }),
 			await publish(open.id, { ...valid, baseVersion: '0' }),
-			await publish(adminOnly.id, { ...valid, baseVersion: '1' })
+			await publish(adminOnly.id, { ...valid, baseVersion: '1' }),
+			reopen
 		];
 
 		expect(results.map((r) => [r.status, Object.keys(r.data).sort()])).toEqual([
 			[400, ['inputError']],
 			[409, ['message', 'reason']],
+			[409, ['message']],
 			[409, ['message']]
 		]);
 		for (const result of results) expectNoLeak(result.data, [...secrets, SECRET_NAME]);

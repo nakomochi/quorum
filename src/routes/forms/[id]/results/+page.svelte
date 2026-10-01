@@ -6,12 +6,17 @@
 	import ContextLink from '$lib/components/ContextLink.svelte';
 	import MetaLine from '$lib/components/MetaLine.svelte';
 	import { displayJst } from '$lib/display-date';
-	import { describeAnswer, VISIBILITY_LABELS, type AnswerValue } from '$lib/forms';
+	import {
+		describeAnswer,
+		reopenConfirmation,
+		VISIBILITY_LABELS,
+		type AnswerValue
+	} from '$lib/forms';
 	import Icon from '$lib/icons/Icon.svelte';
 	import { resultTable, toHtml, toMarkdown } from '$lib/results-table';
 	import { toast } from '$lib/toast.svelte';
 
-	let { data } = $props();
+	let { data, form } = $props();
 
 	type Row = (typeof data.submitted)[number];
 	type Option = { id: string; label: string };
@@ -23,6 +28,10 @@
 	}
 
 	const REMINDER_KIND = { manual: '手動', auto: '自動' };
+
+	// A button and a link drawn alike: the same square, and a ring on keyboard focus.
+	const ICON_BUTTON =
+		'inline-flex size-8 items-center justify-center outline-none focus-visible:ring-2 focus-visible:ring-accent/60';
 
 	const percent = (count: number, total: number) => (total === 0 ? 0 : (count / total) * 100);
 
@@ -36,6 +45,23 @@
 	const rosterMissing = $derived(
 		data.manage && !data.frozen && data.rosterSyncedAt === null && data.targetCount === 0
 	);
+
+	// What a manager can put right from the panel, counted on its closed summary. A form that has
+	// stopped taking answers needs no announcement nor reminder any more.
+	const attention = $derived(
+		[
+			canAnnounce && !data.closed && '告知がまだ投稿されていません',
+			announcementStale && '告知メッセージの内容が古いままです',
+			canRemind &&
+				data.reminders.some((entry) => entry.pendingCount > 0) &&
+				'途中で止まったリマインドがあります',
+			rosterMissing && '名簿がまだ同期されていません'
+		].filter((item) => typeof item === 'string')
+	);
+
+	// Closed on arrival, but every action this page posts comes from the panel, so the page its
+	// result draws keeps the panel open. Server-rendered either way: no jump on hydration.
+	let panelOpen = $state(untrack(() => form != null));
 
 	// Shown in the managers' panel and again beside the non-submitters it was counted from.
 	const rosterItem = $derived({
@@ -57,10 +83,10 @@
 				'フォームは作成しましたが、Discord への告知の投稿に失敗しました。管理パネルの「告知を投稿する」から再投稿できます。'
 			);
 		}
-		if (published) toast.success('変更を公開しました');
+		if (published) toast.success('変更を保存しました');
 		if (announceEditFailed) {
 			toast.error(
-				'変更は公開しましたが、Discord の告知メッセージを更新できませんでした。管理パネルの「告知を更新」から更新できます。'
+				'変更は保存しましたが、Discord の告知メッセージを更新できませんでした。管理パネルの「告知を更新」から更新できます。'
 			);
 		}
 		if (deadlineNoticeFailed) toast.error('締切の変更を Discord に投稿できませんでした。');
@@ -100,10 +126,7 @@
 	}
 
 	function confirmReopen(event: SubmitEvent) {
-		const message = data.reopenClearsClosesAt
-			? '対象者と未提出者の確定を破棄して受付を再開します。受付終了日時を過ぎているため、その設定は解除され、以後は手動で締め切るまで回答を受け付けます。元に戻せません。'
-			: '対象者と未提出者の確定を破棄して受付を再開します。元に戻せません。';
-		if (!confirm(message)) event.preventDefault();
+		if (!confirm(reopenConfirmation(data.reopenClearsClosesAt))) event.preventDefault();
 	}
 </script>
 
@@ -117,15 +140,14 @@
 	</li>
 {/snippet}
 
-<!-- A compact link shows only its icon on a phone, where the history table has no room for text. -->
-{#snippet discordLink(url: string, label: string, compact: boolean)}
+{#snippet discordLink(url: string, label: string)}
 	<a
 		href={url}
 		target="_blank"
 		rel="noopener noreferrer"
 		class="inline-flex items-center gap-1 text-text-muted underline underline-offset-2 hover:text-text-subtle"
 	>
-		<span class={compact ? 'max-sm:sr-only' : ''}>{label}</span>
+		{label}
 		<Icon name="external-link" class="size-3.5 shrink-0" />
 	</a>
 {/snippet}
@@ -223,20 +245,22 @@
 	{/if}
 
 	<!-- Everything only the creator and admins may do, in one frame the members never see. Each
-	     part reads heading, explanation, then its buttons, which sit to the right from `sm`. -->
+	     part reads heading, explanation, then its buttons in a row below, at every width. -->
 	{#if data.manage && data.announcement}
-		<AdminPanel class="flex flex-col gap-4 p-5">
-			<div class="divide-border flex flex-col divide-y *:py-4 *:first:pt-0 *:last:pb-0">
+		<AdminPanel bind:open={panelOpen} {attention}>
+			<div
+				class="divide-border flex flex-col divide-y border-t border-border pt-4 *:py-4 *:first:pt-0 *:last:pb-0"
+			>
 				<!-- A closed form is reopened before it is edited, so the row goes with the close. -->
 				{#if !data.form.closedAt}
-					<section class="action-row">
-						<div class="min-w-0 flex-1 text-sm">
+					<section class="flex flex-col gap-3 text-sm">
+						<div>
 							<h3 class="section-title">フォームの内容</h3>
 							<p class="mt-1 text-text-muted">
 								タイトル・締切・質問などを変更できます。回答があるときは、対象ロール・提出できる人・質問の種類は変更できません。
 							</p>
 						</div>
-						<div class="shrink-0">
+						<div class="flex flex-wrap gap-2">
 							<a href="/forms/{data.form.id}/edit" class="btn-secondary inline-block px-4 py-2">
 								フォームを編集
 							</a>
@@ -244,8 +268,8 @@
 					</section>
 				{/if}
 
-				<section class="action-row">
-					<div class="min-w-0 flex-1 text-sm">
+				<section class="flex flex-col gap-3 text-sm">
+					<div>
 						<h3 class="section-title">受付</h3>
 						<p class="mt-1 text-text-muted">
 							{#if data.form.closedAt}
@@ -255,124 +279,119 @@
 							{/if}
 						</p>
 					</div>
-					{#if data.form.closedAt}
-						<form method="POST" action="?/reopen" onsubmit={confirmReopen} class="shrink-0">
-							<button type="submit" class="btn-secondary px-4 py-2">受付を再開する</button>
-						</form>
-					{:else}
-						<form method="POST" action="?/close" class="shrink-0">
-							<button type="submit" class="btn-primary px-4 py-2">締め切って確定する</button>
-						</form>
-					{/if}
-				</section>
-
-				<section class="flex flex-col gap-3">
-					<div class="action-row">
-						<div class="min-w-0 flex-1 text-sm">
-							<h3 class="section-title">Discord への告知とリマインド</h3>
-							<p class="mt-1 text-text-muted">
-								{#if !data.announcement.hasChannel}
-									告知チャンネルが未設定のフォームです。告知の投稿もリマインドの送信もできません。
-								{:else if data.closed}
-									受付を終了したフォームのため、リマインドは送信できません。
-								{:else if data.announcement.url}
-									リマインドは告知メッセージへの返信として投稿し、未提出者を個別にメンションします。
-								{:else}
-									告知がまだ投稿されていません。リマインドは送信できますが、告知への返信にはなりません。
-								{/if}
-							</p>
-							{#if announcementStale}
-								<p class="mt-2 text-warning">告知メッセージの内容が古いままです。</p>
-							{/if}
-							{#if data.announcement.url}
-								<p class="mt-2 text-xs">
-									{@render discordLink(data.announcement.url, '告知メッセージを Discord で開く', false)}
-								</p>
-							{/if}
-						</div>
-						{#if canAnnounce || canRemind || announcementStale}
-							<div class="flex shrink-0 flex-wrap gap-2">
-								{#if canAnnounce}
-									<form method="POST" action="?/announce">
-										<button type="submit" class="btn-secondary px-4 py-2">告知を投稿する</button>
-									</form>
-								{/if}
-								{#if announcementStale}
-									<form method="POST" action="?/refreshAnnouncement">
-										<button type="submit" class="btn-secondary px-4 py-2">告知を更新</button>
-									</form>
-								{/if}
-								{#if canRemind}
-									<form method="POST" action="?/remind">
-										<button type="submit" class="btn-primary px-4 py-2">未提出者にリマインド</button>
-									</form>
-								{/if}
-							</div>
+					<div class="flex flex-wrap gap-2">
+						{#if data.form.closedAt}
+							<form method="POST" action="?/reopen" onsubmit={confirmReopen}>
+								<button type="submit" class="btn-secondary px-4 py-2">受付を再開する</button>
+							</form>
+						{:else}
+							<form method="POST" action="?/close">
+								<button type="submit" class="btn-primary px-4 py-2">締め切って確定する</button>
+							</form>
 						{/if}
 					</div>
+				</section>
+
+				<section class="flex flex-col gap-3 text-sm">
+					<div>
+						<h3 class="section-title">Discord への告知とリマインド</h3>
+						<p class="mt-1 text-text-muted">
+							{#if !data.announcement.hasChannel}
+								告知チャンネルが未設定のフォームです。告知の投稿もリマインドの送信もできません。
+							{:else if data.closed}
+								受付を終了したフォームのため、リマインドは送信できません。
+							{:else if data.announcement.url}
+								リマインドは告知メッセージへの返信として投稿し、未提出者を個別にメンションします。
+							{:else}
+								告知がまだ投稿されていません。リマインドは送信できますが、告知への返信にはなりません。
+							{/if}
+						</p>
+						{#if announcementStale}
+							<p class="mt-2 text-warning">告知メッセージの内容が古いままです。</p>
+						{/if}
+						{#if data.announcement.url}
+							<p class="mt-2 text-xs">
+								{@render discordLink(data.announcement.url, '告知メッセージを Discord で開く')}
+							</p>
+						{/if}
+					</div>
+					{#if canAnnounce || canRemind || announcementStale}
+						<div class="flex flex-wrap gap-2">
+							{#if canAnnounce}
+								<form method="POST" action="?/announce">
+									<button type="submit" class="btn-secondary px-4 py-2">告知を投稿する</button>
+								</form>
+							{/if}
+							{#if announcementStale}
+								<form method="POST" action="?/refreshAnnouncement">
+									<button type="submit" class="btn-secondary px-4 py-2">告知を更新</button>
+								</form>
+							{/if}
+							{#if canRemind}
+								<form method="POST" action="?/remind">
+									<button type="submit" class="btn-primary px-4 py-2">未提出者にリマインド</button>
+								</form>
+							{/if}
+						</div>
+					{/if}
 
 					{#if data.reminders.length === 0}
 						<p class="text-xs text-text-muted">リマインドの送信履歴はありません。</p>
 					{:else}
-						<!-- A table so that each column lines up across the rows; the counts align right. -->
-						<table class="self-start text-xs text-text-muted">
-							<caption class="sr-only">リマインドの送信履歴</caption>
-							<thead class="text-left text-text-subtle">
-								<tr>
-									<th scope="col" class="pr-4 pb-1 font-medium">送信日時</th>
-									<th scope="col" class="pr-4 pb-1 font-medium">種類</th>
-									<th scope="col" class="pb-1 text-right font-medium">対象</th>
-									<th scope="col" class="pb-1"><span class="sr-only">通数</span></th>
-									<th scope="col" class="pb-1"><span class="sr-only">未送信</span></th>
-									<th scope="col" class="pb-1"><span class="sr-only">メッセージ</span></th>
-								</tr>
-							</thead>
-							<tbody class="tabular-nums">
+						<!-- A list rather than a table: each entry wraps on a phone instead of scrolling. -->
+						<div class="flex flex-col gap-1.5 text-xs text-text-muted">
+							<h4 class="font-medium text-text-subtle">リマインドの送信履歴</h4>
+							<ul class="flex flex-col gap-2.5 tabular-nums">
 								{#each data.reminders as entry (entry.id)}
-									<tr>
-										<td class="pr-4 py-0.5 whitespace-nowrap">{displayJst(entry.sentAt)}</td>
-										<td class="pr-4 py-0.5 whitespace-nowrap">{REMINDER_KIND[entry.kind]}</td>
-										<td class="py-0.5 text-right whitespace-nowrap">{entry.targetCount}名</td>
+									<li>
 										<!-- A single message is the usual case and goes unsaid. -->
-										<td class="py-0.5 whitespace-nowrap">
-											{entry.messageCount > 1 ? `（${entry.messageCount}通）` : ''}
-										</td>
-										<!-- Left by a send that failed partway, until the next one of either kind continues it. -->
-										<td class="py-0.5 pl-2 whitespace-nowrap text-warning">
-											{entry.pendingCount > 0 ? `残り${entry.pendingCount}名は未送信` : ''}
-										</td>
-										<td class="py-0.5 pl-2 whitespace-nowrap">
-											{#if entry.url}
-												{@render discordLink(entry.url, 'Discord で開く', true)}
-											{/if}
-										</td>
-									</tr>
+										<p>
+											<span class="whitespace-nowrap">{displayJst(entry.sentAt)}</span>
+											· {REMINDER_KIND[entry.kind]} ·
+											<span class="whitespace-nowrap">
+												対象{entry.targetCount}名{entry.messageCount > 1
+													? `（${entry.messageCount}通）`
+													: ''}
+											</span>
+										</p>
+										{#if entry.pendingCount > 0 || entry.url}
+											<p class="mt-0.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+												<!-- Left by a send that failed partway, until the next one of either kind
+												     continues it. -->
+												{#if entry.pendingCount > 0}
+													<span class="text-warning">
+														残り{entry.pendingCount}名は未送信です。次にリマインドを送るとき、先にこの{entry.pendingCount}名に送ります。
+													</span>
+												{/if}
+												{#if entry.url}
+													{@render discordLink(entry.url, 'Discord で開く')}
+												{/if}
+											</p>
+										{/if}
+									</li>
 								{/each}
-							</tbody>
-						</table>
+							</ul>
+						</div>
 					{/if}
 				</section>
 
 				<!-- A frozen list no longer follows the roster, and the action refuses a refresh then. -->
 				{#if !data.frozen}
-					<section class="action-row">
-						<div class="min-w-0 flex-1 text-sm">
+					<section class="flex flex-col gap-3 text-sm">
+						<div>
 							<h3 class="section-title">未提出者の名簿</h3>
 							<p class="mt-1 text-text-muted">
 								未提出者は、Discord のメンバー一覧を写した名簿から数えています。ロールを付け外ししたあとは更新してください。
 							</p>
 							<MetaLine class="mt-2" items={[rosterItem]} />
 						</div>
-						<form
-							method="POST"
-							action="?/syncRoster"
-							onsubmit={() => (syncingRoster = true)}
-							class="shrink-0"
-						>
-							<button type="submit" class="btn-secondary px-4 py-2" disabled={syncingRoster}>
-								{syncingRoster ? '更新中…' : '名簿を更新'}
-							</button>
-						</form>
+						<div class="flex flex-wrap gap-2">
+							<form method="POST" action="?/syncRoster" onsubmit={() => (syncingRoster = true)}>
+								<button type="submit" class="btn-secondary px-4 py-2" disabled={syncingRoster}>
+									{syncingRoster ? '更新中…' : '名簿を更新'}
+								</button>
+							</form>
+						</div>
 					</section>
 				{/if}
 			</div>
@@ -403,13 +422,25 @@
 		<div class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
 			<h2 class="section-title">回答一覧（{data.submitted.length}名）</h2>
 			{#if answerTotal > 0}
-				<div class="flex flex-wrap gap-2">
-					<button type="button" class="btn-secondary btn-sm" onclick={copyTable}>
-						表としてコピー
+				<div class="flex gap-2">
+					<button
+						type="button"
+						class="btn-secondary {ICON_BUTTON}"
+						aria-label="表としてコピー"
+						title="表としてコピー"
+						onclick={copyTable}
+					>
+						<Icon name="copy" />
 					</button>
 					<!-- `download` keeps the router from treating it as a page. -->
-					<a href="/forms/{data.form.id}/results/csv" download class="btn-secondary btn-sm">
-						CSV をダウンロード
+					<a
+						href="/forms/{data.form.id}/results/csv"
+						download
+						class="btn-secondary {ICON_BUTTON}"
+						aria-label="CSV をダウンロード"
+						title="CSV をダウンロード"
+					>
+						<Icon name="download" />
 					</a>
 				</div>
 			{/if}
@@ -434,7 +465,7 @@
 		{/if}
 		{#if rosterMissing}
 			<p class="alert-warning">
-				名簿がまだ同期されていないため表示できません。上の管理パネルの「名簿を更新」を押してください。
+				名簿がまだ同期されていないため表示できません。上の管理パネルを開き、「名簿を更新」を押してください。
 			</p>
 		{:else if data.nonSubmitters.length === 0}
 			<p class="text-sm text-text-muted">未提出者はいません。</p>

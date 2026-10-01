@@ -233,10 +233,7 @@
 	<div class="flex flex-col gap-3">
 		{#if data.resultsManagersOnly}
 			<!-- The members see no link here, so it is framed as the managers' own control. -->
-			<AdminPanel
-				labelTag="p"
-				class="flex flex-wrap items-center gap-x-4 gap-y-1 self-start px-3 py-2"
-			>
+			<AdminPanel labelTag="span" compact class="self-start">
 				<ContextLink
 					href="/forms/{data.form.id}/results"
 					label="回答状況を見る"

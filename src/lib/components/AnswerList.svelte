@@ -1,15 +1,20 @@
 <script lang="ts" module>
-	/** `deleted` for a question an edit has removed: listed only where it was answered. */
+	/**
+	 * `deleted` for a question an edit has removed: listed only where it was answered, and never
+	 * marked required.
+	 */
 	export type HistoryQuestion = {
 		id: number;
 		label: string;
 		options: { id: string; label: string }[] | null;
+		required?: boolean;
 		deleted?: boolean;
 	};
 </script>
 
 <script lang="ts">
 	import { describeAnswer, sameAnswer, type AnswerValue } from '$lib/forms';
+	import RequiredMark from './RequiredMark.svelte';
 
 	type Answers = Record<string, AnswerValue | undefined>;
 
@@ -44,6 +49,8 @@
 					{q.label}
 					{#if q.deleted}
 						<span class="font-normal text-text-muted">（削除された質問）</span>
+					{:else if q.required}
+						<RequiredMark />
 					{/if}
 				</span>
 				{#if changed(q)}

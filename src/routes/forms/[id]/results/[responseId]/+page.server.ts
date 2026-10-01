@@ -42,8 +42,20 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		},
 		revisions: history.revisions,
 		questions: [
-			...questions.map((q) => ({ id: q.id, label: q.label, options: q.options, deleted: false })),
-			...deleted.map((q) => ({ id: q.id, label: q.label, options: q.options, deleted: true }))
+			...questions.map((q) => ({
+				id: q.id,
+				label: q.label,
+				options: q.options,
+				required: q.required,
+				deleted: false
+			})),
+			...deleted.map((q) => ({
+				id: q.id,
+				label: q.label,
+				options: q.options,
+				required: false,
+				deleted: true
+			}))
 		]
 	};
 };

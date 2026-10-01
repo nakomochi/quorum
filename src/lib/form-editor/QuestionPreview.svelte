@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { dragHandle } from 'svelte-dnd-action';
+	import RequiredMark from '$lib/components/RequiredMark.svelte';
 	import { hasOptions, QUESTION_TYPE_LABELS } from '$lib/forms';
 	import Icon from '$lib/icons/Icon.svelte';
 	import type { EditorQuestion } from './editor';
@@ -52,10 +53,7 @@
 			{:else}
 				<span class="font-normal text-text-muted">無題の質問</span>
 			{/if}
-			{#if question.required}
-				<span class="text-danger" aria-hidden="true">*</span>
-				<span class="sr-only">（必須）</span>
-			{/if}
+			{#if question.required}<RequiredMark />{/if}
 		</span>
 		{#if question.helpText}
 			<span class="text-xs text-text-muted">{question.helpText}</span>

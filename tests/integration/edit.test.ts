@@ -48,8 +48,8 @@ import {
 
 const ORIGIN = 'http://forms.test';
 
-const STALE = 'ほかの人が先に変更を公開しました。最新の内容を読み込み直してください。';
-const CLOSED = 'このフォームは確定済みのため編集できません。受付を再開してから編集してください。';
+const STALE = 'ほかの人が先に変更を保存しました。最新の内容を読み込み直してください。';
+const CLOSED = 'フォームを閉じているため編集できません。';
 const FORM_CHANGED = 'フォームが更新されました。内容を確認してからもう一度送信してください。';
 
 const QUESTIONS = [
@@ -283,7 +283,13 @@ describe('opening the edit page', () => {
 
 		const data = await openEdit(creator, id);
 
-		expect(data).toEqual({ form: { id, title: 'テストフォーム' }, closed: true, editor: null });
+		expect(data).toEqual({
+			form: { id, title: 'テストフォーム' },
+			closed: true,
+			reopenClearsClosesAt: false,
+			reopened: false,
+			editor: null
+		});
 		expect(await editDrafts(id)).toEqual([]);
 		expect(discord.count()).toBe(0);
 	});
@@ -303,6 +309,53 @@ describe('opening the edit page', () => {
 		expect((await act(editActions.publish, other, id)).status).toBe(403);
 		expect((await act(editActions.reload, other, id)).status).toBe(403);
 		expect((await editDrafts(id)).map((row) => row.createdBy)).toEqual([admin.id]);
+	});
+});
+
+describe('reopening from the edit page', () => {
+	const reopen = (who: TestUser, id: string) =>
+		act(editActions.reopen, who, id, new FormData(), `/forms/${id}/edit?/reopen`);
+
+	test('a manager reopens the form and comes back to the editor, told once', async () => {
+		const { creator, admin, id } = await setup();
+		await closeForm(id);
+
+		expect(await reopen(creator, id)).toEqual({ status: 303, location: `/forms/${id}/edit?reopened=1` });
+		expect((await loadForm(id))?.closedAt).toBeNull();
+
+		const data = (await editLoad(event(creator, id, `/forms/${id}/edit?reopened=1`))) as EditData;
+		expect(data).toMatchObject({ closed: false, reopened: true });
+		expect(data.editor).not.toBeNull();
+		expect((await openEdit(creator, id)).reopened).toBe(false);
+
+		// An admin may as well, as on the results page.
+		await closeForm(id);
+		expect((await reopen(admin, id)).status).toBe(303);
+		expect((await loadForm(id))?.closedAt).toBeNull();
+	});
+
+	test('a passed closesAt is said beforehand, and cleared by the reopen', async () => {
+		const { creator, id } = await setup();
+		await patchForm(id, { closesAt: new Date(Date.now() - 60_000) });
+		await closeForm(id);
+
+		expect((await openEdit(creator, id)).reopenClearsClosesAt).toBe(true);
+		expect((await reopen(creator, id)).status).toBe(303);
+		expect((await loadForm(id))?.closesAt).toBeNull();
+	});
+
+	test('anyone else is refused and the form stays closed; an open form is refused with 409', async () => {
+		const { creator, other, id } = await setup();
+		await closeForm(id);
+
+		expect((await reopen(other, id)).status).toBe(403);
+		expect((await loadForm(id))?.closedAt).not.toBeNull();
+
+		expect((await reopen(creator, id)).status).toBe(303);
+		expect(await reopen(creator, id)).toEqual({
+			status: 409,
+			data: { message: 'このフォームはまだ確定していません' }
+		});
 	});
 });
 
@@ -723,10 +776,11 @@ describe('answering a form while it is edited', () => {
 			params: { id, responseId },
 			url: new URL(`${ORIGIN}/forms/${id}/results/${responseId}`)
 		} as never)) as Exclude<Awaited<ReturnType<typeof historyLoad>>, void>;
-		expect(history.questions.map((q) => [q.label, q.deleted])).toEqual([
-			['名前', false],
-			['参加', false],
-			['メモ', true]
+		// Marked required as the answer form marks it; a deleted question never is.
+		expect(history.questions.map((q) => [q.label, q.required, q.deleted])).toEqual([
+			['名前', true, false],
+			['参加', false, false],
+			['メモ', false, true]
 		]);
 		expect(history.revisions[0].answers[questions[2].id]).toEqual({ type: 'text', text: '二回目' });
 	});

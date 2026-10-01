@@ -21,7 +21,11 @@ export const formVisibility = pgEnum('form_visibility', ['public', 'admin_only',
 export const submitScope = pgEnum('submit_scope', ['everyone', 'target_role']);
 export const reminderKind = pgEnum('reminder_kind', ['manual', 'auto']);
 
-export type QuestionOption = { id: string; label: string };
+/**
+ * `deleted` marks an option removed by an edit after the form was published. It stays in the list
+ * so that answers naming it keep their label, and is never offered or counted again.
+ */
+export type QuestionOption = { id: string; label: string; deleted?: true };
 
 export type FrozenMember = { discordId: string; displayName: string };
 
@@ -178,6 +182,8 @@ export const form = pgTable(
 		closeNoticeClaimedAt: timestamp('close_notice_claimed_at', { withTimezone: true }),
 		// Set once the post has gone through.
 		closeMessageId: text('close_message_id'),
+		// Moved on by every published edit. A submission validated against an older one is refused.
+		version: integer('version').notNull().default(1),
 		createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),
 		updatedAt: timestamp('updated_at', { withTimezone: true })
 			.notNull()
@@ -320,7 +326,8 @@ export const reminder = pgTable(
 
 /**
  * The form editor's saved state, kept apart from `form` so that nothing reading forms has to
- * exclude unpublished ones. The payload is stored unchecked: a draft may be incomplete.
+ * exclude unpublished ones. The payload is stored unchecked: a draft may be incomplete. An edit of
+ * a published form is a draft too, one per form and person, which the top page does not list.
  */
 export const formDraft = pgTable(
 	'form_draft',
@@ -331,15 +338,23 @@ export const formDraft = pgTable(
 		createdBy: text('created_by')
 			.notNull()
 			.references(() => user.id, { onDelete: 'cascade' }),
-		// For editing a published form later. Always null for now.
-		formId: text('form_id').references(() => form.id, { onDelete: 'set null' }),
+		// Set for an edit of a published form, null for a form not created yet.
+		formId: text('form_id').references(() => form.id, { onDelete: 'cascade' }),
+		// The form.version an edit started from. Null exactly when form_id is.
+		baseVersion: integer('base_version'),
 		// Typed as the current format; readers must still treat it as unknown.
 		payload: jsonb('payload').$type<FormDraftPayload>().notNull(),
 		// Optimistic concurrency: every save names the version it read.
 		version: integer('version').notNull().default(1),
 		updatedAt: timestamp('updated_at', { withTimezone: true }).notNull().defaultNow()
 	},
-	(t) => [index('form_draft_created_by_idx').on(t.createdBy)]
+	(t) => [
+		index('form_draft_created_by_idx').on(t.createdBy),
+		uniqueIndex('form_draft_edit_uq')
+			.on(t.formId, t.createdBy)
+			.where(sql`${t.formId} IS NOT NULL`),
+		check('form_draft_edit_base', sql`(${t.formId} IS NULL) = (${t.baseVersion} IS NULL)`)
+	]
 );
 
 /**

@@ -6,6 +6,7 @@
 		MAX_LABEL,
 		QUESTION_TYPE_LABELS,
 		QUESTION_TYPES,
+		TYPE_LOCKED,
 		type QuestionType
 	} from '$lib/forms';
 	import FieldError from '$lib/components/FieldError.svelte';
@@ -23,14 +24,26 @@
 		history: HistoryControls;
 		/** Why the server refused this question. */
 		error: string | null;
+		/** The type stays as published: the form has responses to this question's type. */
+		typeLocked: boolean;
 		/** Swaps the question with its neighbour: -1 above, 1 below. */
 		onmove: (delta: number) => void;
 		onremove: () => void;
 	};
 
-	let { question = $bindable(), index, count, history, error, onmove, onremove }: Props = $props();
+	let {
+		question = $bindable(),
+		index,
+		count,
+		history,
+		error,
+		typeLocked,
+		onmove,
+		onremove
+	}: Props = $props();
 
 	const errorId = $derived(`question-${question.id}-error`);
+	const typeNoteId = $derived(`question-${question.id}-type-note`);
 
 	function onTypeChange(type: QuestionType) {
 		history.step(() => {
@@ -97,18 +110,25 @@
 		placeholder="質問文"
 		required
 		maxlength={MAX_LABEL}
-		class="field"
+		class="field self-start"
 	/>
-	<select
-		value={question.type}
-		aria-label="質問 {index + 1} の種類"
-		onchange={(event) => onTypeChange(event.currentTarget.value as QuestionType)}
-		class="field"
-	>
-		{#each QUESTION_TYPES as type (type)}
-			<option value={type}>{QUESTION_TYPE_LABELS[type]}</option>
-		{/each}
-	</select>
+	<div>
+		<select
+			value={question.type}
+			aria-label="質問 {index + 1} の種類"
+			disabled={typeLocked}
+			aria-describedby={typeLocked ? typeNoteId : undefined}
+			onchange={(event) => onTypeChange(event.currentTarget.value as QuestionType)}
+			class="field"
+		>
+			{#each QUESTION_TYPES as type (type)}
+				<option value={type}>{QUESTION_TYPE_LABELS[type]}</option>
+			{/each}
+		</select>
+		{#if typeLocked}
+			<span id={typeNoteId} class="mt-1 block text-xs text-text-muted">{TYPE_LOCKED}</span>
+		{/if}
+	</div>
 </div>
 
 <input

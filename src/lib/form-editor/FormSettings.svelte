@@ -2,8 +2,15 @@
 	import { untrack } from 'svelte';
 	import FieldError from '$lib/components/FieldError.svelte';
 	import type { EditorState } from '$lib/form-draft';
-	import { MAX_DESCRIPTION, MAX_TITLE, type FormField, type InputError } from '$lib/forms';
-	import type { PageData } from './$types';
+	import {
+		AUDIENCE_LOCKED,
+		CHANNEL_LOCKED,
+		MAX_DESCRIPTION,
+		MAX_TITLE,
+		type FormField,
+		type InputError
+	} from '$lib/forms';
+	import type { Choice, EditorLocks } from './editor';
 
 	type Props = {
 		/**
@@ -11,8 +18,9 @@
 		 * that puts them in the server's HTML, and nothing but the field itself writes them again.
 		 */
 		initial: EditorState | null;
-		roles: PageData['roles'];
-		channels: PageData['channels'];
+		roles: Choice[];
+		channels: Choice[];
+		locks: EditorLocks;
 		/** The last submission's rejected input, drawn under the field it names. */
 		inputError: InputError | null;
 		deadline: string;
@@ -25,6 +33,7 @@
 		initial,
 		roles,
 		channels,
+		locks,
 		inputError,
 		deadline = $bindable(),
 		closesAt = $bindable(),
@@ -48,12 +57,15 @@
 	let targetRoleId = $state(untrack(() => initial?.targetRoleId ?? ''));
 	let announcementChannelId = $state(untrack(() => initial?.announcementChannelId ?? ''));
 
-	const roleMissing = $derived(
+	const roleUnlisted = $derived(
 		targetRoleId !== '' && !roles.some((role) => role.id === targetRoleId)
 	);
-	const channelMissing = $derived(
+	const channelUnlisted = $derived(
 		announcementChannelId !== '' && !channels.some((channel) => channel.id === announcementChannelId)
 	);
+	// A locked setting keeps its stored id whatever Discord lists, so there is nothing to choose again.
+	const roleMissing = $derived(roleUnlisted && !locks.audience);
+	const channelMissing = $derived(channelUnlisted && !locks.channel);
 	const noChannel = $derived(announcementChannelId === '');
 
 	/** Blocks the submission, with the reason in the browser's own bubble, until it is resolved. */
@@ -84,6 +96,12 @@
 <!-- Under the field it names, outside the label so that it is not read as part of the field's name. -->
 {#snippet error(name: FormField)}
 	<FieldError id={errorId(name)} message={errorOf(name)} class="mt-1" />
+{/snippet}
+
+<!-- A disabled field drops out of the form data, so a locked one is posted from a hidden field. -->
+{#snippet locked(name: FormField, value: string, note: string)}
+	<input type="hidden" {name} {value} />
+	<span class="mt-1 block text-xs text-text-muted">{note}</span>
 {/snippet}
 
 <section class="card flex flex-col gap-4 p-5">
@@ -122,14 +140,15 @@
 			<label class="block">
 				<span class="text-sm font-medium">対象ロール</span>
 				<select
-					name="targetRoleId"
+					name={locks.audience ? undefined : 'targetRoleId'}
 					required
+					disabled={locks.audience}
 					bind:value={targetRoleId}
 					{@attach validity(() => (roleMissing ? ROLE_MISSING : ''))}
 					{...described('targetRoleId')}
 					class="field mt-1"
 				>
-					{#if roleMissing}
+					{#if roleUnlisted}
 						<!-- Keeps the stored id, so a reload shows the notice again instead of a default. -->
 						<option value={targetRoleId} hidden>選択してください</option>
 					{/if}
@@ -141,6 +160,9 @@
 				{#if roleMissing}
 					<span class="mt-1 block text-xs text-warning">{ROLE_MISSING}</span>
 				{/if}
+				{#if locks.audience}
+					{@render locked('targetRoleId', targetRoleId, AUDIENCE_LOCKED)}
+				{/if}
 			</label>
 			{@render error('targetRoleId')}
 		</div>
@@ -150,13 +172,14 @@
 				<span class="text-sm font-medium">告知チャンネル</span>
 				<!-- An empty value means no announcement, so a missing channel cannot fall back to it. -->
 				<select
-					name="announcementChannelId"
+					name={locks.channel ? undefined : 'announcementChannelId'}
+					disabled={locks.channel}
 					bind:value={announcementChannelId}
 					{@attach validity(() => (channelMissing ? CHANNEL_MISSING : ''))}
 					{...described('announcementChannelId')}
 					class="field mt-1"
 				>
-					{#if channelMissing}
+					{#if channelUnlisted}
 						<option value={announcementChannelId} hidden>選択してください</option>
 					{/if}
 					<option value="">告知しない</option>
@@ -167,6 +190,9 @@
 				{#if channelMissing}
 					<span class="mt-1 block text-xs text-warning">{CHANNEL_MISSING}</span>
 				{/if}
+				{#if locks.channel}
+					{@render locked('announcementChannelId', announcementChannelId, CHANNEL_LOCKED)}
+				{/if}
 			</label>
 			{@render error('announcementChannelId')}
 		</div>
@@ -175,7 +201,8 @@
 			<label class="block">
 				<span class="text-sm font-medium">提出できる人</span>
 				<select
-					name="submitScope"
+					name={locks.audience ? undefined : 'submitScope'}
+					disabled={locks.audience}
 					bind:value={submitScope}
 					{...described('submitScope')}
 					class="field mt-1"
@@ -183,6 +210,9 @@
 					<option value="everyone">サーバーのメンバー全員</option>
 					<option value="target_role">対象ロールの人のみ</option>
 				</select>
+				{#if locks.audience}
+					{@render locked('submitScope', submitScope, AUDIENCE_LOCKED)}
+				{/if}
 			</label>
 			{@render error('submitScope')}
 		</div>

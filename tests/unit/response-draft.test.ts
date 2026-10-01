@@ -50,6 +50,23 @@ describe('answersFromFields', () => {
 });
 
 describe('readResponseDraft', () => {
+	test('an option an edit deleted is dropped like an unknown one', () => {
+		const edited: DraftQuestion[] = [
+			{ id: 1, type: 'single', options: [{ id: 'yes' }, { id: 'no', deleted: true }], allowOther: false },
+			{ id: 2, type: 'multi', options: [{ id: 'a', deleted: true }, { id: 'b' }], allowOther: false }
+		];
+
+		const answers = readResponseDraft(
+			{
+				1: { type: 'single', optionId: 'no' },
+				2: { type: 'multi', optionIds: ['a', 'b'] }
+			},
+			edited
+		);
+
+		expect(answers).toEqual({ 2: { type: 'multi', optionIds: ['b'] } });
+	});
+
 	test('reads back only what fits today’s questions', () => {
 		const stored = {
 			1: { type: 'single', optionId: 'gone' },

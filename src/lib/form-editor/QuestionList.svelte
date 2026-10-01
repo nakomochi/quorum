@@ -15,9 +15,11 @@
 		history: HistoryControls;
 		/** The last submission's rejected input, drawn in the card of the question it names. */
 		inputError: InputError | null;
+		/** The published questions keep their types. Those added in the editor never do. */
+		typesLocked: boolean;
 	};
 
-	let { questions = $bindable(), history, inputError }: Props = $props();
+	let { questions = $bindable(), history, inputError, typesLocked }: Props = $props();
 
 	// By place, as the server counted the list it was sent. Left there until the next result.
 	const errorOf = (index: number) =>
@@ -139,6 +141,7 @@
 						count={questions.length}
 						{history}
 						error={errorOf(index)}
+						typeLocked={typesLocked && q.sourceId !== null}
 						onmove={(delta) => move(index, delta)}
 						onremove={() => remove(index)}
 					/>

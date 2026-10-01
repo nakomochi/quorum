@@ -44,18 +44,23 @@
 
 	let syncingRoster = $state(false);
 
-	// Once per visit, not per load: the creation page's redirect set it, and the query goes with it,
-	// so a reload does not say it again. After a tick of the clock: the router refuses the URL
-	// change until it has started, which it does only after the page has mounted.
+	// Once per visit, not per load: the creation or edit page's redirect set it, and the query goes
+	// with it, so a reload does not say it again. After a tick of the clock: the router refuses the
+	// URL change until it has started, which it does only after the page has mounted.
 	onMount(() => {
-		if (!untrack(() => data.announceFailed)) return;
-		toast.error(
-			'フォームは作成しましたが、Discord への告知の投稿に失敗しました。管理パネルの「告知を投稿する」から再投稿できます。'
-		);
-		if (!page.url.searchParams.has('announce')) return;
+		const { announceFailed, published } = untrack(() => data);
+		if (announceFailed) {
+			toast.error(
+				'フォームは作成しましたが、Discord への告知の投稿に失敗しました。管理パネルの「告知を投稿する」から再投稿できます。'
+			);
+		}
+		if (published) toast.success('変更を公開しました');
+
+		const flags = ['announce', 'published'].filter((name) => page.url.searchParams.has(name));
+		if (flags.length === 0) return;
 		const timer = setTimeout(() => {
 			const url = new URL(page.url);
-			url.searchParams.delete('announce');
+			for (const name of flags) url.searchParams.delete(name);
 			replaceState(url, page.state);
 		});
 		return () => clearTimeout(timer);
@@ -211,6 +216,23 @@
 	{#if data.manage && data.announcement}
 		<AdminPanel class="flex flex-col gap-4 p-5">
 			<div class="divide-border flex flex-col divide-y *:py-4 *:first:pt-0 *:last:pb-0">
+				<!-- A closed form is reopened before it is edited, so the row goes with the close. -->
+				{#if !data.form.closedAt}
+					<section class="action-row">
+						<div class="min-w-0 flex-1 text-sm">
+							<h3 class="section-title">フォームの内容</h3>
+							<p class="mt-1 text-text-muted">
+								タイトル・締切・質問などを変更できます。回答があるときは、対象ロール・提出できる人・質問の種類は変更できません。
+							</p>
+						</div>
+						<div class="shrink-0">
+							<a href="/forms/{data.form.id}/edit" class="btn-secondary inline-block px-4 py-2">
+								フォームを編集
+							</a>
+						</div>
+					</section>
+				{/if}
+
 				<section class="action-row">
 					<div class="min-w-0 flex-1 text-sm">
 						<h3 class="section-title">受付</h3>

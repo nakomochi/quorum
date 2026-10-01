@@ -21,6 +21,10 @@ import type {
 import type { PageData as HistoryData } from '../../routes/forms/[id]/results/[responseId]/$types';
 import type { ActionData as NewAction, PageData as NewData } from '../../routes/forms/new/$types';
 import type {
+	ActionData as EditAction,
+	PageData as EditData
+} from '../../routes/forms/[id]/edit/$types';
+import type {
 	ActionData as AdminAction,
 	PageData as AdminData
 } from '../../routes/admin/forms/$types';
@@ -641,6 +645,7 @@ const answerForm = (over: Partial<AnswerData['form']> = {}): AnswerData['form'] 
 	description: '5月の合宿について、参加可否を教えてください。',
 	deadline: fromNow(24 * 14),
 	closesAt: fromNow(24 * 15),
+	version: 1,
 	...over
 });
 
@@ -658,7 +663,11 @@ const OTHER_ANSWERS: AnswerData['answers'] = {
 };
 
 /** No draft and no history to show: a single revision is the submitted answer itself. */
-const NO_DRAFT: Pick<AnswerData, 'draft' | 'history'> = { draft: null, history: [] };
+const NO_DRAFT: Pick<AnswerData, 'draft' | 'history' | 'deletedQuestions'> = {
+	draft: null,
+	history: [],
+	deletedQuestions: []
+};
 
 /** The answers of `FILLED_ANSWERS` half rewritten and not sent yet. */
 const DRAFT_ANSWERS: NonNullable<AnswerData['draft']>['answers'] = {
@@ -667,9 +676,10 @@ const DRAFT_ANSWERS: NonNullable<AnswerData['draft']>['answers'] = {
 	3: { type: 'text', text: '仕事の都合で、初日は夜から合流するかもしれません。' }
 };
 
-const RESTORED_DRAFT: Pick<AnswerData, 'draft' | 'history'> = {
+const RESTORED_DRAFT: Pick<AnswerData, 'draft' | 'history' | 'deletedQuestions'> = {
 	draft: { version: 3, updatedAt: at('2026-09-29T12:34:00'), answers: DRAFT_ANSWERS },
-	history: []
+	history: [],
+	deletedQuestions: []
 };
 
 // The viewer's own revisions, newest first. The newest is FILLED_ANSWERS, as submitted.
@@ -784,6 +794,7 @@ const rosterResults = (over: Partial<ResultsData> = {}): ResultsData => ({
 	roleDeleted: false,
 	rosterSyncedAt: ROSTER_SYNCED_AT,
 	announceFailed: false,
+	published: false,
 	announcement: ANNOUNCED,
 	reminders: [],
 	questions: RESULT_QUESTIONS,
@@ -1205,6 +1216,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			updatedAt: lastYear('10-14T03:15:00'),
 			answers: FILLED_ANSWERS,
 			draft: null,
+			deletedQuestions: [],
 			history: OWN_HISTORY.map((revision, index) => ({
 				...revision,
 				createdAt: lastYear(['10-14T03:15:00', '10-13T09:05:00', '10-12T21:40:00'][index])
@@ -1345,6 +1357,41 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			...NO_DRAFT
 		},
 		form: { reason: 'closed' }
+	},
+	{
+		// After the reload that follows the refusal: the edited questions around what was typed.
+		id: 'answer-form-changed',
+		title: '送信したらフォームが更新されていた（入力を残して開いたまま・エラーのトースト）',
+		data: {
+			...SESSION,
+			resultsVisible: false,
+			resultsManagersOnly: false,
+			form: answerForm({ version: 3 }),
+			// The edit dropped an option and added a required question.
+			questions: [
+				{
+					...QUESTIONS[0],
+					options: [
+						{ id: 'yes', label: '参加する' },
+						{ id: 'maybe', label: '未定' },
+						{ id: 'no', label: '参加しない', deleted: true }
+					]
+				},
+				...QUESTIONS.slice(1),
+				question({ id: 5, type: 'text', label: '同室の希望', required: true })
+			],
+			closed: false,
+			editable: true,
+			submittedAt: null,
+			updatedAt: null,
+			answers: {},
+			...NO_DRAFT
+		},
+		form: {
+			reason: 'form_changed',
+			message: 'フォームが更新されました。内容を確認してからもう一度送信してください。'
+		},
+		setup: typeAnswers
 	},
 	{
 		// Opened before another tab submitted, then sent: the reload shows the other tab's answer.
@@ -1552,6 +1599,38 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			updatedAt: at('2026-04-14T08:15:00'),
 			answers: FILLED_ANSWERS,
 			draft: null,
+			deletedQuestions: [],
+			history: OWN_HISTORY
+		}
+	},
+	{
+		// The edit deleted question 3 and the option 未定, which the first revision chose.
+		id: 'answer-history-deleted',
+		title: '回答履歴あり / 編集で削除された質問と選択肢（履歴には残る）',
+		data: {
+			...SESSION,
+			resultsVisible: true,
+			resultsManagersOnly: false,
+			form: answerForm({ version: 2 }),
+			questions: [
+				{
+					...QUESTIONS[0],
+					options: [
+						{ id: 'yes', label: '参加する' },
+						{ id: 'no', label: '参加しない' },
+						{ id: 'maybe', label: '未定', deleted: true }
+					]
+				},
+				QUESTIONS[1],
+				QUESTIONS[3]
+			],
+			closed: false,
+			editable: true,
+			submittedAt: at('2026-04-12T21:40:00'),
+			updatedAt: at('2026-04-14T08:15:00'),
+			answers: { 1: FILLED_ANSWERS[1], 2: FILLED_ANSWERS[2], 4: FILLED_ANSWERS[4] },
+			draft: null,
+			deletedQuestions: [{ id: 3, label: QUESTIONS[2].label, options: null }],
 			history: OWN_HISTORY
 		}
 	},
@@ -1570,6 +1649,7 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 			updatedAt: at('2026-04-14T08:15:00'),
 			answers: FILLED_ANSWERS,
 			draft: null,
+			deletedQuestions: [],
 			history: OWN_HISTORY
 		}
 	},
@@ -1605,6 +1685,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: null,
 			announceFailed: false,
+			published: false,
 			announcement: null,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1628,6 +1709,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
+			published: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1651,6 +1733,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
+			published: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1674,6 +1757,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: null,
 			announceFailed: false,
+			published: false,
 			announcement: null,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1697,6 +1781,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
+			published: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1720,6 +1805,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
+			published: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1744,6 +1830,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			// A frozen roster does not depend on the mirror, so the load leaves these out.
 			rosterSyncedAt: null,
 			announceFailed: false,
+			published: false,
 			announcement: ANNOUNCED,
 			reminders: REMINDERS,
 			questions: RESULT_QUESTIONS,
@@ -1794,6 +1881,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
+			published: false,
 			announcement: NOT_ANNOUNCED,
 			reminders: REMINDERS,
 			questions: RESULT_QUESTIONS,
@@ -1817,6 +1905,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
+			published: false,
 			announcement: ANNOUNCED,
 			reminders: REMINDERS,
 			questions: RESULT_QUESTIONS,
@@ -1871,6 +1960,11 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		form: { notice: '受付を再開しました。' }
 	},
 	{
+		id: 'results-published',
+		title: '編集を公開した直後（成功のトースト）',
+		data: rosterResults({ published: true })
+	},
+	{
 		id: 'results-reminder-links',
 		title: '送信履歴の Discord へのリンク（投稿のない行はリンクなし、途中で失敗した行は未送信の人数つき）',
 		data: rosterResults({ reminders: REMINDERS_WITH_EMPTY })
@@ -1887,6 +1981,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
+			published: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1910,6 +2005,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
+			published: false,
 			announcement: NO_CHANNEL,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1933,6 +2029,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: true,
+			published: false,
 			announcement: NOT_ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1961,6 +2058,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
+			published: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1985,6 +2083,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: true,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
+			published: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -2009,6 +2108,7 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			roleDeleted: false,
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
+			published: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: WIDE_QUESTIONS.map(toResultQuestion),
@@ -2072,7 +2172,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 const toHistoryQuestion = ({ id, label, options }: QuestionRow): HistoryQuestion => ({
 	id,
 	label,
-	options
+	options,
+	deleted: false
 });
 
 // Each revision changes different questions: 1 and 4, then 2 and 3.
@@ -2138,6 +2239,41 @@ export const HISTORY_CASES: UiCase<HistoryData>[] = [
 			revisions: [{ number: 1, createdAt: at('2026-04-12T21:40:00'), answers: OTHER_ANSWERS }],
 			questions: OTHER_QUESTIONS.map(toHistoryQuestion)
 		}
+	},
+	{
+		// Question 3 was deleted by an edit after the second revision, and the option 未定 with it.
+		id: 'history-deleted-question',
+		title: '編集で削除された質問（回答した版にだけ印つきで残る）',
+		data: {
+			...SESSION,
+			form: { id: 'fixtureform1', title: '春合宿の参加確認' },
+			response: {
+				displayName: 'あおい',
+				submittedAt: at('2026-04-12T21:40:00'),
+				updatedAt: at('2026-04-15T10:00:00')
+			},
+			revisions: [
+				{
+					number: 4,
+					createdAt: at('2026-04-15T10:00:00'),
+					answers: {
+						1: { type: 'single', optionId: 'no' },
+						2: { type: 'multi', optionIds: ['d1', 'd2'] },
+						4: { type: 'date', date: '2026-05-02' }
+					}
+				},
+				...THREE_REVISIONS
+			],
+			questions: [
+				{
+					...toHistoryQuestion(QUESTIONS[0]),
+					options: [...QUESTIONS[0].options!.filter((o) => o.id !== 'maybe'), { id: 'maybe', label: '未定', deleted: true }]
+				},
+				toHistoryQuestion(QUESTIONS[1]),
+				toHistoryQuestion(QUESTIONS[3]),
+				{ ...toHistoryQuestion(QUESTIONS[2]), deleted: true }
+			]
+		}
 	}
 ];
 
@@ -2170,6 +2306,7 @@ const DRAFT_STATE: DraftState = {
 	closesAtTouched: true,
 	questions: [
 		{
+			sourceId: null,
 			type: 'single',
 			label: '参加できますか',
 			helpText: '確定した予定でお答えください。',
@@ -2181,6 +2318,7 @@ const DRAFT_STATE: DraftState = {
 			allowOther: true
 		},
 		{
+			sourceId: null,
 			type: 'text',
 			label: '連絡事項',
 			helpText: '',
@@ -2221,6 +2359,7 @@ const UNTITLED_STATE: DraftState = {
 	questions: [
 		DRAFT_STATE.questions[0],
 		{
+			sourceId: null,
 			type: 'multi',
 			label: '',
 			helpText: '',
@@ -2368,6 +2507,102 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 	}
 ];
 
+type Editor = NonNullable<EditData['editor']>;
+
+/** The published form's questions, as the edit page reads them into the editor. */
+const EDIT_STATE: DraftState = {
+	...DRAFT_STATE,
+	questions: DRAFT_STATE.questions.map((q, index) => ({ ...q, sourceId: 21 + index }))
+};
+
+const NO_EDIT_LOCKS: Editor['locks'] = { audience: false, questionTypes: false, channel: false };
+
+const editData = (over: Partial<Editor> = {}): EditData => ({
+	...SESSION,
+	form: { id: 'fixtureform1', title: DRAFT_STATE.title },
+	closed: false,
+	editor: {
+		roles: ROLES,
+		channels: CHANNELS,
+		draft: { id: 'fixturedraft', version: 1, updatedAt: at('2026-09-29T12:34:00'), state: EDIT_STATE },
+		baseVersion: 2,
+		stale: false,
+		resumed: false,
+		locks: NO_EDIT_LOCKS,
+		...over
+	}
+});
+
+const STALE_MESSAGE = 'ほかの人が先に変更を公開しました。最新の内容を読み込み直してください。';
+
+export const EDIT_CASES: UiCase<EditData, EditAction>[] = [
+	{
+		id: 'edit-default',
+		title: '回答なし（すべて変更できる）',
+		data: editData()
+	},
+	{
+		id: 'edit-locked',
+		title: '回答あり・告知済み（対象ロール・提出できる人・告知チャンネル・既存の質問の種類は変更不可）',
+		data: editData({ locks: { audience: true, questionTypes: true, channel: true } })
+	},
+	{
+		id: 'edit-locked-phone',
+		title: '回答あり / スマホ幅',
+		data: editData({ locks: { audience: true, questionTypes: true, channel: true } }),
+		width: '375px'
+	},
+	{
+		id: 'edit-locked-added',
+		title: '回答あり / 編集中に追加した質問は種類を選べる',
+		data: editData({ locks: { audience: true, questionTypes: true, channel: false } }),
+		setup: async (doc) => {
+			doc.querySelector<HTMLButtonElement>('[aria-label="質問を追加"]')?.click();
+			await tick();
+		}
+	},
+	{
+		id: 'edit-resumed',
+		title: '前回の編集内容を復元した',
+		data: editData({
+			resumed: true,
+			draft: {
+				id: 'fixturedraft',
+				version: 4,
+				updatedAt: at('2026-09-29T12:34:00'),
+				state: { ...EDIT_STATE, title: `${EDIT_STATE.title}（改訂）` }
+			}
+		})
+	},
+	{
+		id: 'edit-stale',
+		title: 'ほかの人が先に公開していた（開いたとき）',
+		data: editData({ stale: true, resumed: true })
+	},
+	{
+		id: 'edit-stale-published',
+		title: '公開したら、ほかの人が先に公開していた（409・エラーのトースト）',
+		data: editData(),
+		form: { reason: 'stale', message: STALE_MESSAGE }
+	},
+	{
+		id: 'edit-error',
+		title: '回答があるため変更できなかった（サーバーの入力エラー）',
+		data: editData(),
+		form: {
+			inputError: {
+				message: '回答があるため変更できません。複製して作り直してください',
+				at: { field: 'targetRoleId' }
+			}
+		}
+	},
+	{
+		id: 'edit-closed',
+		title: '確定済みのフォーム（受付の再開を案内）',
+		data: { ...SESSION, form: { id: 'fixtureform1', title: LONG_TITLE }, closed: true, editor: null }
+	}
+];
+
 const adminRow = (over: Partial<AdminRow> & Pick<AdminRow, 'id' | 'title'>): AdminRow => ({
 	submitScope: 'target_role',
 	deadline: at('2026-04-30T23:59:00'),
@@ -2507,6 +2742,7 @@ export const CASE_GROUPS: {
 	{ label: '結果画面', route: '/forms/[id]/results', cases: RESULTS_CASES },
 	{ label: '回答履歴', route: '/forms/[id]/results/[responseId]', cases: HISTORY_CASES },
 	{ label: 'フォーム作成', route: '/forms/new', cases: NEW_CASES },
+	{ label: 'フォーム編集', route: '/forms/[id]/edit', cases: EDIT_CASES },
 	{ label: '管理一覧', route: '/admin/forms', cases: ADMIN_CASES }
 ];
 

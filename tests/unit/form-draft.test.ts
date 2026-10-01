@@ -13,6 +13,7 @@ describe('readDraftPayload', () => {
 	test('reads back what the editor saved', () => {
 		const questions = [
 			{
+				sourceId: 7,
 				type: 'multi' as const,
 				label: '日程',
 				helpText: '複数可',
@@ -63,7 +64,9 @@ describe('readDraftPayload', () => {
 			fields: {
 				submitScope: ['nobody'],
 				visibility: [42],
-				questions: ['[{"type":"essay","options":[{"id":"x"},{"id":"x"},{"label":"no id"}]}, 7]']
+				questions: [
+					'[{"type":"essay","sourceId":"3","options":[{"id":"x"},{"id":"x"},{"label":"no id"}]}, 7, {"type":"text","sourceId":-1}, {"type":"text","sourceId":1.5}]'
+				]
 			}
 		});
 
@@ -72,15 +75,28 @@ describe('readDraftPayload', () => {
 		expect(state.announceClose).toBe(true);
 		expect(state.submitScope).toBe('everyone');
 		expect(state.visibility).toBe('public');
+		// A source id is a positive integer or nothing: the question is then a new one.
+		const blankText = {
+			sourceId: null,
+			type: 'text',
+			label: '',
+			helpText: '',
+			required: false,
+			options: [],
+			allowOther: false
+		};
 		expect(state.questions).toEqual([
 			{
+				sourceId: null,
 				type: 'single',
 				label: '',
 				helpText: '',
 				required: false,
 				options: [{ id: 'x', label: '' }],
 				allowOther: false
-			}
+			},
+			blankText,
+			blankText
 		]);
 	});
 

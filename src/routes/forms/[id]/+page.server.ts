@@ -6,6 +6,7 @@ import {
 	collectAnswerInputs,
 	FormInputError,
 	isClosed,
+	loadAnsweredDeletedQuestions,
 	loadOwnResponse,
 	loadQuestions,
 	loadRevisions,
@@ -24,11 +25,14 @@ const STATUS: Record<RefusalReason, number> = {
 	not_member: 403,
 	forbidden: 403,
 	closed: 409,
-	already_submitted: 409
+	already_submitted: 409,
+	form_changed: 409
 };
 
 const ALREADY_SUBMITTED =
 	'すでに提出済みの回答があり、編集は許可されていないため、今回の内容は送信されていません。';
+
+const FORM_CHANGED = 'フォームが更新されました。内容を確認してからもう一度送信してください。';
 
 /**
  * Every refusal but an input error, in one type: inferred apart, a shape with a message and a
@@ -41,7 +45,8 @@ const refuse = (status: number, refusal: Refusal) => fail(status, refusal);
 /**
  * The draft as the page may use it, or null when there is nothing it could do with one. A draft
  * that matches the submitted answers is no unsent change, but its version is still returned: the
- * page's next save has to name it.
+ * page's next save has to name it. The submitted answers are compared as the form can hold them,
+ * without an option an edit has deleted since.
  */
 async function ownDraft(
 	formId: string,
@@ -55,11 +60,11 @@ async function ownDraft(
 	return {
 		version: row.version,
 		updatedAt: row.updatedAt,
-		answers: draftDiffers(answers, submitted) ? answers : null
+		answers: draftDiffers(answers, readResponseDraft(submitted, questions)) ? answers : null
 	};
 }
 
-/** Only the questions the page shows: a removed question's answer is not sent. */
+/** Only the questions the page shows them for: any other question's answer is not sent. */
 function liveAnswers(answers: RevisionAnswers, questions: { id: number }[]): RevisionAnswers {
 	return Object.fromEntries(
 		questions.flatMap((q) => {
@@ -100,6 +105,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 		own ? loadRevisions(own.response.id) : []
 	]);
 
+	// The history still shows what was answered to a question an edit has deleted since.
+	const shownRevisions = revisions.length > 1 ? revisions : [];
+	const deletedQuestions = await loadAnsweredDeletedQuestions(params.id, shownRevisions);
+	const historyQuestions = [...questions, ...deletedQuestions];
+
 	return {
 		resultsVisible: canViewResults(target, manage),
 		// Frames the link as a manager's control while the members cannot see the results. Only a
@@ -110,8 +120,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			title: target.title,
 			description: target.description,
 			deadline: target.deadline,
-			closesAt: target.closesAt
+			closesAt: target.closesAt,
+			// Posted back with the answers, which are refused once an edit has moved the form on.
+			version: target.version
 		},
+		// Deleted options come too, marked: they are not offered, but name what was answered before.
 		questions: questions.map((q) => ({
 			id: q.id,
 			type: q.type,
@@ -121,22 +134,27 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			options: q.options,
 			allowOther: q.allowOther
 		})),
+		deletedQuestions: deletedQuestions.map((q) => ({ id: q.id, label: q.label, options: q.options })),
 		closed,
 		editable,
 		submittedAt: own?.response.submittedAt ?? null,
 		updatedAt: own?.response.updatedAt ?? null,
 		answers: submitted,
 		draft,
-		history:
-			revisions.length > 1
-				? revisions.map((revision) => ({
-						number: revision.number,
-						createdAt: revision.createdAt,
-						answers: liveAnswers(revision.answers, questions)
-					}))
-				: []
+		history: shownRevisions.map((revision) => ({
+			number: revision.number,
+			createdAt: revision.createdAt,
+			answers: liveAnswers(revision.answers, historyQuestions)
+		}))
 	};
 };
+
+/** The version the page was drawn with, or null from a page that does not send one. */
+function postedVersion(data: FormData): number | null {
+	const raw = data.get('version');
+	const version = typeof raw === 'string' && raw !== '' ? Number(raw) : NaN;
+	return Number.isSafeInteger(version) ? version : null;
+}
 
 export const actions: Actions = {
 	default: async ({ locals, params, request }) => {
@@ -164,7 +182,8 @@ export const actions: Actions = {
 				params.id,
 				{ id: user.id, discordId: user.discordId },
 				{ roleIds: live.roleIds },
-				inputs
+				inputs,
+				postedVersion(data)
 			);
 			if (!result.ok) {
 				// The reload shows the other submission; this says why the typed answers went unsent.
@@ -173,6 +192,10 @@ export const actions: Actions = {
 						reason: result.reason,
 						message: ALREADY_SUBMITTED
 					});
+				}
+				// The reload brings the edited questions in, and the form stays open on what was typed.
+				if (result.reason === 'form_changed') {
+					return refuse(STATUS.form_changed, { reason: result.reason, message: FORM_CHANGED });
 				}
 				return refuse(STATUS[result.reason], { reason: result.reason });
 			}

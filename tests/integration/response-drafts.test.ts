@@ -630,6 +630,7 @@ describe('opening the answer page', () => {
 			[
 				'answers',
 				'closed',
+				'deletedQuestions',
 				'draft',
 				'editable',
 				'form',

@@ -1,5 +1,6 @@
 <script lang="ts">
 	import {
+		liveOptions,
 		MAX_OTHER_ANSWER,
 		MAX_TEXT_ANSWER,
 		OTHER_OPTION_ID,
@@ -154,7 +155,7 @@
 
 		{#if question.type === 'single' || question.type === 'multi'}
 			<div class="flex flex-col gap-2">
-				{#each question.options ?? [] as option (option.id)}
+				{#each liveOptions(question.options) as option (option.id)}
 					<label class="flex items-center gap-2 text-sm">
 						{@render pick(option.id)}
 						{option.label}

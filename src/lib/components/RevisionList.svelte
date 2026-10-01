@@ -11,16 +11,15 @@
 <script lang="ts" generics="R extends Revision">
 	import type { Snippet } from 'svelte';
 	import { displayJst } from '$lib/display-date';
-	import AnswerList from './AnswerList.svelte';
+	import AnswerList, { type HistoryQuestion } from './AnswerList.svelte';
 	import ItemHeader from './ItemHeader.svelte';
 	import MetaLine from './MetaLine.svelte';
-
-	type Question = { id: number; label: string; options: { id: string; label: string }[] | null };
 
 	type Props = {
 		/** Newest first. */
 		revisions: R[];
-		questions: Question[];
+		/** The live questions, then the deleted ones some revision answered. */
+		questions: HistoryQuestion[];
 		/** The element of each "N版目", one level below the heading the list sits under. */
 		headingTag: 'h2' | 'h3';
 		/** Marks the questions each revision changed from the one before it. */

@@ -9,6 +9,8 @@ export type EditorOption = { id: string; label: string };
 
 export type EditorQuestion = {
 	id: string;
+	/** The published question this one edits, or null for one added in the editor. */
+	sourceId: number | null;
 	type: QuestionType;
 	label: string;
 	helpText: string;
@@ -16,6 +18,20 @@ export type EditorQuestion = {
 	options: EditorOption[];
 	allowOther: boolean;
 };
+
+/** What an edit of a published form may no longer change. A new form locks nothing. */
+export type EditorLocks = {
+	/** The target role and who may submit. */
+	audience: boolean;
+	/** The type of each question the form already has. */
+	questionTypes: boolean;
+	/** The announcement channel. */
+	channel: boolean;
+};
+
+export const NO_LOCKS: EditorLocks = { audience: false, questionTypes: false, channel: false };
+
+export type Choice = { id: string; name: string };
 
 // Shared by the zones and the items so the gap and the cards move together.
 export const FLIP_MS = 150;
@@ -25,6 +41,7 @@ export const newOption = (): EditorOption => ({ id: nanoid(10), label: '' });
 export function newQuestion(): EditorQuestion {
 	return {
 		id: nanoid(8),
+		sourceId: null,
 		type: 'single',
 		label: '',
 		helpText: '',
@@ -48,6 +65,7 @@ export const fromSaved = (q: DraftQuestion): EditorQuestion => ({
 export const duplicateQuestion = (q: EditorQuestion): EditorQuestion => ({
 	...q,
 	id: nanoid(8),
+	sourceId: null,
 	options: q.options.map((option) => ({ ...newOption(), label: option.label }))
 });
 

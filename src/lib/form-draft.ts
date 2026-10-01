@@ -46,6 +46,8 @@ export const MAX_DRAFT_BYTES = 2 * MAX_FORM_BYTES + 10_000;
 export type DraftOption = { id: string; label: string };
 
 export type DraftQuestion = {
+	/** The published question this one edits. Null for a question the form does not have yet. */
+	sourceId: number | null;
 	type: QuestionType;
 	label: string;
 	helpText: string;
@@ -74,6 +76,9 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 	typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const text = (value: unknown): string => (typeof value === 'string' ? value : '');
+
+const questionId = (value: unknown): number | null =>
+	typeof value === 'number' && Number.isSafeInteger(value) && value > 0 ? value : null;
 
 function pick<T extends string>(value: string, allowed: readonly T[], fallback: T): T {
 	return (allowed as readonly string[]).includes(value) ? (value as T) : fallback;
@@ -105,6 +110,7 @@ function readQuestions(raw: string): DraftQuestion[] {
 	return parsed.filter(isRecord).map((entry) => {
 		const type = pick(text(entry.type), QUESTION_TYPES, 'single');
 		return {
+			sourceId: questionId(entry.sourceId),
 			type,
 			label: text(entry.label),
 			helpText: text(entry.helpText),
@@ -143,10 +149,11 @@ export function readDraftPayload(payload: unknown): EditorState {
 	};
 }
 
-/** The editor's hidden `questions` field, as the create action parses it. */
+/** The editor's hidden `questions` field, as the create and publish actions parse it. */
 export function questionsField(questions: DraftQuestion[]): string {
 	return JSON.stringify(
 		questions.map((q) => ({
+			sourceId: q.sourceId,
 			type: q.type,
 			label: q.label,
 			helpText: q.helpText,

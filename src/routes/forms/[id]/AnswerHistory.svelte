@@ -1,4 +1,5 @@
 <script lang="ts">
+	import type { HistoryQuestion } from '$lib/components/AnswerList.svelte';
 	import RevisionList from '$lib/components/RevisionList.svelte';
 	import type { PageData } from './$types';
 
@@ -7,7 +8,8 @@
 	type Props = {
 		/** The viewer's own revisions, newest first. */
 		revisions: Revision[];
-		questions: PageData['questions'];
+		/** The live questions, then the deleted ones some revision answered. */
+		questions: HistoryQuestion[];
 		/** Offers to load an older revision into the form. */
 		canEdit: boolean;
 		onload: (revision: Revision) => void;

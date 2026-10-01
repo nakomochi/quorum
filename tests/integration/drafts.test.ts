@@ -477,8 +477,17 @@ describe('duplicating a form', () => {
 			allowEdit: false,
 			closesAtTouched: false,
 			questions: [
-				{ type: 'text', label: '名前', helpText: '', required: true, options: [], allowOther: false },
 				{
+					sourceId: null,
+					type: 'text',
+					label: '名前',
+					helpText: '',
+					required: true,
+					options: [],
+					allowOther: false
+				},
+				{
+					sourceId: null,
 					type: 'single',
 					label: '参加',
 					helpText: '',

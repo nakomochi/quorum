@@ -8,6 +8,7 @@
  */
 
 import {
+	liveOptions,
 	MAX_RESPONSE_BYTES,
 	OTHER_OPTION_ID,
 	sameAnswers,
@@ -30,7 +31,7 @@ export const MAX_RESPONSE_DRAFT_BYTES = 6 * MAX_RESPONSE_BYTES + 50_000;
 export type DraftQuestion = {
 	id: number;
 	type: QuestionType;
-	options: { id: string }[] | null;
+	options: { id: string; deleted?: boolean }[] | null;
 	allowOther: boolean;
 };
 
@@ -82,7 +83,7 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
 
 function readValue(raw: unknown, q: DraftQuestion): AnswerValue | null {
 	if (!isRecord(raw) || raw.type !== q.type) return null;
-	const known = new Set((q.options ?? []).map((option) => option.id));
+	const known = new Set(liveOptions(q.options).map((option) => option.id));
 	const other = q.allowOther && typeof raw.other === 'string' ? raw.other : undefined;
 
 	switch (q.type) {
@@ -108,7 +109,8 @@ function readValue(raw: unknown, q: DraftQuestion): AnswerValue | null {
 
 /**
  * Stored drafts are never validated, so only what fits today's questions is read back: an entry
- * for a removed question, a mismatched type or an unknown option is dropped.
+ * for a removed question, a mismatched type or an unknown or deleted option is dropped. Also what
+ * a submitted answer or an older revision becomes when it is put back into the form.
  */
 export function readResponseDraft(raw: unknown, questions: DraftQuestion[]): RevisionAnswers {
 	const stored = isRecord(raw) ? raw : {};

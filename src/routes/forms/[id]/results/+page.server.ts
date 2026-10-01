@@ -83,6 +83,8 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		rosterSyncedAt,
 		// Set by the redirect the creation page takes when the announcement could not be posted.
 		announceFailed: manage && url.searchParams.get('announce') === 'failed',
+		// Set by the redirect the edit page takes once the edit is published.
+		published: manage && url.searchParams.get('published') === '1',
 		// Links, not ids: the page only needs to open the messages.
 		announcement: manage
 			? {
@@ -94,11 +96,12 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 				}
 			: null,
 		reminders: manage ? await listReminders(params.id, target.announcementChannelId) : [],
+		// Deleted options too, unmarked: the table still names what was answered with them.
 		questions: questions.map((q) => ({
 			id: q.id,
 			label: q.label,
 			type: q.type,
-			options: q.options
+			options: q.options?.map(({ id, label }) => ({ id, label })) ?? null
 		})),
 		tallies: tallyChoices(questions, [...results.submitted, ...results.outsiders]),
 		frozen: results.frozen,

@@ -199,7 +199,10 @@ function literal(value: string): string {
  * transaction, while it holds its locks. Dropped again whatever `fn` does.
  */
 export async function withSlowWrites<T>(
-	target: { table: 'response'; formId: string; seconds: number } | { table: 'guild_member'; seconds: number },
+	target:
+		| { table: 'response'; formId: string; seconds: number }
+		| { table: 'question'; formId: string; seconds: number }
+		| { table: 'guild_member'; seconds: number },
 	fn: () => Promise<T>
 ): Promise<T> {
 	await db.execute(
@@ -214,7 +217,9 @@ export async function withSlowWrites<T>(
 	const spec =
 		target.table === 'response'
 			? `before insert on response for each row when (new.form_id = ${literal(target.formId)})`
-			: 'after insert on guild_member for each statement';
+			: target.table === 'question'
+				? `before update on question for each row when (new.form_id = ${literal(target.formId)})`
+				: 'after insert on guild_member for each statement';
 	await db.execute(sql.raw(`create trigger test_slow_write ${spec} execute function test_sleep(${seconds})`));
 	try {
 		return await fn();

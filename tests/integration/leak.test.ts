@@ -10,6 +10,7 @@ import { announceForm, sendReminder } from '$lib/server/notify';
 import { load as layoutLoad } from '../../src/routes/+layout.server';
 import { load as topLoad } from '../../src/routes/+page.server';
 import { actions as formActions, load as formLoad } from '../../src/routes/forms/[id]/+page.server';
+import { actions as editActions, load as editLoad } from '../../src/routes/forms/[id]/edit/+page.server';
 import {
 	actions as resultsActions,
 	load as resultsLoad
@@ -405,6 +406,74 @@ describe('what a member receives', () => {
 			inputError: { message: 'この質問は必須です', at: { questionId: open.questions[0].id } }
 		});
 		expectNoLeak(result.data, [...secrets, SECRET_NAME, viewer.discordId]);
+	});
+
+	test('edit page: the editor and its settings, and nothing else of the form', async () => {
+		const { creator, other, open } = await scene();
+		const announced = await announceForm(open.id);
+		const messageId = announced.ok ? announced.messageId : '';
+		discord.calls = [];
+
+		const data = (await editLoad(event(creator, { id: open.id }, `/forms/${open.id}/edit`))) as {
+			editor: Record<string, unknown> & { draft: Record<string, unknown> };
+		};
+
+		expect(Object.keys(data).sort()).toEqual(['closed', 'editor', 'form']);
+		expect(Object.keys(data.editor).sort()).toEqual(
+			['baseVersion', 'channels', 'draft', 'locks', 'resumed', 'roles', 'stale'].sort()
+		);
+		expect(Object.keys(data.editor.draft).sort()).toEqual(['id', 'state', 'updatedAt', 'version']);
+		// The settings the editor draws are the manager's to see; nobody's answers or ids are.
+		const keys = keysOf(data);
+		expect(
+			['payload', 'createdBy', 'finalNonSubmitters', 'finalTargetIds', 'announcementMessageId', 'closeMessageId', 'discordId'].filter((key) => keys.has(key))
+		).toEqual([]);
+		const text = JSON.stringify(data);
+		expect([creator.id, other.id, other.discordId, SECRET_NAME, messageId].filter((s) => text.includes(s))).toEqual([]);
+		// Roles and channels for the pickers: the only Discord calls.
+		expect(new Set(discord.calls.map((call) => call.route))).toEqual(new Set(['roles', 'channels']));
+	});
+
+	test('edit page: a closed form gives its title and nothing more', async () => {
+		const { creator, adminOnly } = await scene();
+
+		const data = await editLoad(event(creator, { id: adminOnly.id }, `/forms/${adminOnly.id}/edit`));
+
+		expect(data).toEqual({ form: { id: adminOnly.id, title: 'テストフォーム' }, closed: true, editor: null });
+	});
+
+	test('edit page actions answer with a sentence, a reason or an input error, and nothing else', async () => {
+		const { creator, open, adminOnly, secrets } = await scene();
+		const publish = async (id: string, fields: Record<string, string>) => {
+			const body = new FormData();
+			for (const [name, value] of Object.entries(fields)) body.set(name, value);
+			const request = new Request(`http://forms.test/forms/${id}/edit?/publish`, { method: 'POST', body });
+			return (await editActions.publish({
+				locals: sessionLocals(creator),
+				params: { id },
+				request
+			} as never)) as { status: number; data: Record<string, unknown> };
+		};
+		const valid = {
+			title: 't',
+			targetRoleId: TARGET_ROLE,
+			submitScope: 'target_role',
+			announcementChannelId: CHANNEL_ID,
+			questions: JSON.stringify([{ type: 'text', label: 'q' }])
+		};
+
+		const results = [
+			await publish(open.id, { ...valid, title: '' }),
+			await publish(open.id, { ...valid, baseVersion: '0' }),
+			await publish(adminOnly.id, { ...valid, baseVersion: '1' })
+		];
+
+		expect(results.map((r) => [r.status, Object.keys(r.data).sort()])).toEqual([
+			[400, ['inputError']],
+			[409, ['message', 'reason']],
+			[409, ['message']]
+		]);
+		for (const result of results) expectNoLeak(result.data, [...secrets, SECRET_NAME]);
 	});
 
 	test('the creator does see the manager fields', async () => {

@@ -212,8 +212,12 @@
 										items={[deadlineItem(row.deadline), { label: '回答', value: `${row.responseCount}名` }]}
 									/>
 								</a>
-								<!-- The results page's own action: it redirects to the new draft. -->
+								<!-- 複製 is the results page's own action: it redirects to the new draft. A
+								     closed form is reopened before it is edited. -->
 								{@render rowMenu(`「${row.title}」の操作`, [
+									...(row.status === 'closed'
+										? []
+										: [{ kind: 'link' as const, label: '編集', href: `/forms/${row.id}/edit` }]),
 									{ kind: 'post', label: '複製', action: `/forms/${row.id}/results?/duplicate` }
 								])}
 							</li>

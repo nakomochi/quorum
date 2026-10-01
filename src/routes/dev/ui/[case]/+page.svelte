@@ -3,6 +3,7 @@
 		ADMIN_CASES,
 		ANSWER_CASES,
 		draftApiResponse,
+		EDIT_CASES,
 		HISTORY_CASES,
 		HOME_CASES,
 		NEW_CASES,
@@ -17,6 +18,7 @@
 	import ResultsPage from '../../../forms/[id]/results/+page.svelte';
 	import HistoryPage from '../../../forms/[id]/results/[responseId]/+page.svelte';
 	import NewFormPage from '../../../forms/new/+page.svelte';
+	import EditFormPage from '../../../forms/[id]/edit/+page.svelte';
 	import AdminFormsPage from '../../../admin/forms/+page.svelte';
 
 	let { data } = $props();
@@ -26,9 +28,10 @@
 	const results = $derived(RESULTS_CASES.find((entry) => entry.id === data.case));
 	const history = $derived(HISTORY_CASES.find((entry) => entry.id === data.case));
 	const created = $derived(NEW_CASES.find((entry) => entry.id === data.case));
+	const edited = $derived(EDIT_CASES.find((entry) => entry.id === data.case));
 	const admin = $derived(ADMIN_CASES.find((entry) => entry.id === data.case));
 
-	const entry = $derived([home, answer, results, history, created, admin].find(Boolean));
+	const entry = $derived([home, answer, results, history, created, edited, admin].find(Boolean));
 	const setup = $derived(entry?.setup);
 
 	// The root layout's Toaster reads the real action result, which the catalogue never has. The
@@ -84,6 +87,8 @@
 	<HistoryPage data={history.data} />
 {:else if created}
 	<NewFormPage data={created.data} form={created.form ?? null} />
+{:else if edited}
+	<EditFormPage data={edited.data} form={edited.form ?? null} />
 {:else if admin}
 	<AdminFormsPage data={admin.data} />
 {/if}

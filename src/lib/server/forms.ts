@@ -21,6 +21,7 @@ import { syncAllMembers } from './guild-sync';
 import { parseJstLocal } from '../datetime';
 import {
 	hasOptions,
+	liveOptions,
 	MAX_DESCRIPTION,
 	MAX_FORM_BYTES,
 	MAX_HELP_TEXT,
@@ -87,6 +88,9 @@ export type QuestionDraft = {
 	allowOther: boolean;
 };
 
+/** A posted question. `sourceId` names the published question an edit changes; creation ignores it. */
+export type ParsedQuestion = QuestionDraft & { sourceId: number | null };
+
 export type CreateFormInput = {
 	title: string;
 	description: string | null;
@@ -100,6 +104,8 @@ export type CreateFormInput = {
 	announceClose: boolean;
 	questions: QuestionDraft[];
 };
+
+export type ParsedForm = Omit<CreateFormInput, 'questions'> & { questions: ParsedQuestion[] };
 
 /**
  * Roles an admin may target. @everyone carries no information (its id is the guild id and
@@ -185,7 +191,16 @@ function parseOptions(raw: unknown, type: QuestionType, index: number): Question
 	});
 }
 
-export function parseQuestions(raw: FormDataEntryValue | null): QuestionDraft[] {
+function parseSourceId(raw: unknown, seen: Set<number>, index: number): number | null {
+	if (raw === undefined || raw === null) return null;
+	if (typeof raw !== 'number' || !Number.isSafeInteger(raw) || raw <= 0 || seen.has(raw)) {
+		throw new FormInputError('質問データが不正です', { question: index });
+	}
+	seen.add(raw);
+	return raw;
+}
+
+export function parseQuestions(raw: FormDataEntryValue | null): ParsedQuestion[] {
 	if (typeof raw !== 'string' || raw.trim() === '') {
 		throw new FormInputError('質問を1つ以上追加してください');
 	}
@@ -204,9 +219,11 @@ export function parseQuestions(raw: FormDataEntryValue | null): QuestionDraft[] 
 		throw new FormInputError(`質問は${MAX_QUESTIONS}件までです`);
 	}
 
+	const sourceIds = new Set<number>();
 	return parsed.map((entry, index) => {
 		const draft = entry as Record<string, unknown>;
 		const invalid = (message: string) => new FormInputError(message, { question: index });
+		const sourceId = parseSourceId(draft.sourceId, sourceIds, index);
 
 		const type = draft.type;
 		if (typeof type !== 'string' || !(QUESTION_TYPES as readonly string[]).includes(type)) {
@@ -221,6 +238,7 @@ export function parseQuestions(raw: FormDataEntryValue | null): QuestionDraft[] 
 		if (helpText.length > MAX_HELP_TEXT) throw invalid(`補足は${MAX_HELP_TEXT}文字以内です`);
 
 		return {
+			sourceId,
 			type: type as QuestionType,
 			label,
 			helpText: helpText || null,
@@ -239,7 +257,8 @@ function formBytes(data: FormData): number {
 	}, 0);
 }
 
-export function parseCreateFormPayload(data: FormData): CreateFormInput {
+/** The editor's submission, for creating a form and for publishing an edit alike. */
+export function parseCreateFormPayload(data: FormData): ParsedForm {
 	if (formBytes(data) > MAX_FORM_BYTES) {
 		throw new FormInputError('フォームが大きすぎます。質問や選択肢を減らしてください');
 	}
@@ -287,10 +306,17 @@ export async function createForm(
 	const id = newFormId();
 
 	await db.transaction(async (tx) => {
+		// Only a creation draft: an edit draft names a form and is never turned into a new one.
 		if (draftId) {
 			await tx
 				.delete(formDraft)
-				.where(and(eq(formDraft.id, draftId), eq(formDraft.createdBy, createdBy)));
+				.where(
+					and(
+						eq(formDraft.id, draftId),
+						eq(formDraft.createdBy, createdBy),
+						isNull(formDraft.formId)
+					)
+				);
 		}
 
 		await tx.insert(form).values({
@@ -364,6 +390,7 @@ export async function loadForm(formId: string): Promise<Form | null> {
 	return row ?? null;
 }
 
+/** The questions a respondent sees, in order. Deleted ones are left out. */
 export async function loadQuestions(formId: string): Promise<Question[]> {
 	return db
 		.select()
@@ -372,12 +399,31 @@ export async function loadQuestions(formId: string): Promise<Question[]> {
 		.orderBy(asc(question.position), asc(question.id));
 }
 
+/**
+ * Deleted questions that `revisions` answered, for a history that still shows those answers.
+ * Ordered after the live questions by where they stood.
+ */
+export async function loadAnsweredDeletedQuestions(
+	formId: string,
+	revisions: { answers: RevisionAnswers }[]
+): Promise<Question[]> {
+	const ids = [
+		...new Set(revisions.flatMap((revision) => Object.keys(revision.answers).map(Number)))
+	].filter((id) => Number.isSafeInteger(id));
+	if (ids.length === 0) return [];
+	return db
+		.select()
+		.from(question)
+		.where(and(eq(question.formId, formId), inArray(question.id, ids), isNotNull(question.deletedAt)))
+		.orderBy(asc(question.position), asc(question.id));
+}
+
 // The messages name no question: they are shown inside the question's own card.
 const invalidAnswer = (q: Question, message: string) =>
 	new FormInputError(message, { questionId: q.id });
 
 function requireOption(q: Question, optionId: string) {
-	if (!q.options?.some((option) => option.id === optionId)) {
+	if (!liveOptions(q.options).some((option) => option.id === optionId)) {
 		throw invalidAnswer(q, '選択肢が不正です');
 	}
 }
@@ -463,7 +509,8 @@ function answerInputBytes(inputs: AnswerInputs): number {
 	return total;
 }
 
-export type SubmitFailure = 'not_found' | 'forbidden' | 'closed' | 'already_submitted';
+/** 'form_changed': an edit was published after the answers were checked, or after the page was drawn. */
+export type SubmitFailure = 'not_found' | 'forbidden' | 'closed' | 'already_submitted' | 'form_changed';
 
 export type SubmitResult =
 	| { ok: true; responseId: number; created: boolean }
@@ -475,17 +522,23 @@ export type SubmitResult =
  *
  * The response row is inserted with ON CONFLICT DO NOTHING so that the response_form_user_uq
  * index reports a duplicate as a normal branch instead of a 500.
+ *
+ * `version` is the form.version the answer page was drawn with, when it says. The answers are
+ * checked against the questions as they are now, and the version they were read at must still
+ * hold under the transaction's lock.
  */
 export async function submitResponse(
 	formId: string,
 	user: { id: string; discordId: string },
 	member: MemberContext,
-	inputs: AnswerInputs
+	inputs: AnswerInputs,
+	version: number | null = null
 ): Promise<SubmitResult> {
 	const target = await loadForm(formId);
 	if (!target) return { ok: false, reason: 'not_found' };
 	if (isClosed(target)) return { ok: false, reason: 'closed' };
 	if (!canSubmit(target, member)) return { ok: false, reason: 'forbidden' };
+	if (version !== null && version !== target.version) return { ok: false, reason: 'form_changed' };
 	if (answerInputBytes(inputs) > MAX_RESPONSE_BYTES) {
 		throw new FormInputError('回答が大きすぎます。入力を短くしてください');
 	}
@@ -502,15 +555,17 @@ export async function submitResponse(
 	);
 
 	return db.transaction(async (tx) => {
-		// Re-read under a row lock: the check above raced with closeForm, which takes FOR UPDATE.
+		// Re-read under a row lock: the checks above raced with closeForm and with a published edit,
+		// both of which take FOR UPDATE.
 		const [current] = await tx
-			.select({ closedAt: form.closedAt, closesAt: form.closesAt })
+			.select({ closedAt: form.closedAt, closesAt: form.closesAt, version: form.version })
 			.from(form)
 			.where(eq(form.id, formId))
 			.for('share')
 			.limit(1);
 		if (!current) return { ok: false, reason: 'not_found' } as const;
 		if (isClosed(current)) return { ok: false, reason: 'closed' } as const;
+		if (current.version !== target.version) return { ok: false, reason: 'form_changed' } as const;
 
 		const [inserted] = await tx
 			.insert(response)
@@ -522,8 +577,8 @@ export async function submitResponse(
 		const created = inserted !== undefined;
 
 		// No write to the form row here: upgrading this FOR SHARE deadlocks concurrent first
-		// responses. A future form editor should tell "has responses" from the response table and
-		// lock the form FOR UPDATE, which serializes it against this FOR SHARE.
+		// responses. A published edit tells "has responses" from the response table under its
+		// FOR UPDATE, which serializes it against this FOR SHARE.
 		if (inserted) {
 			responseId = inserted.id;
 		} else {
@@ -860,7 +915,12 @@ export async function loadResults(target: Form): Promise<FormResults> {
 	const responseIds = rows.map((row) => row.responseId);
 	const [answers, revisionCounts] = rows.length
 		? await Promise.all([
-				db.select().from(answer).where(inArray(answer.responseId, responseIds)),
+				// A deleted question's answers stay in the database and out of the results.
+				db
+					.select({ responseId: answer.responseId, questionId: answer.questionId, value: answer.value })
+					.from(answer)
+					.innerJoin(question, eq(question.id, answer.questionId))
+					.where(and(inArray(answer.responseId, responseIds), isNull(question.deletedAt))),
 				db
 					.select({ responseId: responseRevision.responseId, count: count() })
 					.from(responseRevision)
@@ -1027,7 +1087,9 @@ export function tallyChoices(questions: Question[], rows: ResultRow[]): ChoiceTa
 	return questions
 		.filter((q) => hasOptions(q.type))
 		.map((q) => {
-			const counts = new Map((q.options ?? []).map((option) => [option.id, 0]));
+			// A deleted option is no candidate any more, and its answers drop out like unknown ids.
+			const options = liveOptions(q.options);
+			const counts = new Map(options.map((option) => [option.id, 0]));
 			let other = 0;
 
 			for (const row of rows) {
@@ -1051,8 +1113,9 @@ export function tallyChoices(questions: Question[], rows: ResultRow[]): ChoiceTa
 				questionId: q.id,
 				label: q.label,
 				type: q.type,
-				options: (q.options ?? []).map((option) => ({
-					...option,
+				options: options.map((option) => ({
+					id: option.id,
+					label: option.label,
 					count: counts.get(option.id) ?? 0
 				})),
 				other: q.allowOther ? other : null

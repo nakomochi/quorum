@@ -14,7 +14,7 @@
 		type SaveStatus as DraftSaveStatus
 	} from '$lib/draft-autosave';
 	import type { AnswerValue, InputError, RevisionAnswers } from '$lib/forms';
-	import { answersFromFields, draftDiffers } from '$lib/response-draft';
+	import { answersFromFields, draftDiffers, readResponseDraft } from '$lib/response-draft';
 	import { toast } from '$lib/toast.svelte';
 	import AnswerForm, { questionAnchor } from './AnswerForm.svelte';
 	import AnswerHistory from './AnswerHistory.svelte';
@@ -28,6 +28,8 @@
 	type Revision = (typeof data.history)[number];
 
 	const submittedAnswers = $derived(data.answers as Answers);
+	// The same as the fields can hold them: an option an edit has deleted since is no choice.
+	const formAnswers = $derived(readResponseDraft(data.answers, data.questions));
 
 	// Read once: from here on the page tracks its draft itself, and a later load (after a refused
 	// submission) must not replace what has been typed since.
@@ -35,7 +37,7 @@
 
 	// What the form's fields start from. Set whenever the form is opened on other answers, and
 	// `formKey` then redraws the fields, which take their values from it only when created.
-	let formSource = $state<Answers>(untrack(() => initialDraft?.answers ?? data.answers));
+	let formSource = $state<Answers>(untrack(() => initialDraft?.answers ?? formAnswers));
 	let formKey = $state(0);
 
 	// Answers saved as a draft and not sent, as far as this page knows: restored by the load, or
@@ -45,10 +47,11 @@
 	let restoredAt = $state<Date | null>(initialDraft?.answers ? initialDraft.updatedAt : null);
 
 	// Both follow the latest action result, and 回答を編集 overrides them until the next one
-	// arrives: an input error, a passing fault or a close keeps the form open. Any other refusal
-	// carries a reason and reloads the page, which returns to the confirmation.
+	// arrives: an input error, a passing fault, a close or an edit of the form keeps the form open.
+	// Any other refusal carries a reason and reloads the page, which returns to the confirmation.
 	let editing = $derived(
 		form?.reason === 'closed' ||
+			form?.reason === 'form_changed' ||
 			(form?.reason === undefined &&
 				(form?.message !== undefined || form?.inputError !== undefined))
 	);
@@ -150,7 +153,8 @@
 
 	async function loadRevision(revision: Revision) {
 		if (unsent && !confirm('未送信の変更を、この版の内容で置き換えます')) return;
-		openForm(revision.answers);
+		// Only what still fits the form: answers to deleted questions and options stay behind.
+		openForm(readResponseDraft(revision.answers, data.questions));
 		await tick();
 		// Saved as an unsent change like anything typed: only sending makes it a new revision.
 		edited();
@@ -160,7 +164,7 @@
 	function cancelEditing() {
 		const current = readFields();
 		void autosave.flush();
-		unsent = draftDiffers(current, data.answers) ? current : null;
+		unsent = draftDiffers(current, formAnswers) ? current : null;
 		editing = false;
 	}
 
@@ -176,7 +180,7 @@
 			if (submitted) {
 				editing = false;
 			} else {
-				formSource = submittedAnswers;
+				formSource = formAnswers;
 				formKey++;
 			}
 			discarding = false;
@@ -205,8 +209,10 @@
 			if (reason) await invalidateAll();
 			submitting = false;
 			if (result.type === 'success') resetDraft();
-			// An input error or a passing fault leaves the draft as it was, and saving goes on.
-			else if (!reason) autosave.resume();
+			// An input error, a passing fault or an edit of the form leaves the draft as it was, and
+			// saving goes on. After an edit the fields kept what was typed: they are keyed by question,
+			// and the reload only brought the edited questions in around them.
+			else if (!reason || reason === 'form_changed') autosave.resume();
 			// The confirmation is at the top, and the submit button at the bottom of the form. A
 			// close and a form-wide input error are shown beside the button, where the reader
 			// already is, and a passing fault in a toast.
@@ -266,6 +272,7 @@
 		{#key formKey}
 			<AnswerForm
 				questions={data.questions}
+				version={data.form.version}
 				source={formSource}
 				{saveStatus}
 				{closed}
@@ -288,7 +295,7 @@
 			{canEdit}
 			unsent={unsent !== null}
 			{discarding}
-			onedit={() => openForm(submittedAnswers)}
+			onedit={() => openForm(formAnswers)}
 			oncontinue={() => unsent && openForm(unsent)}
 			ondiscard={discard}
 		/>
@@ -301,7 +308,10 @@
 		{#if data.history.length > 0}
 			<AnswerHistory
 				revisions={data.history}
-				questions={data.questions}
+				questions={[
+					...data.questions,
+					...data.deletedQuestions.map((q) => ({ ...q, deleted: true }))
+				]}
 				{canEdit}
 				onload={loadRevision}
 			/>

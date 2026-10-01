@@ -23,6 +23,18 @@ export const VISIBILITY_LABELS: Record<Visibility, string> = {
 
 export const hasOptions = (type: QuestionType) => type === 'single' || type === 'multi';
 
+/**
+ * The options a respondent may still choose. An option removed by an edit stays in the stored list
+ * marked `deleted`, so that answers naming it keep their label.
+ */
+export const liveOptions = <T extends { deleted?: boolean }>(options: T[] | null): T[] =>
+	(options ?? []).filter((option) => !option.deleted);
+
+// Why an edit of a published form may not change a setting, shown beside it and sent by the server.
+export const AUDIENCE_LOCKED = '回答があるため変更できません。複製して作り直してください';
+export const TYPE_LOCKED = '回答があるため変更できません';
+export const CHANNEL_LOCKED = 'Discord に投稿済みのため変更できません';
+
 /** How a form stands for its creator; the top page gets this instead of the times behind it. */
 export type FormStatus = 'open' | 'ended' | 'closed';
 
@@ -102,7 +114,7 @@ export function sameAnswers(a: RevisionAnswers, b: RevisionAnswers): boolean {
 	return [...keys].every((key) => sameAnswer(a[key], b[key]));
 }
 
-/** The creation form's fields, by the name they are posted under. */
+/** The form editor's fields, by the name they are posted under. */
 export type FormField =
 	| 'title'
 	| 'description'
@@ -114,7 +126,7 @@ export type FormField =
 	| 'closesAt';
 
 /**
- * Where rejected input is shown: a creation field, a question by its place in the posted list
+ * Where rejected input is shown: a creation or edit field, a question by its place in the posted list
  * (counted from 0), or an answered question by its id. Null for the form as a whole.
  */
 export type InputErrorAt = { field: FormField } | { question: number } | { questionId: number };

@@ -1,5 +1,9 @@
 import { error } from '@sveltejs/kit';
-import { loadQuestions, loadResponseHistory } from '$lib/server/forms';
+import {
+	loadAnsweredDeletedQuestions,
+	loadQuestions,
+	loadResponseHistory
+} from '$lib/server/forms';
 import { requireFormManager } from '$lib/server/guards';
 import type { PageServerLoad } from './$types';
 
@@ -23,7 +27,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 	const history = responseId === null ? null : await loadResponseHistory(target.id, responseId);
 	if (!history) error(404, NOT_FOUND);
 
-	const questions = await loadQuestions(target.id);
+	// A question an edit has deleted since is still shown where a revision answered it.
+	const [questions, deleted] = await Promise.all([
+		loadQuestions(target.id),
+		loadAnsweredDeletedQuestions(target.id, history.revisions)
+	]);
 
 	return {
 		form: { id: target.id, title: target.title },
@@ -33,6 +41,9 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			updatedAt: history.updatedAt
 		},
 		revisions: history.revisions,
-		questions: questions.map((q) => ({ id: q.id, label: q.label, options: q.options }))
+		questions: [
+			...questions.map((q) => ({ id: q.id, label: q.label, options: q.options, deleted: false })),
+			...deleted.map((q) => ({ id: q.id, label: q.label, options: q.options, deleted: true }))
+		]
 	};
 };

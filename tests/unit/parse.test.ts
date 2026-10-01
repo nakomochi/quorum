@@ -69,6 +69,7 @@ describe('parseQuestions', () => {
 			])
 		);
 		expect(text).toEqual({
+			sourceId: null,
 			type: 'text',
 			label: '名前',
 			helpText: null,
@@ -77,12 +78,26 @@ describe('parseQuestions', () => {
 			allowOther: false
 		});
 		expect(choice).toEqual({
+			sourceId: null,
 			type: 'single',
 			label: '質問',
 			helpText: '補足',
 			required: true,
 			options: [{ id: 'a', label: 'A' }],
 			allowOther: true
+		});
+	});
+
+	test('takes a published question’s id as its source, once each, and nothing else', () => {
+		const text = (sourceId: unknown) => ({ type: 'text', label: 'q', sourceId });
+		const parsed = parseQuestions(JSON.stringify([text(12), text(null), { type: 'text', label: 'q' }]));
+		expect(parsed.map((q) => q.sourceId)).toEqual([12, null, null]);
+
+		for (const bad of [0, -3, 1.5, '12', true]) {
+			rejects(() => parseQuestions(JSON.stringify([text(bad)])), /^質問データが不正です$/, { question: 0 });
+		}
+		rejects(() => parseQuestions(JSON.stringify([text(5), text(5)])), /^質問データが不正です$/, {
+			question: 1
 		});
 	});
 

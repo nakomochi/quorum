@@ -1,9 +1,10 @@
-import { and, desc, eq, sql } from 'drizzle-orm';
+import { and, desc, eq, isNull, sql } from 'drizzle-orm';
 import { db } from './db';
-import { formDraft, newFormId, type Form } from './db/schema';
+import { formDraft, newFormId, type Form, type Question } from './db/schema';
 import { loadQuestions } from './forms';
+import { toJstLocal } from '../datetime';
 import { draftPayload, questionsField, type FormDraftPayload } from '../form-draft';
-import { MAX_TITLE } from '../forms';
+import { liveOptions, MAX_TITLE } from '../forms';
 
 /**
  * Drafts touch no other row and take no lock: they affect nobody but their author, and the
@@ -70,7 +71,10 @@ export async function deleteDraft(id: string, userId: string): Promise<boolean> 
 	return rows.length > 0;
 }
 
-/** Null for a draft that does not exist or belongs to someone else. */
+/**
+ * A creation draft of the user's own. Null for a draft that does not exist, belongs to someone
+ * else, or edits a published form: the creation page must never turn an edit into a new form.
+ */
 export async function loadDraft(id: string, userId: string) {
 	const [row] = await db
 		.select({
@@ -80,12 +84,15 @@ export async function loadDraft(id: string, userId: string) {
 			payload: formDraft.payload
 		})
 		.from(formDraft)
-		.where(and(eq(formDraft.id, id), eq(formDraft.createdBy, userId)))
+		.where(and(eq(formDraft.id, id), eq(formDraft.createdBy, userId), isNull(formDraft.formId)))
 		.limit(1);
 	return row ?? null;
 }
 
-/** What the top page lists. The title is read inside the database so no payload leaves it. */
+/**
+ * What the top page lists: creation drafts only, since an edit is reached from its form. The title
+ * is read inside the database so no payload leaves it.
+ */
 export type DraftSummary = { id: string; title: string | null; updatedAt: Date };
 
 export async function listDrafts(userId: string): Promise<DraftSummary[]> {
@@ -96,7 +103,7 @@ export async function listDrafts(userId: string): Promise<DraftSummary[]> {
 			updatedAt: formDraft.updatedAt
 		})
 		.from(formDraft)
-		.where(eq(formDraft.createdBy, userId))
+		.where(and(eq(formDraft.createdBy, userId), isNull(formDraft.formId)))
 		.orderBy(desc(formDraft.updatedAt), desc(formDraft.id));
 
 	return rows.map((row) => ({
@@ -113,46 +120,50 @@ export function copyTitle(title: string): string {
 	return title.slice(0, MAX_TITLE - COPY_SUFFIX.length) + COPY_SUFFIX;
 }
 
-/**
- * A new draft holding a published form's content, for its creator or an admin to start from. The
- * deadline and closing time are left out: they are usually past by the time a form is reused.
- * The form itself is only read.
- */
-export async function duplicateForm(
-	source: Pick<
-		Form,
-		| 'id'
-		| 'title'
-		| 'description'
-		| 'targetRoleId'
-		| 'submitScope'
-		| 'visibility'
-		| 'allowEdit'
-		| 'announcementChannelId'
-		| 'announceClose'
-	>,
-	userId: string
-): Promise<SavedDraft> {
-	const questions = await loadQuestions(source.id);
+export type DraftSource = Pick<
+	Form,
+	| 'title'
+	| 'description'
+	| 'targetRoleId'
+	| 'submitScope'
+	| 'visibility'
+	| 'deadline'
+	| 'closesAt'
+	| 'allowEdit'
+	| 'announcementChannelId'
+	| 'announceClose'
+>;
 
+/**
+ * A published form as the editor's fields, the way FormData would carry them. A copy is a new form:
+ * its questions name no source, and its title and times are left to the caller. Deleted questions
+ * and options are not carried.
+ */
+export function formFields(
+	source: DraftSource,
+	questions: Question[],
+	copy: boolean
+): Record<string, string[]> {
+	const time = (value: Date | null) => (copy || !value ? '' : toJstLocal(value));
 	const fields: Record<string, string[]> = {
-		title: [copyTitle(source.title)],
+		title: [copy ? copyTitle(source.title) : source.title],
 		description: [source.description ?? ''],
 		targetRoleId: [source.targetRoleId],
 		announcementChannelId: [source.announcementChannelId ?? ''],
 		announceClose: [source.announceClose ? 'on' : 'off'],
 		submitScope: [source.submitScope],
 		visibility: [source.visibility],
-		deadline: [''],
-		closesAt: [''],
+		deadline: [time(source.deadline)],
+		closesAt: [time(source.closesAt)],
 		questions: [
 			questionsField(
 				questions.map((q) => ({
+					sourceId: copy ? null : q.id,
 					type: q.type,
 					label: q.label,
 					helpText: q.helpText ?? '',
 					required: q.required,
-					options: q.options ?? [],
+					options: liveOptions(q.options).map(({ id, label }) => ({ id, label })),
 					allowOther: q.allowOther
 				}))
 			)
@@ -160,6 +171,18 @@ export async function duplicateForm(
 	};
 	// Like FormData: an unchecked box has no entry.
 	if (source.allowEdit) fields.allowEdit = ['on'];
+	return fields;
+}
 
-	return createDraft(userId, draftPayload(fields, false));
+/**
+ * A new draft holding a published form's content, for its creator or an admin to start from. The
+ * deadline and closing time are left out: they are usually past by the time a form is reused.
+ * The form itself is only read.
+ */
+export async function duplicateForm(
+	source: DraftSource & Pick<Form, 'id'>,
+	userId: string
+): Promise<SavedDraft> {
+	const questions = await loadQuestions(source.id);
+	return createDraft(userId, draftPayload(formFields(source, questions, true), false));
 }

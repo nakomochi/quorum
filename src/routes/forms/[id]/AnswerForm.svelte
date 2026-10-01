@@ -16,6 +16,8 @@
 
 	type Props = {
 		questions: PageData['questions'];
+		/** The form's version the questions were read at, posted with the answers. */
+		version: number;
 		/** What the fields start from. They take it only when they are created. */
 		source: Record<string, AnswerValue | undefined>;
 		saveStatus: DraftSaveStatus;
@@ -35,6 +37,7 @@
 
 	let {
 		questions,
+		version,
 		source,
 		saveStatus,
 		closed,
@@ -64,6 +67,7 @@
 	onchange={onedit}
 	class="flex scroll-mt-4 flex-col gap-5"
 >
+	<input type="hidden" name="version" value={version} />
 	{#each questions as q (q.id)}
 		<QuestionField question={q} value={source[q.id]} error={errorOf(q.id)} id={questionAnchor(q.id)} />
 	{/each}

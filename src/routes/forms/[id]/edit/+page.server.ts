@@ -1,4 +1,5 @@
 import { error, fail, isHttpError, redirect } from '@sveltejs/kit';
+import { toJstLocal } from '$lib/datetime';
 import { readDraftPayload } from '$lib/form-draft';
 import { listGuildChannels } from '$lib/server/discord';
 import {
@@ -16,6 +17,7 @@ import {
 } from '$lib/server/forms';
 import { FORM_NOT_FOUND, requireFormManager } from '$lib/server/guards';
 import { syncAllMembers } from '$lib/server/guild-sync';
+import { postDeadlineChange, refreshAnnouncement } from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 const CLOSED = 'このフォームは確定済みのため編集できません。受付を再開してから編集してください。';
@@ -32,6 +34,23 @@ const UNAVAILABLE =
 type Refusal = { reason?: 'stale'; message: string };
 
 const refuse = (status: number, refusal: Refusal) => fail(status, refusal);
+
+/**
+ * False when a Discord post after the publish failed, or anything under it threw. Having nothing to
+ * post is no failure.
+ */
+async function reported(
+	what: string,
+	pending: Promise<{ ok: true } | { ok: false; reason: string }>
+): Promise<boolean> {
+	try {
+		const result = await pending;
+		return result.ok || (result.reason !== 'edit_failed' && result.reason !== 'post_failed');
+	} catch (cause) {
+		console.error(`${what} after publishing an edit failed`, cause);
+		return false;
+	}
+}
 
 // Managers only. Opening the page starts the viewer's edit from the form as it is, or resumes the
 // one they saved earlier.
@@ -68,6 +87,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			// Posted back with the edit, which is refused once the form has moved past it.
 			baseVersion: draft.baseVersion,
 			stale: draft.baseVersion !== target.version,
+			// The published deadline as the editor writes it, which a change is told apart from. Null
+			// when there is no announcement to reply to.
+			deadlineReply: target.announcementMessageId
+				? { from: target.deadline ? toJstLocal(target.deadline) : '' }
+				: null,
 			// Saved at least once since it was opened: there are changes the viewer may have forgotten.
 			resumed: draft.version > 1,
 			locks: { audience: locks.answered, questionTypes: locks.answered, channel: locks.posted }
@@ -135,8 +159,20 @@ export const actions: Actions = {
 				}
 			}
 
-			// The results page says it was published, once.
-			redirect(303, `/forms/${target.id}/results?published=1`);
+			// The edit has committed and stands whatever happens to the posts below. The results page
+			// says it was published, and what failed after, once.
+			const flags = new URLSearchParams({ published: '1' });
+			if (!(await reported('announcement edit', refreshAnnouncement(target.id)))) {
+				flags.set('announce_edit', 'failed');
+			}
+			if (result.deadlineChanged && data.get('notifyDeadline') === 'on') {
+				const notice = postDeadlineChange(target.id, input.deadline);
+				if (!(await reported('deadline change post', notice))) {
+					flags.set('deadline_notice', 'failed');
+				}
+			}
+
+			redirect(303, `/forms/${target.id}/results?${flags}`);
 		} catch (err) {
 			// redirect() and error() signal by throwing, so only FormInputError may be swallowed here.
 			if (err instanceof FormInputError) return fail(400, { inputError: err.detail });

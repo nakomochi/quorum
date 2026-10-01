@@ -18,7 +18,7 @@ export type StubMember = {
 	guildAvatar?: string | null;
 };
 
-export type Route = 'listMembers' | 'getMember' | 'roles' | 'channels' | 'guild' | 'post';
+export type Route = 'listMembers' | 'getMember' | 'roles' | 'channels' | 'guild' | 'post' | 'edit';
 
 export type Call = { route: Route; method: string; url: URL; body: unknown };
 
@@ -80,6 +80,7 @@ function routeOf(method: string, path: string): Route {
 	if (method === 'GET' && path === `${guild}/channels`) return 'channels';
 	if (method === 'GET' && path === guild) return 'guild';
 	if (method === 'POST' && /^\/api\/v10\/channels\/\d+\/messages$/.test(path)) return 'post';
+	if (method === 'PATCH' && /^\/api\/v10\/channels\/\d+\/messages\/\d+$/.test(path)) return 'edit';
 	throw new Error(`unexpected Discord request: ${method} ${path}`);
 }
 
@@ -125,6 +126,10 @@ class DiscordStub {
 		return this.calls.filter((call) => call.route === 'post');
 	}
 
+	edits(): Call[] {
+		return this.calls.filter((call) => call.route === 'edit');
+	}
+
 	async handle(method: string, url: URL, body: unknown): Promise<Response> {
 		const route = routeOf(method, url.pathname);
 		const call: Call = { route, method, url, body };
@@ -165,6 +170,10 @@ class DiscordStub {
 			case 'post': {
 				const channelId = call.url.pathname.split('/')[4];
 				return json({ id: `9${String(++this.messageSeq).padStart(17, '0')}`, channel_id: channelId });
+			}
+			case 'edit': {
+				const [, , , , channelId, , messageId] = call.url.pathname.split('/');
+				return json({ id: messageId, channel_id: channelId });
 			}
 		}
 	}

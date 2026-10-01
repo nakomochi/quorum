@@ -166,6 +166,11 @@ export const form = pgTable(
 		allowEdit: boolean('allow_edit').notNull().default(true),
 		announcementChannelId: text('announcement_channel_id'),
 		announcementMessageId: text('announcement_message_id'),
+		/**
+		 * The text last posted or edited into the announcement. Null when that is unknown (announced
+		 * before this was recorded): not shown as stale, and edited and recorded by the next refresh.
+		 */
+		announcedContent: text('announced_content'),
 		createdBy: text('created_by')
 			.notNull()
 			.references(() => user.id),

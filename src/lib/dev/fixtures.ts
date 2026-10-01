@@ -111,9 +111,10 @@ const CHANNEL_ID = '900000000000000002';
 const discordMessage = (messageId: string) =>
 	`https://discord.com/channels/${GUILD_ID}/${CHANNEL_ID}/${messageId}`;
 
-const ANNOUNCED = { hasChannel: true, url: discordMessage('900000000000000003') };
-const NOT_ANNOUNCED = { hasChannel: true, url: null };
-const NO_CHANNEL = { hasChannel: false, url: null };
+const ANNOUNCED = { hasChannel: true, url: discordMessage('900000000000000003'), stale: false };
+const STALE_ANNOUNCEMENT = { ...ANNOUNCED, stale: true };
+const NOT_ANNOUNCED = { hasChannel: true, url: null, stale: false };
+const NO_CHANNEL = { hasChannel: false, url: null, stale: false };
 
 const USER: SessionUser = {
 	name: 'なこもち',
@@ -795,6 +796,8 @@ const rosterResults = (over: Partial<ResultsData> = {}): ResultsData => ({
 	rosterSyncedAt: ROSTER_SYNCED_AT,
 	announceFailed: false,
 	published: false,
+	announceEditFailed: false,
+	deadlineNoticeFailed: false,
 	announcement: ANNOUNCED,
 	reminders: [],
 	questions: RESULT_QUESTIONS,
@@ -1686,6 +1689,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: null,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: null,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1710,6 +1715,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1734,6 +1741,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1758,6 +1767,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: null,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: null,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1782,6 +1793,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1806,6 +1819,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -1831,6 +1846,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: null,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: ANNOUNCED,
 			reminders: REMINDERS,
 			questions: RESULT_QUESTIONS,
@@ -1882,6 +1899,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: NOT_ANNOUNCED,
 			reminders: REMINDERS,
 			questions: RESULT_QUESTIONS,
@@ -1906,6 +1925,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: ANNOUNCED,
 			reminders: REMINDERS,
 			questions: RESULT_QUESTIONS,
@@ -1965,6 +1986,41 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 		data: rosterResults({ published: true })
 	},
 	{
+		id: 'results-announcement-stale',
+		title: '告知メッセージの内容が古い（「告知を更新」）',
+		data: rosterResults({ announcement: STALE_ANNOUNCEMENT, reminders: REMINDERS.slice(0, 2) })
+	},
+	{
+		id: 'results-published-announce-edit-failed',
+		title: '編集を公開したが、告知メッセージを更新できなかった（エラーのトースト）',
+		data: rosterResults({
+			published: true,
+			announceEditFailed: true,
+			announcement: STALE_ANNOUNCEMENT
+		})
+	},
+	{
+		id: 'results-published-deadline-notice-failed',
+		title: '編集を公開したが、締切の変更を投稿できなかった（エラーのトースト）',
+		data: rosterResults({ published: true, deadlineNoticeFailed: true })
+	},
+	{
+		id: 'results-published-both-failed',
+		title: '編集を公開したが、告知の更新と締切の変更の投稿がどちらも失敗した',
+		data: rosterResults({
+			published: true,
+			announceEditFailed: true,
+			deadlineNoticeFailed: true,
+			announcement: STALE_ANNOUNCEMENT
+		})
+	},
+	{
+		id: 'results-announcement-refreshed',
+		title: '「告知を更新」の直後（成功のトースト）',
+		data: rosterResults(),
+		form: { notice: '告知メッセージを更新しました。' }
+	},
+	{
 		id: 'results-reminder-links',
 		title: '送信履歴の Discord へのリンク（投稿のない行はリンクなし、途中で失敗した行は未送信の人数つき）',
 		data: rosterResults({ reminders: REMINDERS_WITH_EMPTY })
@@ -1982,6 +2038,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -2006,6 +2064,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: NO_CHANNEL,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -2030,6 +2090,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: true,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: NOT_ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -2059,6 +2121,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -2084,6 +2148,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: RESULT_QUESTIONS,
@@ -2109,6 +2175,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			rosterSyncedAt: ROSTER_SYNCED_AT,
 			announceFailed: false,
 			published: false,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false,
 			announcement: ANNOUNCED,
 			reminders: [],
 			questions: WIDE_QUESTIONS.map(toResultQuestion),
@@ -2527,6 +2595,8 @@ const editData = (over: Partial<Editor> = {}): EditData => ({
 		draft: { id: 'fixturedraft', version: 1, updatedAt: at('2026-09-29T12:34:00'), state: EDIT_STATE },
 		baseVersion: 2,
 		stale: false,
+		// Announced, with the deadline as the editor holds it: the box stays hidden.
+		deadlineReply: { from: EDIT_STATE.deadline },
 		resumed: false,
 		locks: NO_EDIT_LOCKS,
 		...over
@@ -2560,6 +2630,11 @@ export const EDIT_CASES: UiCase<EditData, EditAction>[] = [
 			doc.querySelector<HTMLButtonElement>('[aria-label="質問を追加"]')?.click();
 			await tick();
 		}
+	},
+	{
+		id: 'edit-deadline-changed',
+		title: '告知済みで締切を変えた（「締切の変更を Discord で知らせる」）',
+		data: editData({ deadlineReply: { from: '2026-10-25T23:59' }, resumed: true })
 	},
 	{
 		id: 'edit-resumed',

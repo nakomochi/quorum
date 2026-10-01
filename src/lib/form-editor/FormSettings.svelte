@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { untrack } from 'svelte';
+	import { untrack, type Snippet } from 'svelte';
 	import FieldError from '$lib/components/FieldError.svelte';
 	import type { EditorState } from '$lib/form-draft';
 	import {
@@ -27,6 +27,8 @@
 		closesAt: string;
 		/** Set once the admin types a closesAt of their own. */
 		closesAtTouched: boolean;
+		/** Drawn under the deadline field, given its current value. */
+		afterDeadline?: Snippet<[deadline: string]>;
 	};
 
 	let {
@@ -37,7 +39,8 @@
 		inputError,
 		deadline = $bindable(),
 		closesAt = $bindable(),
-		closesAtTouched = $bindable()
+		closesAtTouched = $bindable(),
+		afterDeadline
 	}: Props = $props();
 
 	const ROLE_MISSING = '元のロールが見つかりません。選び直してください';
@@ -247,6 +250,7 @@
 				/>
 			</label>
 			{@render error('deadline')}
+			{@render afterDeadline?.(deadline)}
 		</div>
 
 		<div>

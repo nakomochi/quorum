@@ -30,6 +30,7 @@
 
 	const canAnnounce = $derived(!!data.announcement?.hasChannel && !data.announcement.url);
 	const canRemind = $derived(!!data.announcement?.hasChannel && !data.closed);
+	const announcementStale = $derived(!!data.announcement?.stale);
 
 	// An empty mirror has nothing to count. One that predates guild_sync still has people in it.
 	const rosterMissing = $derived(
@@ -48,15 +49,25 @@
 	// with it, so a reload does not say it again. After a tick of the clock: the router refuses the
 	// URL change until it has started, which it does only after the page has mounted.
 	onMount(() => {
-		const { announceFailed, published } = untrack(() => data);
+		const { announceFailed, published, announceEditFailed, deadlineNoticeFailed } = untrack(
+			() => data
+		);
 		if (announceFailed) {
 			toast.error(
 				'フォームは作成しましたが、Discord への告知の投稿に失敗しました。管理パネルの「告知を投稿する」から再投稿できます。'
 			);
 		}
 		if (published) toast.success('変更を公開しました');
+		if (announceEditFailed) {
+			toast.error(
+				'変更は公開しましたが、Discord の告知メッセージを更新できませんでした。管理パネルの「告知を更新」から更新できます。'
+			);
+		}
+		if (deadlineNoticeFailed) toast.error('締切の変更を Discord に投稿できませんでした。');
 
-		const flags = ['announce', 'published'].filter((name) => page.url.searchParams.has(name));
+		const flags = ['announce', 'published', 'announce_edit', 'deadline_notice'].filter((name) =>
+			page.url.searchParams.has(name)
+		);
 		if (flags.length === 0) return;
 		const timer = setTimeout(() => {
 			const url = new URL(page.url);
@@ -270,17 +281,25 @@
 									告知がまだ投稿されていません。リマインドは送信できますが、告知への返信にはなりません。
 								{/if}
 							</p>
+							{#if announcementStale}
+								<p class="mt-2 text-warning">告知メッセージの内容が古いままです。</p>
+							{/if}
 							{#if data.announcement.url}
 								<p class="mt-2 text-xs">
 									{@render discordLink(data.announcement.url, '告知メッセージを Discord で開く', false)}
 								</p>
 							{/if}
 						</div>
-						{#if canAnnounce || canRemind}
+						{#if canAnnounce || canRemind || announcementStale}
 							<div class="flex shrink-0 flex-wrap gap-2">
 								{#if canAnnounce}
 									<form method="POST" action="?/announce">
 										<button type="submit" class="btn-secondary px-4 py-2">告知を投稿する</button>
+									</form>
+								{/if}
+								{#if announcementStale}
+									<form method="POST" action="?/refreshAnnouncement">
+										<button type="submit" class="btn-secondary px-4 py-2">告知を更新</button>
 									</form>
 								{/if}
 								{#if canRemind}

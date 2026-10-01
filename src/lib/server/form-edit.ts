@@ -177,10 +177,11 @@ function mergeOptions(
 
 /**
  * 'stale': the edit started from an older version than the form has now. `roleChanged` tells the
- * caller to refresh the roster, as creating a form does.
+ * caller to refresh the roster, as creating a form does. `deadlineChanged` compares with the
+ * deadline the edit replaced.
  */
 export type PublishResult =
-	| { ok: true; roleChanged: boolean }
+	| { ok: true; roleChanged: boolean; deadlineChanged: boolean }
 	| { ok: false; reason: 'not_found' | 'closed' | 'stale' };
 
 /**
@@ -280,6 +281,10 @@ export async function publishFormEdit(
 			.delete(formDraft)
 			.where(and(eq(formDraft.formId, formId), eq(formDraft.createdBy, userId)));
 
-		return { ok: true, roleChanged: input.targetRoleId !== current.targetRoleId } as const;
+		return {
+			ok: true,
+			roleChanged: input.targetRoleId !== current.targetRoleId,
+			deadlineChanged: !sameTime(input.deadline, current.deadline)
+		} as const;
 	});
 }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { isActionFailure, isHttpError, isRedirect } from '@sveltejs/kit';
 import { and, eq, isNotNull } from 'drizzle-orm';
-import { toJstLocal } from '$lib/datetime';
+import { formatJstWithYear, toJstLocal } from '$lib/datetime';
 import { draftPayload, questionsField, type EditorState } from '$lib/form-draft';
 import {
 	AUDIENCE_LOCKED,
@@ -16,12 +16,15 @@ import { form, formDraft, question, response, responseRevision } from '$lib/serv
 import { updateDraft } from '$lib/server/drafts';
 import { openEditDraft } from '$lib/server/form-edit';
 import { closeForm, loadForm, loadQuestions } from '$lib/server/forms';
-import { announceForm, sendReminder } from '$lib/server/notify';
+import { announceForm, refreshAnnouncement, sendReminder } from '$lib/server/notify';
 import { saveResponseDraft } from '$lib/server/response-drafts';
 import { load as topLoad } from '../../src/routes/+page.server';
 import { actions as formActions, load as formLoad } from '../../src/routes/forms/[id]/+page.server';
 import { actions as editActions, load as editLoad } from '../../src/routes/forms/[id]/edit/+page.server';
-import { load as resultsLoad } from '../../src/routes/forms/[id]/results/+page.server';
+import {
+	actions as resultsActions,
+	load as resultsLoad
+} from '../../src/routes/forms/[id]/results/+page.server';
 import { load as historyLoad } from '../../src/routes/forms/[id]/results/[responseId]/+page.server';
 import { GET as csv } from '../../src/routes/forms/[id]/results/csv/+server';
 import { load as newLoad } from '../../src/routes/forms/new/+page.server';
@@ -31,6 +34,8 @@ import {
 	inputs,
 	makeForm,
 	member,
+	patchForm,
+	quietly,
 	seedGuild,
 	sessionLocals,
 	settle,
@@ -140,12 +145,22 @@ function publishBody(state: EditorState, baseVersion: number): FormData {
 	return data;
 }
 
-/** Opens the edit page as `who`, changes what the editor holds, and publishes it. */
-async function edit(who: TestUser, id: string, change: (state: EditorState) => void): Promise<Outcome> {
+/**
+ * Opens the edit page as `who`, changes what the editor holds, and publishes it, with `extra`
+ * fields beside it.
+ */
+async function edit(
+	who: TestUser,
+	id: string,
+	change: (state: EditorState) => void,
+	extra: Record<string, string> = {}
+): Promise<Outcome> {
 	const editor = await editorOf(who, id);
 	const state = structuredClone(editor.draft.state);
 	change(state);
-	return act(editActions.publish, who, id, publishBody(state, editor.baseVersion));
+	const body = publishBody(state, editor.baseVersion);
+	for (const [name, value] of Object.entries(extra)) body.set(name, value);
+	return act(editActions.publish, who, id, body);
 }
 
 const published = (id: string): Outcome => ({ status: 303, location: `/forms/${id}/results?published=1` });
@@ -714,5 +729,291 @@ describe('answering a form while it is edited', () => {
 			['メモ', true]
 		]);
 		expect(history.revisions[0].answers[questions[2].id]).toEqual({ type: 'text', text: '二回目' });
+	});
+});
+
+/** Puts the form's announcement in the channel and forgets the calls. Returns its message id. */
+async function announce(id: string): Promise<string> {
+	await db.update(form).set({ announcementChannelId: CHANNEL_ID }).where(eq(form.id, id));
+	const result = await announceForm(id);
+	if (!result.ok) throw new Error('announcing failed');
+	discord.calls = [];
+	return result.messageId;
+}
+
+async function announcedContent(id: string) {
+	return (await loadForm(id))?.announcedContent;
+}
+
+type ResultsData = {
+	published: boolean;
+	announceEditFailed: boolean;
+	deadlineNoticeFailed: boolean;
+	announcement: { hasChannel: boolean; url: string | null; stale: boolean } | null;
+};
+
+async function resultsOf(who: TestUser, id: string, query = ''): Promise<ResultsData> {
+	return (await resultsLoad(event(who, id, `/forms/${id}/results${query}`))) as ResultsData;
+}
+
+const refresh = (who: TestUser, id: string) =>
+	act(resultsActions.refreshAnnouncement, who, id, new FormData(), `/forms/${id}/results`);
+
+const publishedWith = (id: string, flags: string): Outcome => ({
+	status: 303,
+	location: `/forms/${id}/results?published=1${flags}`
+});
+
+const content = (call: { body: unknown }) => (call.body as { content: string }).content;
+
+const REFRESHED = { status: 200, data: { notice: '告知メッセージを更新しました。' } };
+
+describe('keeping the announcement in step with an edit', () => {
+	test('a published title, description or deadline is edited into the announcement', async () => {
+		const { creator, id } = await setup();
+		const messageId = await announce(id);
+		expect(await announcedContent(id)).toContain('📋 **テストフォーム**');
+		const later = new Date('2027-01-15T09:30:00Z');
+
+		const changes: [(state: EditorState) => void, string][] = [
+			[(state) => void (state.title = '改題'), '📋 **改題**'],
+			[(state) => void (state.description = '説明を足しました'), '説明を足しました'],
+			[(state) => void (state.deadline = toJstLocal(later)), `締切: ${formatJstWithYear(later)}`]
+		];
+		for (const [change, expected] of changes) {
+			discord.calls = [];
+			expect(await edit(creator, id, change)).toEqual(published(id));
+
+			const edits = discord.edits();
+			expect(edits.map((call) => call.url.pathname)).toEqual([
+				`/api/v10/channels/${CHANNEL_ID}/messages/${messageId}`
+			]);
+			expect(content(edits[0])).toContain(expected);
+			expect((edits[0].body as { allowed_mentions: unknown }).allowed_mentions).toEqual({ parse: [] });
+			expect(await announcedContent(id)).toBe(content(edits[0]));
+		}
+		// Nothing posted for the deadline: the box was not sent.
+		expect(discord.count('post')).toBe(0);
+		expect((await resultsOf(creator, id)).announcement?.stale).toBe(false);
+	});
+
+	test('nothing is edited when only what the announcement leaves out changes', async () => {
+		const { creator, id } = await setup();
+		await announce(id);
+
+		const outcome = await edit(creator, id, (state) => {
+			state.questions[0].label = '氏名';
+			state.visibility = 'admin_only';
+			state.allowEdit = false;
+		});
+
+		expect(outcome).toEqual(published(id));
+		expect(discord.count('edit')).toBe(0);
+	});
+
+	test('nothing is edited without an announcement', async () => {
+		const { creator, id } = await setup();
+		await db.update(form).set({ announcementChannelId: CHANNEL_ID }).where(eq(form.id, id));
+
+		expect(await edit(creator, id, (state) => void (state.title = '改題'))).toEqual(published(id));
+		expect(discord.count('edit')).toBe(0);
+		expect(await refreshAnnouncement(id)).toEqual({ ok: true, edited: false });
+	});
+
+	test('an announcement whose text was never recorded is not shown stale, and the next refresh edits and records it', async () => {
+		const { creator, id } = await setup();
+		const messageId = await announce(id);
+		await patchForm(id, { announcedContent: null });
+		await patchForm(id, { title: '改題' });
+		expect((await resultsOf(creator, id)).announcement).toEqual({
+			hasChannel: true,
+			url: expect.any(String),
+			stale: false
+		});
+
+		// The first publish edits it once, whatever changed, and records what it now says.
+		expect(await edit(creator, id, (state) => void (state.title = '再改題'))).toEqual(published(id));
+		const edits = discord.edits();
+		expect(edits.map((call) => call.url.pathname)).toEqual([
+			`/api/v10/channels/${CHANNEL_ID}/messages/${messageId}`
+		]);
+		expect(content(edits[0])).toContain('📋 **再改題**');
+		expect(await announcedContent(id)).toBe(content(edits[0]));
+
+		// Recorded from then on: a publish that leaves the text alone edits nothing.
+		discord.calls = [];
+		expect(await edit(creator, id, (state) => void (state.questions[0].label = '氏名'))).toEqual(published(id));
+		expect(discord.count('edit')).toBe(0);
+
+		// Unrecorded with nothing changed, the panel's refresh edits it all the same: the same text again.
+		await patchForm(id, { announcedContent: null });
+		expect(await refresh(creator, id)).toEqual(REFRESHED);
+		expect(discord.count('edit')).toBe(1);
+		expect(await announcedContent(id)).toBe(content(edits[0]));
+	});
+
+	test('a failed edit keeps the publish and says so, and the panel’s button puts it right', async () => {
+		const { creator, id } = await setup();
+		await announce(id);
+		const before = await announcedContent(id);
+		discord.fail('edit', 500, 1);
+
+		const { value: outcome } = await quietly(() =>
+			edit(creator, id, (state) => void (state.title = '改題'))
+		);
+
+		expect(outcome).toEqual(publishedWith(id, '&announce_edit=failed'));
+		expect(await loadForm(id)).toMatchObject({ title: '改題', version: 2, announcedContent: before });
+		expect(await resultsOf(creator, id, '?published=1&announce_edit=failed')).toMatchObject({
+			published: true,
+			announceEditFailed: true,
+			deadlineNoticeFailed: false,
+			announcement: { stale: true }
+		});
+
+		discord.calls = [];
+		expect(await refresh(creator, id)).toEqual(REFRESHED);
+		expect(discord.edits().map(content)[0]).toContain('📋 **改題**');
+		expect((await resultsOf(creator, id)).announcement?.stale).toBe(false);
+
+		// Up to date: said the same, and nothing is asked of Discord.
+		discord.calls = [];
+		expect(await refresh(creator, id)).toEqual(REFRESHED);
+		expect(discord.count('edit')).toBe(0);
+
+		await patchForm(id, { title: '三度目' });
+		discord.fail('edit', 500, 1);
+		const { value: failed } = await quietly(() => refresh(creator, id));
+		expect(failed).toEqual({
+			status: 502,
+			data: { message: '告知メッセージを更新できませんでした。時間をおいてもう一度お試しください。' }
+		});
+		expect((await resultsOf(creator, id)).announcement?.stale).toBe(true);
+	});
+
+	test('an edit published while the announcement is edited leaves it stale for the next refresh', async () => {
+		const { id } = await setup();
+		await announce(id);
+		const before = await announcedContent(id);
+		await patchForm(id, { title: '改題' });
+
+		let moved = false;
+		discord.on('edit', async () => {
+			if (!moved) {
+				moved = true;
+				await patchForm(id, { version: 2, title: 'さらに改題' });
+			}
+			return undefined;
+		});
+
+		expect(await refreshAnnouncement(id)).toEqual({ ok: true, edited: true });
+		expect(await announcedContent(id)).toBe(before);
+
+		expect(await refreshAnnouncement(id)).toEqual({ ok: true, edited: true });
+		const last = discord.edits().at(-1);
+		expect(last && content(last)).toContain('📋 **さらに改題**');
+		expect(await announcedContent(id)).toBe(last && content(last));
+	});
+
+	test('only the creator and admins may refresh the announcement', async () => {
+		const { creator, other, admin, id } = await setup();
+		await announce(id);
+		await patchForm(id, { title: '改題' });
+
+		expect((await refresh(other, id)).status).toBe(403);
+		expect(discord.count('edit')).toBe(0);
+		expect(await refresh(admin, id)).toEqual(REFRESHED);
+		expect(await refresh(creator, id)).toEqual(REFRESHED);
+		expect(discord.count('edit')).toBe(1);
+	});
+});
+
+describe('telling Discord the deadline changed', () => {
+	const later = new Date('2027-01-15T09:30:00Z');
+	const evenLater = new Date('2027-02-01T03:00:00Z');
+
+	test('a reply to the announcement mentioning nobody, after the announcement is edited', async () => {
+		const { creator, id } = await setup();
+		const messageId = await announce(id);
+		expect((await editorOf(creator, id)).deadlineReply).toEqual({ from: '' });
+
+		const set = await edit(creator, id, (state) => void (state.deadline = toJstLocal(later)), {
+			notifyDeadline: 'on'
+		});
+
+		expect(set).toEqual(published(id));
+		expect(discord.posts().map((call) => [call.url.pathname, call.body])).toEqual([
+			[
+				`/api/v10/channels/${CHANNEL_ID}/messages`,
+				{
+					content: `締切を ${formatJstWithYear(later)} に変更しました。`,
+					allowed_mentions: { parse: [] },
+					message_reference: { message_id: messageId, fail_if_not_exists: false }
+				}
+			]
+		]);
+		expect(
+			discord.calls.filter((call) => call.route === 'edit' || call.route === 'post').map((call) => call.route)
+		).toEqual(['edit', 'post']);
+		expect((await editorOf(creator, id)).deadlineReply).toEqual({ from: toJstLocal(later) });
+
+		discord.calls = [];
+		const cleared = await edit(creator, id, (state) => void (state.deadline = ''), { notifyDeadline: 'on' });
+
+		expect(cleared).toEqual(published(id));
+		expect(discord.posts().map(content)).toEqual(['締切をなしに変更しました。']);
+	});
+
+	test('nothing is posted unless the deadline changed, the box was sent and there is an announcement', async () => {
+		const { creator, id } = await setup();
+		await db.update(form).set({ announcementChannelId: CHANNEL_ID }).where(eq(form.id, id));
+		expect((await editorOf(creator, id)).deadlineReply).toBeNull();
+
+		expect(
+			await edit(creator, id, (state) => void (state.deadline = toJstLocal(later)), { notifyDeadline: 'on' })
+		).toEqual(published(id));
+		expect(discord.count('post')).toBe(0);
+
+		await announce(id);
+		const outcomes = [
+			// Not asked for.
+			await edit(creator, id, (state) => void (state.deadline = toJstLocal(evenLater))),
+			// Asked for, with the deadline as it was.
+			await edit(creator, id, (state) => void (state.title = '改題'), { notifyDeadline: 'on' }),
+			await edit(creator, id, (state) => void (state.deadline = toJstLocal(evenLater)), {
+				notifyDeadline: 'on'
+			})
+		];
+
+		expect(outcomes).toEqual([published(id), published(id), published(id)]);
+		expect(discord.count('post')).toBe(0);
+		expect((await loadForm(id))?.version).toBe(5);
+	});
+
+	test('a failed reply is not retried and leaves the publish standing; both failures are reported together', async () => {
+		const { creator, id } = await setup();
+		await announce(id);
+		discord.fail('post', 500, 1);
+
+		const { value: first } = await quietly(() =>
+			edit(creator, id, (state) => void (state.deadline = toJstLocal(later)), { notifyDeadline: 'on' })
+		);
+
+		expect(first).toEqual(publishedWith(id, '&deadline_notice=failed'));
+		expect(discord.count('post')).toBe(1);
+		const row = (await loadForm(id))!;
+		expect([row.version, row.deadline?.getTime()]).toEqual([2, later.getTime()]);
+
+		discord.fail('edit', 500, 1);
+		discord.fail('post', 500, 1);
+		const { value: second } = await quietly(() =>
+			edit(creator, id, (state) => void (state.deadline = toJstLocal(evenLater)), { notifyDeadline: 'on' })
+		);
+
+		expect(second).toEqual(publishedWith(id, '&announce_edit=failed&deadline_notice=failed'));
+		expect((await loadForm(id))?.version).toBe(3);
+		expect(
+			await resultsOf(creator, id, '?published=1&announce_edit=failed&deadline_notice=failed')
+		).toMatchObject({ published: true, announceEditFailed: true, deadlineNoticeFailed: true });
 	});
 });

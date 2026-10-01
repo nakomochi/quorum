@@ -1,6 +1,12 @@
 import { describe, expect, test } from 'bun:test';
-import { DiscordApiError, getGuild, getGuildMember, listGuildMembers } from '$lib/server/discord';
-import { discord, OWNER_ID, status } from '../helpers/discord';
+import {
+	DiscordApiError,
+	editMessage,
+	getGuild,
+	getGuildMember,
+	listGuildMembers
+} from '$lib/server/discord';
+import { CHANNEL_ID, discord, OWNER_ID, status } from '../helpers/discord';
 import { member, snowflake } from '../helpers/fixtures';
 
 describe('Discord REST client (against the stub)', () => {
@@ -32,6 +38,25 @@ describe('Discord REST client (against the stub)', () => {
 		const members = await listGuildMembers();
 		expect(members).toHaveLength(1001);
 		expect(discord.count('listMembers')).toBe(2);
+	});
+
+	test('editing a message PATCHes it with the body given; a 404 is an error', async () => {
+		const edited = await editMessage(CHANNEL_ID, '900000000000000001', {
+			content: '本文',
+			allowed_mentions: { parse: [] }
+		});
+		expect(edited).toEqual({ id: '900000000000000001', channel_id: CHANNEL_ID });
+		const [call] = discord.edits();
+		expect([call.method, call.url.pathname]).toEqual([
+			'PATCH',
+			`/api/v10/channels/${CHANNEL_ID}/messages/900000000000000001`
+		]);
+		expect(call.body).toEqual({ content: '本文', allowed_mentions: { parse: [] } });
+
+		discord.fail('edit', 404, 1);
+		await expect(
+			editMessage(CHANNEL_ID, '900000000000000001', { content: 'x', allowed_mentions: { parse: [] } })
+		).rejects.toBeInstanceOf(DiscordApiError);
 	});
 
 	test('the stub refuses anything that is not Discord', async () => {

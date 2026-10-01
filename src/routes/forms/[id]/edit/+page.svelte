@@ -13,6 +13,9 @@
 
 	let editor = $state<ReturnType<typeof FormEditor>>();
 
+	// Kept here, so that the box keeps its choice while a deadline typed back and forth hides it.
+	let notifyDeadline = $state(true);
+
 	// The notice sits under the heading, far from the button that was pressed.
 	function onresult(result: ActionResult) {
 		if (result.type === 'failure' && result.data?.reason === 'stale') window.scrollTo({ top: 0 });
@@ -32,6 +35,28 @@
 	</form>
 {/snippet}
 
+<!-- Only while the deadline differs from the published one, so the box is posted only then. -->
+{#snippet deadlineReply(deadline: string)}
+	{@const reply = data.editor?.deadlineReply}
+	{#if reply && deadline !== reply.from}
+		<div class="mt-2">
+			<label class="flex items-center gap-2 text-sm">
+				<input
+					type="checkbox"
+					name="notifyDeadline"
+					bind:checked={notifyDeadline}
+					aria-describedby="notify-deadline-hint"
+					class="size-4"
+				/>
+				締切の変更を Discord で知らせる
+			</label>
+			<span id="notify-deadline-hint" class="mt-1 block pl-6 text-xs text-text-muted">
+				告知への返信として投稿します（メンションなし）。
+			</span>
+		</div>
+	{/if}
+{/snippet}
+
 {#if data.editor}
 	<FormEditor
 		bind:this={editor}
@@ -46,6 +71,7 @@
 		extraFields={{ baseVersion: String(data.editor.baseVersion) }}
 		conflictMessage="別の画面でこの編集が更新されたか、公開・破棄されました。この画面の自動保存は停止しています。"
 		{onresult}
+		afterDeadline={deadlineReply}
 	>
 		{#snippet notices()}
 			{#if stale}

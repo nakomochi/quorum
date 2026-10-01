@@ -53,6 +53,8 @@
 		onresult?: (result: ActionResult) => void | Promise<void>;
 		/** Notices under the heading. */
 		notices?: Snippet;
+		/** Drawn under the deadline field, given its current value. */
+		afterDeadline?: Snippet<[deadline: string]>;
 		/** Controls after the submit button. */
 		actions?: Snippet;
 	};
@@ -71,6 +73,7 @@
 		ondraftcreated,
 		onresult,
 		notices,
+		afterDeadline,
 		actions
 	}: Props = $props();
 
@@ -259,6 +262,7 @@
 			{channels}
 			{locks}
 			{inputError}
+			{afterDeadline}
 			bind:deadline
 			bind:closesAt
 			bind:closesAtTouched

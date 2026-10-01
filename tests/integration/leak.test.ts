@@ -22,6 +22,7 @@ import {
 	makeForm,
 	member,
 	patchForm,
+	quietly,
 	seedGuild,
 	sessionLocals,
 	snowflake,
@@ -42,7 +43,8 @@ const FORBIDDEN_KEYS = [
 	'targetRoleId',
 	'submitScope',
 	'discordId',
-	'payload'
+	'payload',
+	'announcedContent'
 ];
 
 const SECRET_NAME = '秘密の未提出者';
@@ -337,7 +339,7 @@ describe('what a member receives', () => {
 			announcement: unknown;
 			reminders: { url: string | null }[];
 		};
-		expect(managed.announcement).toEqual({ hasChannel: true, url: url(announcementId) });
+		expect(managed.announcement).toEqual({ hasChannel: true, url: url(announcementId), stale: false });
 		expect(managed.reminders.map((entry) => entry.url)).toEqual([null, url(sent.messageIds[0])]);
 		const keys = keysOf(managed);
 		expect(['channelId', 'messageId', 'messageIds'].filter((key) => keys.has(key))).toEqual([]);
@@ -377,14 +379,49 @@ describe('what a member receives', () => {
 
 	test('results page actions answer with a sentence and nothing else', async () => {
 		const { creator, open, secrets } = await scene();
-		const run = (name: 'announce' | 'remind' | 'syncRoster' | 'close' | 'reopen') =>
+		const names = ['announce', 'refreshAnnouncement', 'remind', 'syncRoster', 'close', 'reopen'] as const;
+		const run = (name: (typeof names)[number]) =>
 			resultsActions[name]({ locals: sessionLocals(creator), params: { id: open.id } } as never);
 
-		for (const name of ['announce', 'remind', 'syncRoster', 'close', 'reopen'] as const) {
+		for (const name of names) {
+			if (name === 'refreshAnnouncement') await patchForm(open.id, { title: '改題' });
 			const result = await run(name);
 			expect(Object.keys(result as object)).toEqual(['notice']);
 			expectNoLeak(result, [...secrets, SECRET_NAME]);
 		}
+		expect(discord.count('edit')).toBe(1);
+
+		await patchForm(open.id, { title: '再改題' });
+		discord.fail('edit', 500, 1);
+		const { value: failed } = await quietly(async () => run('refreshAnnouncement'));
+		expect(Object.keys((failed as { data: object }).data)).toEqual(['message']);
+		expectNoLeak((failed as { data: unknown }).data, [...secrets, SECRET_NAME]);
+	});
+
+	test('results page: whether the announcement is out of date, never its text', async () => {
+		const { creator, viewer, open, secrets } = await scene();
+		const announced = await announceForm(open.id);
+		const messageId = announced.ok ? announced.messageId : '';
+		await patchForm(open.id, { title: '改題' });
+		const path = `/forms/${open.id}/results`;
+
+		const managed = (await resultsLoad(event(creator, { id: open.id }, path))) as {
+			announcement: unknown;
+		};
+		expect(managed.announcement).toEqual({
+			hasChannel: true,
+			url: expect.stringContaining(messageId),
+			stale: true
+		});
+		// The recorded text opens with the old title in bold.
+		expectNoLeak(managed, ['📋', 'テストフォーム']);
+
+		const seen = (await resultsLoad(event(viewer, { id: open.id }, path))) as Record<string, unknown>;
+		expect(seen).toMatchObject({
+			announcement: null,
+			announceEditFailed: false,
+			deadlineNoticeFailed: false
+		});
 	});
 
 	test('an input error on the answer page names the question by the id the page already has', async () => {
@@ -420,8 +457,10 @@ describe('what a member receives', () => {
 
 		expect(Object.keys(data).sort()).toEqual(['closed', 'editor', 'form']);
 		expect(Object.keys(data.editor).sort()).toEqual(
-			['baseVersion', 'channels', 'draft', 'locks', 'resumed', 'roles', 'stale'].sort()
+			['baseVersion', 'channels', 'deadlineReply', 'draft', 'locks', 'resumed', 'roles', 'stale'].sort()
 		);
+		// Announced without a deadline: the published deadline as the editor writes it, nothing else.
+		expect(data.editor.deadlineReply).toEqual({ from: '' });
 		expect(Object.keys(data.editor.draft).sort()).toEqual(['id', 'state', 'updatedAt', 'version']);
 		// The settings the editor draws are the manager's to see; nobody's answers or ids are.
 		const keys = keysOf(data);

@@ -14,7 +14,14 @@ import {
 import { FORM_NOT_FOUND, requireFormManager, requireResultsViewer } from '$lib/server/guards';
 import { messageUrl } from '$lib/server/discord';
 import { lastSyncedAt, syncAllMembers, syncedGuildRoles } from '$lib/server/guild-sync';
-import { announceForm, listReminders, postCloseNotice, sendReminder } from '$lib/server/notify';
+import {
+	announceForm,
+	announcementStale,
+	listReminders,
+	postCloseNotice,
+	refreshAnnouncement,
+	sendReminder
+} from '$lib/server/notify';
 import type { Actions, PageServerLoad } from './$types';
 
 const NO_CHANNEL = '告知チャンネルが設定されていないため、Discord へ投稿できません';
@@ -85,14 +92,19 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		announceFailed: manage && url.searchParams.get('announce') === 'failed',
 		// Set by the redirect the edit page takes once the edit is published.
 		published: manage && url.searchParams.get('published') === '1',
-		// Links, not ids: the page only needs to open the messages.
+		// Set beside it when a Discord post after the publish failed.
+		announceEditFailed: manage && url.searchParams.get('announce_edit') === 'failed',
+		deadlineNoticeFailed: manage && url.searchParams.get('deadline_notice') === 'failed',
+		// Links, not ids: the page only needs to open the messages. Whether the announcement is out of
+		// date, not what it says.
 		announcement: manage
 			? {
 					hasChannel: target.announcementChannelId !== null,
 					url:
 						target.announcementChannelId && target.announcementMessageId
 							? messageUrl(target.announcementChannelId, target.announcementMessageId)
-							: null
+							: null,
+					stale: announcementStale(target)
 				}
 			: null,
 		reminders: manage ? await listReminders(params.id, target.announcementChannelId) : [],
@@ -173,6 +185,22 @@ export const actions: Actions = {
 		}
 
 		return { notice: '告知を投稿しました。' };
+	},
+
+	// Edits the announcement to say what the form does now, after an edit could not.
+	refreshAnnouncement: async ({ locals, params }) => {
+		await requireFormManager(locals, params.id, 'act');
+
+		const result = await refreshAnnouncement(params.id);
+		if (!result.ok) {
+			return result.reason === 'not_found'
+				? fail(404, { message: FORM_NOT_FOUND })
+				: fail(502, {
+						message: '告知メッセージを更新できませんでした。時間をおいてもう一度お試しください。'
+					});
+		}
+
+		return { notice: '告知メッセージを更新しました。' };
 	},
 
 	remind: async ({ locals, params }) => {

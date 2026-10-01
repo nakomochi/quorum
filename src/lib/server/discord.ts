@@ -86,6 +86,8 @@ export type CreateMessage = {
 	message_reference?: MessageReference;
 };
 
+export type EditMessage = Pick<CreateMessage, 'content' | 'allowed_mentions'>;
+
 export class DiscordApiError extends Error {
 	constructor(
 		readonly status: number,
@@ -263,6 +265,18 @@ export async function postMessage(
 ): Promise<DiscordMessage> {
 	const path = `/channels/${channelId}/messages`;
 	const res = await request(path, { method: 'POST', json: message });
+	if (!res.ok) throw await toError(res, path);
+	return (await res.json()) as DiscordMessage;
+}
+
+/** Replaces the content of a message the bot posted. */
+export async function editMessage(
+	channelId: string,
+	messageId: string,
+	message: EditMessage
+): Promise<DiscordMessage> {
+	const path = `/channels/${channelId}/messages/${messageId}`;
+	const res = await request(path, { method: 'PATCH', json: message });
 	if (!res.ok) throw await toError(res, path);
 	return (await res.json()) as DiscordMessage;
 }

@@ -2,7 +2,7 @@ import { and, asc, desc, eq, isNotNull, isNull, sql } from 'drizzle-orm';
 import { env } from '$env/dynamic/private';
 import { db } from './db';
 import { form, reminder, type Form } from './db/schema';
-import { messageUrl, postMessage, type CreateMessage } from './discord';
+import { editMessage, messageUrl, postMessage, type CreateMessage } from './discord';
 import { isClosed, loadForm, rosterStatus } from './forms';
 import { syncAllMembers } from './guild-sync';
 import { formatJstWithYear } from '../datetime';
@@ -37,7 +37,10 @@ export function formUrl(formId: string): string {
 	return `${baseUrl()}/forms/${formId}`;
 }
 
-function announcementContent(target: Form): string {
+type Announced = Pick<Form, 'id' | 'title' | 'description' | 'deadline'>;
+
+/** The announcement's text, for posting it and for editing it to follow the form. */
+function announcementContent(target: Announced): string {
 	const head = `📋 **${truncate(target.title, TITLE_IN_MESSAGE)}**`;
 	// With the year even for this year's date: the message stays in the channel past New Year.
 	const tail = `締切: ${formatJstWithYear(target.deadline, NO_DEADLINE)}\n${formUrl(target.id)}`;
@@ -72,10 +75,11 @@ export async function announceForm(formId: string): Promise<AnnounceResult> {
 	if (!target) return { ok: false, reason: 'not_found' };
 	if (!target.announcementChannelId) return { ok: false, reason: 'no_channel' };
 
+	const content = announcementContent(target);
 	let message;
 	try {
 		message = await postMessage(target.announcementChannelId, {
-			content: announcementContent(target),
+			content,
 			allowed_mentions: SILENT
 		});
 	} catch (cause) {
@@ -83,9 +87,61 @@ export async function announceForm(formId: string): Promise<AnnounceResult> {
 		return { ok: false, reason: 'post_failed' };
 	}
 
-	await db.update(form).set({ announcementMessageId: message.id }).where(eq(form.id, formId));
+	await db
+		.update(form)
+		.set({ announcementMessageId: message.id, announcedContent: content })
+		.where(eq(form.id, formId));
 
 	return { ok: true, messageId: message.id };
+}
+
+/**
+ * The announcement says something other than the form does now. An announcement posted before
+ * its text was recorded is not reported as stale; the next refresh edits it and records the text.
+ */
+export function announcementStale(
+	target: Announced & Pick<Form, 'announcementMessageId' | 'announcedContent'>
+): boolean {
+	return (
+		target.announcementMessageId !== null &&
+		target.announcedContent !== null &&
+		target.announcedContent !== announcementContent(target)
+	);
+}
+
+/** `edited`: false when the announcement is known to say what the form does, or there is none. */
+export type RefreshResult =
+	| { ok: true; edited: boolean }
+	| { ok: false; reason: 'not_found' | 'edit_failed' };
+
+/**
+ * Edits the announcement to match the form, as after an edit is published. One whose text was
+ * never recorded is edited too, which records it. The text is recorded only while the form is
+ * still at the version it was built from: an edit published meanwhile leaves it stale, for the
+ * next refresh to put right, rather than recorded as posted.
+ */
+export async function refreshAnnouncement(formId: string): Promise<RefreshResult> {
+	const target = await loadForm(formId);
+	if (!target) return { ok: false, reason: 'not_found' };
+	const { announcementChannelId: channelId, announcementMessageId: messageId } = target;
+	const content = announcementContent(target);
+	if (!channelId || !messageId || target.announcedContent === content) {
+		return { ok: true, edited: false };
+	}
+
+	try {
+		await editMessage(channelId, messageId, { content, allowed_mentions: SILENT });
+	} catch (cause) {
+		console.error('announcement edit failed', cause);
+		return { ok: false, reason: 'edit_failed' };
+	}
+
+	await db
+		.update(form)
+		.set({ announcedContent: content })
+		.where(and(eq(form.id, formId), eq(form.version, target.version)));
+
+	return { ok: true, edited: true };
 }
 
 /** A reply to the announcement once there is one, a plain message before that. */
@@ -93,6 +149,40 @@ function replyTo(announcementMessageId: string | null): Pick<CreateMessage, 'mes
 	return announcementMessageId
 		? { message_reference: { message_id: announcementMessageId, fail_if_not_exists: false } }
 		: {};
+}
+
+/** 'skipped': the form is gone or has no announcement to reply to. */
+export type DeadlineNoticeResult =
+	| { ok: true; messageId: string }
+	| { ok: false; reason: 'skipped' | 'post_failed' };
+
+/**
+ * Says in a reply to the announcement that the deadline is now `deadline`, mentioning nobody.
+ * Posted once, after the edit that changed it has committed; a failure is not retried.
+ */
+export async function postDeadlineChange(
+	formId: string,
+	deadline: Date | null
+): Promise<DeadlineNoticeResult> {
+	const target = await loadForm(formId);
+	if (!target?.announcementChannelId || !target.announcementMessageId) {
+		return { ok: false, reason: 'skipped' };
+	}
+
+	const content = deadline
+		? `締切を ${formatJstWithYear(deadline)} に変更しました。`
+		: '締切をなしに変更しました。';
+	try {
+		const message = await postMessage(target.announcementChannelId, {
+			content,
+			allowed_mentions: SILENT,
+			...replyTo(target.announcementMessageId)
+		});
+		return { ok: true, messageId: message.id };
+	} catch (cause) {
+		console.error('deadline change post failed', cause);
+		return { ok: false, reason: 'post_failed' };
+	}
 }
 
 function closeNoticeContent(target: { title: string; targetRoleId: string }): string {

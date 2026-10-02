@@ -8,7 +8,7 @@
 
 import { tick } from 'svelte';
 import { formatJst } from '../datetime';
-import { hasOptions } from '../forms';
+import { hasOptions, NO_TARGET_ROLE } from '../forms';
 import type { ActionData as HomeAction, PageData as HomeData } from '../../routes/$types';
 import type {
 	ActionData as AnswerAction,
@@ -616,8 +616,15 @@ const reminderEntry = (
 	targetCount,
 	pendingCount,
 	messageCount,
+	notice: messageCount > 0 && targetCount === 0,
 	url: messageCount > 0 ? discordMessage(`9000000000000001${String(id).padStart(2, '0')}`) : null
 });
+
+/** A form without a role: one message each, mentioning nobody. */
+const NOTICES: ReminderEntry[] = [
+	reminderEntry(2, 'manual', '2026-04-30T12:00:00', 0, 1),
+	reminderEntry(1, 'auto', '2026-04-29T23:59:00', 0, 1)
+];
 
 const REMINDERS: ReminderEntry[] = [
 	reminderEntry(5, 'manual', '2026-04-29T21:15:00', 7, 1),
@@ -825,6 +832,16 @@ const UNSYNCED_ROSTER: Partial<ResultsData> = {
 	targetCount: 0,
 	submitted: [],
 	nonSubmitters: []
+};
+
+/** A form without a role: every response counts, nobody is missing, and nothing is mentioned. */
+const NO_ROLE_RESULTS: Partial<ResultsData> = {
+	rosterSyncedAt: null,
+	targetCount: null,
+	submitted: [...SUBMITTED, ...OUTSIDERS],
+	outsiders: [],
+	nonSubmitters: [],
+	reminders: NOTICES
 };
 
 const HOME_WITH_DRAFTS: HomeData = {
@@ -2280,6 +2297,41 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 			message:
 				'Discord からメンバー一覧を取得できませんでした。名簿がまだ一度も同期されていないため、未提出者を表示できません。'
 		}
+	},
+	{
+		id: 'results-no-role',
+		title: '対象ロールなし（分母なし・未提出者なし・お知らせの履歴）',
+		data: rosterResults(NO_ROLE_RESULTS),
+		setup: openAdminPanel
+	},
+	{
+		id: 'results-no-role-phone',
+		title: '対象ロールなし / スマホ幅',
+		data: rosterResults(NO_ROLE_RESULTS),
+		setup: openAdminPanel,
+		width: '375px'
+	},
+	{
+		id: 'results-no-role-viewer',
+		title: '対象ロールなし / 一般閲覧',
+		data: rosterResults({ ...NO_ROLE_RESULTS, form: viewerForm(), manage: false, announcement: null, reminders: [] })
+	},
+	{
+		id: 'results-no-role-noticed',
+		title: '対象ロールなし /「お知らせを投稿」の直後',
+		data: rosterResults(NO_ROLE_RESULTS),
+		form: { notice: 'お知らせを投稿しました。' }
+	},
+	{
+		id: 'results-no-role-closed-now',
+		title: '対象ロールなし /「締め切る」の直後',
+		data: rosterResults({
+			...NO_ROLE_RESULTS,
+			form: resultsForm({ closedAt: at('2026-04-29T22:00:00') }),
+			closed: true
+		}),
+		form: { notice: '締め切りました。' },
+		setup: openAdminPanel
 	}
 ];
 
@@ -2393,17 +2445,25 @@ export const HISTORY_CASES: UiCase<HistoryData>[] = [
 	}
 ];
 
+// Katakana and full-width names among them, for the pickers' search to be tried on.
 const ROLES: NewData['roles'] = [
 	{ id: ROLE_ID, name: '運営' },
 	{ id: '900000000000000011', name: '2026年度生' },
 	{ id: '900000000000000012', name: 'OB・OG' },
-	{ id: '900000000000000013', name: '見学中' }
+	{ id: '900000000000000013', name: '見学中' },
+	{ id: '900000000000000014', name: 'サポーター' },
+	{ id: '900000000000000015', name: 'Ｄｉｓｃｏｒｄ管理' }
 ];
 
 const CHANNELS: NewData['channels'] = [
-	{ id: CHANNEL_ID, name: 'announcements' },
-	{ id: '900000000000000021', name: 'general' },
-	{ id: '900000000000000022', name: 'staff-only' }
+	{ id: CHANNEL_ID, name: 'announcements', category: 'お知らせ' },
+	{ id: '900000000000000021', name: 'general', category: null },
+	{
+		id: '900000000000000022',
+		name: 'staff-only-long-channel-name-for-the-narrow-list',
+		category: '運営スタッフ用のとても長いカテゴリ名'
+	},
+	{ id: '900000000000000023', name: 'ざつだん', category: 'コミュニティ' }
 ];
 
 type DraftState = NonNullable<NewData['draft']>['state'];
@@ -2487,6 +2547,28 @@ const inTurn =
 		for (const step of steps) await step(doc);
 	};
 
+/** Opens a picker by its box's id, as a click does, and types `query` into it if given. */
+const searchPicker =
+	(id: 'targetRoleId-input' | 'announcementChannelId-input', query = '') =>
+	async (doc: Document) => {
+		const box = doc.getElementById(id);
+		if (!(box instanceof HTMLInputElement)) return;
+		box.focus();
+		box.click();
+		await tick();
+		if (query === '') return;
+		box.value = query;
+		box.dispatchEvent(new InputEvent('input', { bubbles: true, data: query }));
+		await tick();
+	};
+
+/** A form aimed at the whole guild: no role, so no 提出できる人 either. */
+const NO_ROLE_STATE: DraftState = {
+	...DRAFT_STATE,
+	targetRoleId: NO_TARGET_ROLE,
+	submitScope: 'everyone'
+};
+
 /** Three questions, so that the middle one can move either way. */
 const THREE_STATE: DraftState = {
 	...DRAFT_STATE,
@@ -2534,6 +2616,47 @@ export const NEW_CASES: UiCase<NewData, NewAction>[] = [
 		id: 'new-default',
 		title: 'ロール / チャンネルあり（質問が1つだけ: 移動と削除は使えない）',
 		data: FRESH_EDITOR
+	},
+	{
+		id: 'new-no-role',
+		title: '対象ロール「なし（サーバーの全員）」（提出できる人は出ない）',
+		data: draftData(NO_ROLE_STATE)
+	},
+	{
+		id: 'new-role-picker',
+		title: '対象ロールの一覧を開いた（先頭に「なし」）',
+		data: draftData(),
+		setup: searchPicker('targetRoleId-input')
+	},
+	{
+		id: 'new-role-search-kana',
+		title: '対象ロールを「さぽ」で絞り込み（ひらがなでカタカナに一致）',
+		data: draftData(),
+		setup: searchPicker('targetRoleId-input', 'さぽ')
+	},
+	{
+		id: 'new-role-search-none',
+		title: '対象ロールの絞り込みに一致なし',
+		data: draftData(),
+		setup: searchPicker('targetRoleId-input', 'zzz')
+	},
+	{
+		id: 'new-channel-picker',
+		title: '告知チャンネルの一覧（カテゴリ名を薄く）',
+		data: draftData(),
+		setup: searchPicker('announcementChannelId-input')
+	},
+	{
+		id: 'new-channel-picker-phone',
+		title: '告知チャンネルの一覧 / スマホ幅（長い名前は省略）',
+		data: draftData(),
+		setup: searchPicker('announcementChannelId-input'),
+		width: '375px'
+	},
+	{
+		id: 'new-role-unchosen',
+		title: '対象ロールが未選択（新規作成の初期状態）',
+		data: draftData({ ...DRAFT_STATE, targetRoleId: '' })
 	},
 	{
 		id: 'new-first-open',
@@ -2729,6 +2852,7 @@ const closedEdit = (reopenClearsClosesAt: boolean): EditData => ({
 	form: { id: 'fixtureform1', title: LONG_TITLE },
 	closed: true,
 	reopenClearsClosesAt,
+	roster: true,
 	reopened: false,
 	editor: null
 });
@@ -2749,6 +2873,19 @@ export const EDIT_CASES: UiCase<EditData, EditAction>[] = [
 		title: '回答あり / スマホ幅',
 		data: editData({ locks: { audience: true, questionTypes: true, channel: true } }),
 		width: '375px'
+	},
+	{
+		id: 'edit-no-role-locked',
+		title: '対象ロールなし・回答あり（「なし」のまま変更不可）',
+		data: editData({
+			locks: { audience: true, questionTypes: true, channel: true },
+			draft: {
+				id: 'fixturedraft',
+				version: 1,
+				updatedAt: at('2026-09-29T12:34:00'),
+				state: { ...EDIT_STATE, targetRoleId: NO_TARGET_ROLE, submitScope: 'everyone' }
+			}
+		})
 	},
 	{
 		id: 'edit-locked-added',
@@ -2860,6 +2997,14 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 					submitted: 1,
 					targetCount: 4,
 					outsiders: 2
+				}),
+				adminRow({
+					id: 'pending000003',
+					title: '文化祭の日程アンケート',
+					submitScope: 'everyone',
+					submitted: 23,
+					targetCount: null,
+					roleName: null
 				}),
 				adminRow({
 					id: 'done00000001',

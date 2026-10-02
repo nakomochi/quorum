@@ -1,0 +1,1 @@
+ALTER TABLE "form" ALTER COLUMN "target_role_id" DROP NOT NULL;

@@ -67,16 +67,21 @@
 								<a href="/forms/{row.id}/results" class="hover:underline">{row.title}</a>
 							</td>
 							<td class="whitespace-nowrap text-text-subtle">
-								{row.roleName}
-								{#if row.submitScope === 'everyone'}
-									<span class="ml-1 text-xs text-text-muted">(提出は全員可)</span>
+								{#if row.roleName === null}
+									<span class="text-text-muted">なし（サーバーの全員）</span>
+								{:else}
+									{row.roleName}
+									{#if row.submitScope === 'everyone'}
+										<span class="ml-1 text-xs text-text-muted">(提出は全員可)</span>
+									{/if}
 								{/if}
 							</td>
 							<td class="whitespace-nowrap text-text-subtle tabular-nums">
 								{displayJst(row.deadline)}
 							</td>
 							<td class="tabular-nums whitespace-nowrap text-text-subtle">
-								{row.submitted}/{row.targetCount}
+								<!-- No denominator without a role: there is no roster to count against. -->
+								{row.targetCount === null ? row.submitted : `${row.submitted}/${row.targetCount}`}
 								{#if row.outsiders > 0}
 									<span class="block text-xs text-text-muted" title="対象外からの回答 {row.outsiders}名">
 										対象外 +{row.outsiders}

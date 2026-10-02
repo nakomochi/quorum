@@ -19,6 +19,7 @@
 		midDrag,
 		newQuestion,
 		NO_LOCKS,
+		type ChannelChoice,
 		type Choice,
 		type EditorLocks,
 		type EditorQuestion
@@ -34,7 +35,7 @@
 	type Props = {
 		heading: string;
 		roles: Choice[];
-		channels: Choice[];
+		channels: ChannelChoice[];
 		/** The saved draft the editor starts from, or null for a blank form. */
 		draft: { id: string; version: number; updatedAt: Date; state: EditorState } | null;
 		/** The action's last result. */
@@ -165,7 +166,11 @@
 		if (!at) return;
 		if ('question' in at) await questionList.reveal(at.question);
 		else if ('field' in at) {
-			formElement.querySelector(`[name="${at.field}"]`)?.scrollIntoView({ block: 'center' });
+			// A picker posts from a hidden field, which has no box to scroll to; its own box says so.
+			const field =
+				formElement.querySelector(`[data-field="${at.field}"]`) ??
+				formElement.querySelector(`[name="${at.field}"]`);
+			field?.scrollIntoView({ block: 'center' });
 		}
 	}
 

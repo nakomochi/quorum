@@ -33,6 +33,9 @@ export const NO_LOCKS: EditorLocks = { audience: false, questionTypes: false, ch
 
 export type Choice = { id: string; name: string };
 
+/** `category` names the channel's category, null outside any. */
+export type ChannelChoice = Choice & { category: string | null };
+
 // Shared by the zones and the items so the gap and the cards move together.
 export const FLIP_MS = 150;
 

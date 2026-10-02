@@ -17,15 +17,19 @@ type TableRow = {
 
 export type ResultTable = { header: string[]; rows: string[][] };
 
-/** The target's responses first, then the outsiders', each in the order the page lists them. */
+/**
+ * The target's responses first, then the outsiders', each in the order the page lists them.
+ * `outsiders` is null for a form without a role: every response is the target's, and the column
+ * that tells the two apart is left out.
+ */
 export function resultTable(
 	questions: TableQuestion[],
 	submitted: TableRow[],
-	outsiders: TableRow[]
+	outsiders: TableRow[] | null
 ): ResultTable {
-	const row = (entry: TableRow, audience: string) => [
+	const row = (entry: TableRow, audience: string | null) => [
 		entry.displayName,
-		audience,
+		...(audience === null ? [] : [audience]),
 		formatJstWithYear(entry.submittedAt),
 		formatJstWithYear(entry.updatedAt),
 		...questions.map((q) => {
@@ -33,6 +37,13 @@ export function resultTable(
 			return value ? describeAnswer(value, q.options) : '';
 		})
 	];
+
+	if (outsiders === null) {
+		return {
+			header: ['回答者', '提出日時', '最終更新日時', ...questions.map((q) => q.label)],
+			rows: submitted.map((entry) => row(entry, null))
+		};
+	}
 
 	return {
 		header: ['回答者', '対象', '提出日時', '最終更新日時', ...questions.map((q) => q.label)],

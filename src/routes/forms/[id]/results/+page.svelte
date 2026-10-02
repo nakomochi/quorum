@@ -37,13 +37,17 @@
 
 	const answerTotal = $derived(data.submitted.length + data.outsiders.length);
 
+	// A form without a role has no roster: no non-submitters, no outsiders, and its reminder is an
+	// announcement-style お知らせ that mentions nobody.
+	const roster = $derived(data.targetCount !== null);
+
 	const canAnnounce = $derived(!!data.announcement?.hasChannel && !data.announcement.url);
 	const canRemind = $derived(!!data.announcement?.hasChannel && !data.closed);
 	const announcementStale = $derived(!!data.announcement?.stale);
 
 	// An empty mirror has nothing to count. One that predates guild_sync still has people in it.
 	const rosterMissing = $derived(
-		data.manage && !data.frozen && data.rosterSyncedAt === null && data.targetCount === 0
+		data.manage && roster && !data.frozen && data.rosterSyncedAt === null && data.targetCount === 0
 	);
 
 	// What a manager can put right from the panel, marked on its closed summary. A form that has
@@ -106,7 +110,7 @@
 	// Both copies at once: a spreadsheet or document pastes the HTML as cells, and a plain text box
 	// (a chat, a Markdown editor) takes the Markdown.
 	async function copyTable() {
-		const table = resultTable(data.questions, data.submitted, data.outsiders);
+		const table = resultTable(data.questions, data.submitted, roster ? data.outsiders : null);
 		try {
 			if (typeof ClipboardItem !== 'undefined' && navigator.clipboard?.write) {
 				await navigator.clipboard.write([
@@ -126,7 +130,7 @@
 	}
 
 	function confirmReopen(event: SubmitEvent) {
-		if (!confirm(reopenConfirmation(data.reopenClearsClosesAt))) event.preventDefault();
+		if (!confirm(reopenConfirmation(data.reopenClearsClosesAt, roster))) event.preventDefault();
 	}
 </script>
 
@@ -228,9 +232,10 @@
 						: []),
 					{
 						label: '提出',
-						value: rosterMissing
-							? `${data.submitted.length}名`
-							: `${data.submitted.length}/${data.targetCount}名`
+						value:
+							!roster || rosterMissing
+								? `${data.submitted.length}名`
+								: `${data.submitted.length}/${data.targetCount}名`
 					},
 					...(data.outsiders.length > 0
 						? [{ label: '対象外', value: `${data.outsiders.length}名` }]
@@ -276,8 +281,10 @@
 						<p class="mt-1 text-text-muted">
 							{#if data.form.closedAt}
 								<span class="whitespace-nowrap">{displayJst(data.form.closedAt)}</span> に締め切りました。
-							{:else}
+							{:else if roster}
 								締め切ると、Discord から最新のメンバー一覧を取得して未提出者を確定し、以後の提出を受け付けません。受付はあとから再開できます。
+							{:else}
+								締め切ると、以後の提出を受け付けません。受付はあとから再開できます。
 							{/if}
 						</p>
 					</div>
@@ -288,7 +295,9 @@
 							</form>
 						{:else}
 							<form method="POST" action="?/close">
-								<button type="submit" class="btn-primary px-4 py-2">締め切って確定する</button>
+								<button type="submit" class="btn-primary px-4 py-2">
+									{roster ? '締め切って確定する' : '締め切る'}
+								</button>
 							</form>
 						{/if}
 					</div>
@@ -296,9 +305,19 @@
 
 				<section class="flex flex-col gap-3 text-sm">
 					<div>
-						<h3 class="section-title">Discord への告知とリマインド</h3>
+						<h3 class="section-title">Discord への告知と{roster ? 'リマインド' : 'お知らせ'}</h3>
 						<p class="mt-1 text-text-muted">
-							{#if !data.announcement.hasChannel}
+							{#if !roster}
+								{#if !data.announcement.hasChannel}
+									告知チャンネルが未設定のフォームです。告知もお知らせも投稿できません。
+								{:else if data.closed}
+									受付を終了したフォームのため、お知らせは投稿できません。
+								{:else if data.announcement.url}
+									お知らせは告知メッセージへの返信として投稿します。対象ロールがないため、誰もメンションしません。
+								{:else}
+									告知がまだ投稿されていません。お知らせは投稿できますが、告知への返信にはなりません。
+								{/if}
+							{:else if !data.announcement.hasChannel}
 								告知チャンネルが未設定のフォームです。告知の投稿もリマインドの送信もできません。
 							{:else if data.closed}
 								受付を終了したフォームのため、リマインドは送信できません。
@@ -331,18 +350,24 @@
 							{/if}
 							{#if canRemind}
 								<form method="POST" action="?/remind">
-									<button type="submit" class="btn-primary px-4 py-2">未提出者にリマインド</button>
+									<button type="submit" class="btn-primary px-4 py-2">
+										{roster ? '未提出者にリマインド' : 'お知らせを投稿'}
+									</button>
 								</form>
 							{/if}
 						</div>
 					{/if}
 
 					{#if data.reminders.length === 0}
-						<p class="text-xs text-text-muted">リマインドの送信履歴はありません。</p>
+						<p class="text-xs text-text-muted">
+							{roster ? 'リマインドの送信履歴はありません。' : 'お知らせの投稿履歴はありません。'}
+						</p>
 					{:else}
 						<!-- A list rather than a table: each entry wraps on a phone instead of scrolling. -->
 						<div class="flex flex-col gap-1.5 text-xs text-text-muted">
-							<h4 class="font-medium text-text-subtle">リマインドの送信履歴</h4>
+							<h4 class="font-medium text-text-subtle">
+								{roster ? 'リマインドの送信履歴' : 'お知らせの投稿履歴'}
+							</h4>
 							<ul class="flex flex-col gap-2.5 tabular-nums">
 								{#each data.reminders as entry (entry.id)}
 									{@const sentAt = displayJst(entry.sentAt)}
@@ -351,15 +376,24 @@
 										     posted none. A single message is the usual case and goes unsaid. -->
 										<p>
 											{#if entry.url}
-												{@render discordLink(entry.url, sentAt, `${sentAt} のリマインドを Discord で開く`)}
+												{@render discordLink(
+													entry.url,
+													sentAt,
+													`${sentAt} の${entry.notice ? 'お知らせ' : 'リマインド'}を Discord で開く`
+												)}
 											{:else}
 												<span class="whitespace-nowrap">{sentAt}</span>
 											{/if}
 											· {REMINDER_KIND[entry.kind]} ·
+											<!-- An お知らせ mentioned nobody, so it has no count to give. -->
 											<span class="whitespace-nowrap">
-												対象{entry.targetCount}名{entry.messageCount > 1
-													? `（${entry.messageCount}通）`
-													: ''}
+												{#if entry.notice}
+													お知らせ
+												{:else}
+													対象{entry.targetCount}名{entry.messageCount > 1
+														? `（${entry.messageCount}通）`
+														: ''}
+												{/if}
 											</span>
 										</p>
 										<!-- Left by a send that failed partway, until the next one of either kind
@@ -377,7 +411,7 @@
 				</section>
 
 				<!-- A frozen list no longer follows the roster, and the action refuses a refresh then. -->
-				{#if !data.frozen}
+				{#if roster && !data.frozen}
 					<section class="flex flex-col gap-3 text-sm">
 						<div>
 							<h3 class="section-title">未提出者の名簿</h3>
@@ -447,39 +481,43 @@
 			{/if}
 		</div>
 		{#if data.submitted.length === 0}
-			<p class="text-sm text-text-muted">対象者からの回答はまだありません。</p>
+			<p class="text-sm text-text-muted">
+				{roster ? '対象者からの回答はまだありません。' : '回答はまだありません。'}
+			</p>
 		{:else}
 			{@render answerTable(data.submitted)}
 		{/if}
 	</section>
 
-	<section class="flex flex-col gap-2">
-		<h2 class="section-title flex items-center gap-2">
-			未提出者{rosterMissing ? '' : `（${data.nonSubmitters.length}名）`}
-			{#if data.frozen}
-				<span class="badge badge-muted">確定済み</span>
+	{#if roster}
+		<section class="flex flex-col gap-2">
+			<h2 class="section-title flex items-center gap-2">
+				未提出者{rosterMissing ? '' : `（${data.nonSubmitters.length}名）`}
+				{#if data.frozen}
+					<span class="badge badge-muted">確定済み</span>
+				{/if}
+			</h2>
+			<!-- The refresh itself sits in the managers' panel; the list says which roster it is from. -->
+			{#if data.manage && !data.frozen}
+				<MetaLine items={[rosterItem]} />
 			{/if}
-		</h2>
-		<!-- The refresh itself sits in the managers' panel; the list says which roster it is from. -->
-		{#if data.manage && !data.frozen}
-			<MetaLine items={[rosterItem]} />
-		{/if}
-		{#if rosterMissing}
-			<p class="alert-warning">
-				名簿がまだ同期されていないため表示できません。上の管理パネルを開き、「名簿を更新」を押してください。
-			</p>
-		{:else if data.nonSubmitters.length === 0}
-			<p class="text-sm text-text-muted">未提出者はいません。</p>
-		{:else}
-			<ul class="card flex flex-wrap gap-2 p-4">
-				{#each data.nonSubmitters as name, index (index)}
-					<li class="border-border-strong rounded border px-2 py-1 text-xs text-text-subtle">
-						{name}
-					</li>
-				{/each}
-			</ul>
-		{/if}
-	</section>
+			{#if rosterMissing}
+				<p class="alert-warning">
+					名簿がまだ同期されていないため表示できません。上の管理パネルを開き、「名簿を更新」を押してください。
+				</p>
+			{:else if data.nonSubmitters.length === 0}
+				<p class="text-sm text-text-muted">未提出者はいません。</p>
+			{:else}
+				<ul class="card flex flex-wrap gap-2 p-4">
+					{#each data.nonSubmitters as name, index (index)}
+						<li class="border-border-strong rounded border px-2 py-1 text-xs text-text-subtle">
+							{name}
+						</li>
+					{/each}
+				</ul>
+			{/if}
+		</section>
+	{/if}
 
 	{#if data.outsiders.length > 0}
 		<section class="flex flex-col gap-2">

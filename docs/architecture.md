@@ -25,8 +25,8 @@ SvelteKit（adapter-node）の単一コンテナ。Discord は Bot の REST だ�
 | `GET /guilds/{guild}/members/{user}` | 本人の在籍とロールの確認、管理者の確認 | `reconcileMember`、`isGuildAdmin` | 5 回/秒 |
 | `GET /guilds/{guild}` | オーナー | `runFullSync`、`isGuildAdmin` | 実質無制限 |
 | `GET /guilds/{guild}/roles` | ロールの権限と名前 | `runFullSync`、`isGuildAdmin`、作成画面、編集画面、管理画面 | 実質無制限 |
-| `GET /guilds/{guild}/channels` | 告知チャンネルの選択肢と検証 | 作成画面、編集画面 | 未計測 |
-| `POST /channels/{channel}/messages` | 告知・リマインド・締め切り・締切の変更の投稿。後の3つは告知への返信 | `announceForm`、`sendReminder`、`postCloseNotice`、`postDeadlineChange` | 未計測 |
+| `GET /guilds/{guild}/channels` | 告知チャンネルの選択肢（カテゴリ名も同じ一覧から取る）と検証 | 作成画面、編集画面 | 未計測 |
+| `POST /channels/{channel}/messages` | 告知・リマインド（対象ロールなしはお知らせ）・締め切り・締切の変更の投稿。後の3つは告知への返信 | `announceForm`、`sendReminder`、`postCloseNotice`、`postDeadlineChange` | 未計測 |
 | `PATCH /channels/{channel}/messages/{message}` | 告知の本文を今のフォームに合わせる | `refreshAnnouncement` | 未計測 |
 
 - ログインの OAuth は Better Auth の Discord プロバイダが扱う。
@@ -59,11 +59,11 @@ erDiagram
 | `user` `session` `account` `verification` | Better Auth。`user.discord_id` は OAuth のプロフィールからだけ入る |
 | `guild_member` | 名簿。Discord サーバーのメンバーを全員同期で写したもの。抜けた人も行を残し `left_at` を入れる。アバターはアカウント用（`avatar_hash`）とサーバー用（`guild_avatar_hash`）を持つ |
 | `guild_sync` | 1 行だけ。名簿を最後に書いた全員同期が Discord から取得を始めた時刻と、そのときのオーナー・ロール権限 |
-| `form` | フォーム。`deadline`（告知した締切）・`closes_at`（受付終了の予定）・`closed_at`（クローズした時刻。自動クローズでは `closes_at` と同じ値）を別々に持つ。クローズで対象者（`final_target_ids`）と未提出者（`final_non_submitters`）を確定する。締め切りの投稿は `close_notice_claimed_at` で予約し、`close_message_id` に結果を持つ。`version` は編集を保存するたびに 1 増える。`announced_content` は告知に最後に投稿または編集した本文。今のフォームから作る本文と違えば告知は古い。null（記録する前に告知したフォーム）は結果画面では古いと表示しないが、`refreshAnnouncement` は編集して記録する |
+| `form` | フォーム。`deadline`（告知した締切）・`closes_at`（受付終了の予定）・`closed_at`（クローズした時刻。自動クローズでは `closes_at` と同じ値）を別々に持つ。クローズで対象者（`final_target_ids`）と未提出者（`final_non_submitters`）を確定する。`target_role_id` が null のフォームはサーバーの全員が対象で、名簿を持たない。誰でも回答でき（`submit_scope` は常に `everyone`）、回答はすべて提出として数え、未提出者・対象外はなく、クローズしても `final_target_ids` と `final_non_submitters` は null のまま。メンションもしない。締め切りの投稿は `close_notice_claimed_at` で予約し、`close_message_id` に結果を持つ。`version` は編集を保存するたびに 1 増える。`announced_content` は告知に最後に投稿または編集した本文。今のフォームから作る本文と違えば告知は古い。null（記録する前に告知したフォーム）は結果画面では古いと表示しないが、`refreshAnnouncement` は編集して記録する |
 | `question` | 質問。削除は `deleted_at` の論理削除。編集で消した選択肢は `options` に `deleted: true` を付けて残し、回答のラベルに使う。回答画面・集計には出さない |
 | `response` / `answer` | 最新の回答。1 人 1 フォーム 1 件 |
 | `response_revision` | 送信のたびに回答全体を 1 版として残す。同じ内容の再送では増えない |
-| `reminder` | リマインドの送信記録。自動は締切ごとに 1 件（部分ユニーク `reminder_auto_once_uq`）。メンションした人（`target_discord_ids`）とまだの人（`pending_discord_ids`）を分けて持つ |
+| `reminder` | リマインドの送信記録。自動は締切ごとに 1 件（部分ユニーク `reminder_auto_once_uq`）。メンションした人（`target_discord_ids`）とまだの人（`pending_discord_ids`）を分けて持つ。対象ロールなしのフォームのお知らせも同じ行で、どちらも空のまま 1 通だけ投稿する。履歴では、投稿があってメンションした人がいない行をお知らせとして表示する |
 | `form_draft` | 作成画面と編集画面の下書き。エディタの入力を `payload`（jsonb）に検証せずに持つ。`version` で古い画面からの上書きを 409 で止める。作成が成功すると同じトランザクションで消す。フォームの複製もこの行を作る。編集の下書きは `form_id` と編集を始めた `form.version`（`base_version`）を持ち、1 フォーム 1 人 1 行（部分ユニーク `form_draft_edit_uq`）。編集画面を開くと作られ、編集の保存で消える。下書きを一度も保存していない行が、ほかの人の編集の保存で古くなっていれば、開いたときに消して作り直す。トップの下書き一覧には出さない |
 | `response_draft` | 回答画面の下書き。1 人 1 フォーム 1 行。`version` で古い画面からの上書きを 409 で止める。送信とクローズで消す。本人にしか見えず、提出数やリマインドには影響しない |
 
@@ -72,7 +72,7 @@ erDiagram
 | 処理 | 順序 |
 | --- | --- |
 | 回答の送信 `submitResponse` | `form` を `FOR SHARE` → 検証に使った `version` と違えば `form_changed` で何も書かずに終える → `response` を INSERT（重複は DO NOTHING）→ 編集なら `response` を `FOR UPDATE` → 本人の `response_draft` の DELETE → `answer` の入れ直し・`response_revision` の追加 |
-| クローズ `closeForm` | `form` を `FOR UPDATE` → 名簿と回答を読む → `form` を UPDATE → そのフォームの `response_draft` の DELETE |
+| クローズ `closeForm` | `form` を `FOR UPDATE` → 名簿と回答を読む（対象ロールなしは読まない）→ `form` を UPDATE → そのフォームの `response_draft` の DELETE。ロック前に読んだときに対象ロールがなく、ロック後にあれば、何も書かずに全員同期からやり直す |
 | 締め切りの投稿 `postCloseNotice` | `form` の条件付き UPDATE で予約（未予約のときだけ）→ 投稿はトランザクションの外 → 予約が残っているときだけ `form` を UPDATE。クローズのトランザクションの後に走る |
 | 回答の下書きの保存 `saveResponseDraft` | `form` を `FOR SHARE` → `isClosed` なら 409 → `response_draft` を版 0 なら INSERT（重複は DO NOTHING）、それ以外は条件付き UPDATE。`response` には触れない |
 | 全員同期 `runFullSync` | advisory lock → `guild_sync` を読み、後から取得を始めた同期がコミット済みなら何も書かずに終える → `guild_member` の upsert・離脱の UPDATE → `guild_sync` の upsert |
@@ -80,7 +80,7 @@ erDiagram
 | 編集の保存 `publishFormEdit` | `form` を `FOR UPDATE` → `closed_at` か `version` の食い違いなら 409 → `response` と `reminder` を読み、回答があれば対象ロール・提出できる人・既存の質問の種類、告知かリマインドを投稿済みなら告知チャンネルの変更を 400 で止める → `form` を UPDATE（`version` を増やす）→ `question` の UPDATE・INSERT・論理削除 → 本人の編集の `form_draft` の DELETE |
 | 告知の更新 `refreshAnnouncement` | `form` を読む → 編集はトランザクションの外 → 読んだときと `version` が同じときだけ `announced_content` を UPDATE。ほかの編集の保存が入れば古いまま残り、次の更新で直る |
 | 下書きの保存 `updateDraft` | `form_draft` の条件付き UPDATE だけ。ほかの行には触れない |
-| リマインドの送信 `sendReminder` | 1 通ごとに `reminder` を `FOR UPDATE` → 未送信から 50 人をメンション済みに移す。投稿はトランザクションの外 |
+| リマインドの送信 `sendReminder` | 1 通ごとに `reminder` を `FOR UPDATE` → 未送信から 50 人をメンション済みに移す。投稿はトランザクションの外。お知らせは `reminder` を INSERT（自動の重複は DO NOTHING）→ 投稿 → `message_ids` を UPDATE。投稿に失敗したら行を消す |
 
 - 送信のトランザクションで `form` の行に書き込まない。`FOR SHARE` の後に同じ行を UPDATE すると、同時に来た初回の回答どうしがデッドロックする。
 - `response_draft` は `form` の行のロックの後に書く。保存の `FOR SHARE` とクローズの `FOR UPDATE` が順番を決めるので、クローズの後に下書きは残らない。
@@ -147,12 +147,13 @@ Coolify の Scheduled Tasks が `node scripts/cron.js <job>` を実行し、`POS
 
 | job | 間隔 | 内容 |
 | --- | --- | --- |
-| `tick` | 1 分 | 締切 24 時間前から締切までのフォームに自動リマインドを 1 回送る。受付終了を過ぎたフォームをクローズする。クローズから 24 時間以内で、締め切りの投稿がまだのフォームに投稿する |
+| `tick` | 1 分 | 締切 24 時間前から締切までのフォームに自動リマインド（対象ロールなしはお知らせ）を 1 回送る。受付終了を過ぎたフォームをクローズする。クローズから 24 時間以内で、締め切りの投稿がまだのフォームに投稿する |
 | `sync-members` | 1 時間 | 全員同期 |
 
 - 同じ job が実行中なら 409 を返して何もしない。`CRON_SECRET` が未設定なら常に拒否する。
 - 自動リマインドは送信前に予約の行を入れ、締切ごとの部分ユニークで重複を防ぐ。
 - 途中で失敗した送信は、送れた分を記録して残す。次のリマインドは自動・手動を問わず、残った送信があればその続き（古いものから 1 件）を、まだメンションしていない未提出者にだけ送って終える。残った送信がないときだけ新しく送る。
+- 対象ロールなしのフォームのお知らせは、ロールがあったときに残った送信の未送信の人を空にしてから送る。残っていたのがその締切の自動なら、その締切の自動のお知らせは送らない。
 - 自動が手動の送信の続きを送っても、その締切の自動リマインドを送ったことにはならず、後の tick が新しく送る。
 - 締め切りの投稿は、クローズの直後に行う。失敗してもクローズは成功のままで、次の tick が送り直す。
 
@@ -164,10 +165,10 @@ Coolify の Scheduled Tasks が `node scripts/cron.js <job>` を実行し、`POS
 | --- | --- |
 | 毎時の cron（`sync-members`） | 拾えなかった変化の反映。抜けた人やロールを外された人が閲覧できるのは最長 1 時間 |
 | 管理画面の同期ボタン | 手動の修復 |
-| リマインド・クローズの直前 | 古い名簿でメンションしたり確定したりしない |
+| リマインド・クローズの直前（対象ロールがあるときだけ） | 古い名簿でメンションしたり確定したりしない |
 | 結果ページの「名簿を更新」 | 確定前の未提出者を最新にする。開いただけでは同期しない |
-| フォーム作成の直後 | 「ロールを付ける → 作る」の順で未提出者を最新にする |
-| 対象ロールを変えた編集の保存の直後 | 作成の直後と同じ |
+| フォーム作成の直後（対象ロールがあるときだけ） | 「ロールを付ける → 作る」の順で未提出者を最新にする |
+| 対象ロールを変えた編集の保存の直後（変えた先がロールのときだけ） | 作成の直後と同じ |
 | 本人の問い合わせで名簿との違いが見つかったとき | 上の認証と認可を参照 |
 
 メンバーのロール構成の変化は、本人の問い合わせで見つかれば直る。ロールの権限だけの変更とオーナー交代は、次の全員同期まで名簿に反映されない。

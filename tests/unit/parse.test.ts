@@ -6,6 +6,7 @@ import {
 	MAX_OPTIONS,
 	MAX_QUESTIONS,
 	MAX_TITLE,
+	NO_TARGET_ROLE,
 	OTHER_OPTION_ID,
 	type InputErrorAt
 } from '$lib/forms';
@@ -193,6 +194,12 @@ describe('parseCreateFormPayload', () => {
 		expect(parsed.announcementChannelId).toBe('456');
 		expect(parsed.announceClose).toBe(false);
 		expect(parsed.deadline?.toISOString()).toBe('2099-01-02T00:00:00.000Z');
+	});
+
+	test('no role is stored as null, and lets everyone submit whatever was sent', () => {
+		const parsed = parseCreateFormPayload(payload({ targetRoleId: NO_TARGET_ROLE, submitScope: 'target_role' }));
+		expect(parsed.targetRoleId).toBeNull();
+		expect(parsed.submitScope).toBe('everyone');
 	});
 
 	test('rejects values outside the enums, at their fields', () => {

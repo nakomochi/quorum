@@ -21,7 +21,13 @@ export const VISIBILITY_LABELS: Record<Visibility, string> = {
 	after_deadline: '締切後または確定後に公開'
 };
 
-export const hasOptions = (type: QuestionType) => type === 'single' || type === 'multi';
+/**
+ * Posted as the target role for a form aimed at the whole guild, which is stored as null. Never a
+ * snowflake, and apart from '', which is a choice not made yet.
+ */
+export const NO_TARGET_ROLE = 'none';
+
+export const hasOptions =(type: QuestionType) => type === 'single' || type === 'multi';
 
 /**
  * The options a respondent may still choose. An option removed by an edit stays in the stored list
@@ -39,11 +45,16 @@ export const CHANNEL_LOCKED = 'Discord に投稿済みのため変更できま�
 export const REOPEN_CLEARS_CLOSES_AT =
 	'受付終了日時を過ぎているため、再開すると受付終了の設定は解除され、以後は手動で締め切るまで回答を受け付けます。';
 
-/** Asked before a closed form is reopened, on the results page and the edit page. */
-export const reopenConfirmation = (clearsClosesAt: boolean) =>
-	clearsClosesAt
-		? '対象者と未提出者の確定を破棄して受付を再開します。受付終了日時を過ぎているため、その設定は解除され、以後は手動で締め切るまで回答を受け付けます。元に戻せません。'
-		: '対象者と未提出者の確定を破棄して受付を再開します。元に戻せません。';
+/**
+ * Asked before a closed form is reopened, on the results page and the edit page. `roster` is false
+ * for a form without a role, which froze nobody.
+ */
+export const reopenConfirmation = (clearsClosesAt: boolean, roster = true) =>
+	(roster ? '対象者と未提出者の確定を破棄して受付を再開します。' : '受付を再開します。') +
+	(clearsClosesAt
+		? '受付終了日時を過ぎているため、その設定は解除され、以後は手動で締め切るまで回答を受け付けます。'
+		: '') +
+	(roster || clearsClosesAt ? '元に戻せません。' : '');
 
 /** How a form stands for its creator; the top page gets this instead of the times behind it. */
 export type FormStatus = 'open' | 'ended' | 'closed';

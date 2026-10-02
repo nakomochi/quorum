@@ -14,6 +14,7 @@ const MAX_RETRY_AFTER_MS = 60_000;
 const REQUEST_TIMEOUT_MS = 10_000;
 
 export const GUILD_TEXT_CHANNEL = 0;
+const GUILD_CATEGORY = 4;
 
 export type DiscordUser = {
 	id: string;
@@ -250,9 +251,23 @@ export async function listGuildRoles(): Promise<DiscordRole[]> {
 	return getJson<DiscordRole[]>(`/guilds/${guildId()}/roles`);
 }
 
-export async function listGuildChannels(): Promise<DiscordChannel[]> {
+/** A text channel with the name of the category it sits in, null outside any. */
+export type TextChannel = DiscordChannel & { categoryName: string | null };
+
+/** The text channels. The categories come in the same list, so their names cost no extra request. */
+export async function listGuildChannels(): Promise<TextChannel[]> {
 	const channels = await getJson<DiscordChannel[]>(`/guilds/${guildId()}/channels`);
-	return channels.filter((channel) => channel.type === GUILD_TEXT_CHANNEL);
+	const categories = new Map(
+		channels
+			.filter((channel) => channel.type === GUILD_CATEGORY)
+			.map((channel) => [channel.id, channel.name])
+	);
+	return channels
+		.filter((channel) => channel.type === GUILD_TEXT_CHANNEL)
+		.map((channel) => ({
+			...channel,
+			categoryName: channel.parent_id ? (categories.get(channel.parent_id) ?? null) : null
+		}));
 }
 
 export async function getGuild(): Promise<DiscordGuild> {

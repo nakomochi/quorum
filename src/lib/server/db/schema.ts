@@ -154,9 +154,10 @@ export const form = pgTable(
 			.$defaultFn(() => newFormId()),
 		title: text('title').notNull(),
 		description: text('description'),
-		// Role that defines the roster and the mention target.
-		targetRoleId: text('target_role_id').notNull(),
-		// Who may submit. Deliberately separate from the mention target.
+		// Role that defines the roster and the mention target. Null for a form aimed at the whole
+		// guild, which has no roster: anyone may submit, and nobody is mentioned.
+		targetRoleId: text('target_role_id'),
+		// Who may submit. Deliberately separate from the mention target. Always 'everyone' without a role.
 		submitScope: submitScope('submit_scope').notNull().default('everyone'),
 		visibility: formVisibility('visibility').notNull().default('public'),
 		// Announced deadline (may differ from closes_at).

@@ -20,6 +20,14 @@ describe('canSubmit', () => {
 		expect(canSubmit(target, { roleIds: ['other'] })).toBe(false);
 		expect(canSubmit(target, { roleIds: [] })).toBe(false);
 	});
+
+	test('no role admits any member, whatever submitScope says', () => {
+		for (const submitScope of ['everyone', 'target_role'] as const) {
+			const target = { submitScope, targetRoleId: null };
+			expect(canSubmit(target, { roleIds: [] })).toBe(true);
+			expect(canSubmit(target, { roleIds: ['other'] })).toBe(true);
+		}
+	});
 });
 
 describe('closesAtPassed / isClosed', () => {

@@ -45,6 +45,26 @@ describe('resultTable', () => {
 			]
 		});
 	});
+
+	test('without a role every row is the target’s, and the 対象 column is left out', () => {
+		const table = resultTable(
+			QUESTIONS,
+			[
+				{
+					displayName: 'あおい',
+					submittedAt: at('2026-01-03T08:00:00'),
+					updatedAt: at('2026-01-03T08:00:00'),
+					answers: { 1: { type: 'single', optionId: 'yes' } }
+				}
+			],
+			null
+		);
+
+		expect(table).toEqual({
+			header: ['回答者', '提出日時', '最終更新日時', '参加', '連絡事項'],
+			rows: [['あおい', '2026/01/03 08:00', '2026/01/03 08:00', '出席', '']]
+		});
+	});
 });
 
 const TABLE = {

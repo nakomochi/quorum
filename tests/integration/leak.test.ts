@@ -488,6 +488,7 @@ describe('what a member receives', () => {
 			form: { id: adminOnly.id, title: 'テストフォーム' },
 			closed: true,
 			reopenClearsClosesAt: false,
+			roster: true,
 			reopened: false,
 			editor: null
 		});
@@ -533,6 +534,36 @@ describe('what a member receives', () => {
 			[409, ['message']]
 		]);
 		for (const result of results) expectNoLeak(result.data, [...secrets, SECRET_NAME]);
+	});
+
+	test('a form without a role: no roster fields filled, and its お知らせ give a link and a flag only', async () => {
+		const { creator, viewer, other, secrets } = await scene();
+		const open = await makeForm(creator, { targetRoleId: null, announcementChannelId: CHANNEL_ID });
+		await submit(open.id, other, [TARGET_ROLE], inputs(open.questions, { 0: 'x' }));
+		const announced = await announceForm(open.id);
+		const remind = (await resultsActions.remind({
+			locals: sessionLocals(creator),
+			params: { id: open.id }
+		} as never)) as object;
+		expect(remind).toEqual({ notice: 'お知らせを投稿しました。' });
+		const [sent] = await db.select({ messageIds: reminder.messageIds }).from(reminder).where(eq(reminder.formId, open.id));
+		discord.calls = [];
+		const path = `/forms/${open.id}/results`;
+
+		const seen = (await resultsLoad(event(viewer, { id: open.id }, path))) as Record<string, unknown>;
+		expect(seen).toMatchObject({ targetCount: null, nonSubmitters: [], outsiders: [], reminders: [] });
+		expectNoLeak(seen, [...secrets, viewer.discordId, ...sent.messageIds, announced.ok ? announced.messageId : '']);
+
+		const managed = (await resultsLoad(event(creator, { id: open.id }, path))) as {
+			reminders: Record<string, unknown>[];
+		};
+		expect(Object.keys(managed.reminders[0]).sort()).toEqual(
+			['id', 'kind', 'messageCount', 'notice', 'pendingCount', 'sentAt', 'targetCount', 'url'].sort()
+		);
+		expectNoLeak(managed, [...secrets.filter((s) => s !== CHANNEL_ID), SECRET_NAME]);
+
+		const closed = await resultsActions.close({ locals: sessionLocals(creator), params: { id: open.id } } as never);
+		expect(closed).toEqual({ notice: '締め切りました。' });
 	});
 
 	test('the creator does see the manager fields', async () => {

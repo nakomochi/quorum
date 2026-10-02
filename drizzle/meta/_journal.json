@@ -120,6 +120,13 @@
       "when": 1790814765440,
       "tag": "0016_opposite_nemesis",
       "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1790900497900,
+      "tag": "0017_medical_jack_murdock",
+      "breakpoints": true
     }
   ]
 }

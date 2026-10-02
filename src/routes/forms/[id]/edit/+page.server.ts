@@ -11,6 +11,7 @@ import {
 } from '$lib/server/form-edit';
 import {
 	closesAtPassed,
+	editorChoices,
 	FormInputError,
 	loadQuestions,
 	NOT_CLOSED,
@@ -69,15 +70,16 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 			form,
 			closed: true as const,
 			reopenClearsClosesAt: closesAtPassed(target),
+			// A form with no role froze no roster, so reopening has nothing of it to undo.
+			roster: target.targetRoleId !== null,
 			reopened,
 			editor: null
 		};
 	}
 
 	const draft = await openEditDraft(target, user.id);
-	const [roles, channels, locks, questions] = await Promise.all([
-		selectableRoles(),
-		listGuildChannels(),
+	const [choices, locks, questions] = await Promise.all([
+		editorChoices(),
 		editLocks(target),
 		loadQuestions(target.id)
 	]);
@@ -88,10 +90,7 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 		reopenClearsClosesAt: false,
 		reopened,
 		editor: {
-			roles: roles.map((role) => ({ id: role.id, name: role.name })),
-			channels: channels
-				.map((channel) => ({ id: channel.id, name: channel.name }))
-				.sort((a, b) => a.name.localeCompare(b.name)),
+			...choices,
 			// The payload is read into the editor's fields here, so nothing else stored in it is sent.
 			draft: {
 				id: draft.id,
@@ -134,8 +133,8 @@ export const actions: Actions = {
 			const input = parseCreateFormPayload(data);
 
 			// Checked against Discord only when changed: a locked or kept role or channel may since
-			// have been deleted there, and stays as it is.
-			if (input.targetRoleId !== target.targetRoleId) {
+			// have been deleted there, and stays as it is. No role needs no check.
+			if (input.targetRoleId !== null && input.targetRoleId !== target.targetRoleId) {
 				const roles = await selectableRoles();
 				if (!roles.some((role) => role.id === input.targetRoleId)) {
 					throw new FormInputError('対象ロールが不正です', { field: 'targetRoleId' });
@@ -165,8 +164,9 @@ export const actions: Actions = {
 			}
 
 			// As after creating a form: a role granted just before must count among the
-			// non-submitters at once. A failure is left to the next sync.
-			if (result.roleChanged) {
+			// non-submitters at once. A failure is left to the next sync. Dropping the role leaves
+			// no roster to refresh.
+			if (result.roleChanged && input.targetRoleId !== null) {
 				try {
 					await syncAllMembers();
 				} catch (cause) {

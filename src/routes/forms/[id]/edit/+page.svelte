@@ -30,7 +30,8 @@
 	});
 
 	function confirmReopen(event: SubmitEvent) {
-		if (!confirm(reopenConfirmation(data.reopenClearsClosesAt))) event.preventDefault();
+		const roster = data.closed ? data.roster : true;
+		if (!confirm(reopenConfirmation(data.reopenClearsClosesAt, roster))) event.preventDefault();
 	}
 
 	let editor = $state<ReturnType<typeof FormEditor>>();

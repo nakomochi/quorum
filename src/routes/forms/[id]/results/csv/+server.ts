@@ -9,7 +9,11 @@ export const GET: RequestHandler = async ({ locals, params }) => {
 	const { target } = await requireResultsViewer(locals, params.id);
 
 	const [questions, results] = await Promise.all([loadQuestions(target.id), loadResults(target)]);
-	const { header, rows } = resultTable(questions, results.submitted, results.outsiders);
+	const { header, rows } = resultTable(
+		questions,
+		results.submitted,
+		results.targetCount === null ? null : results.outsiders
+	);
 
 	return new Response(toCsv([header, ...rows]), {
 		headers: {

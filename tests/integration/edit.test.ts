@@ -287,6 +287,7 @@ describe('opening the edit page', () => {
 			form: { id, title: 'テストフォーム' },
 			closed: true,
 			reopenClearsClosesAt: false,
+			roster: true,
 			reopened: false,
 			editor: null
 		});

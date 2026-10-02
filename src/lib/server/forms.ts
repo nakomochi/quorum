@@ -16,7 +16,7 @@ import {
 	type Question,
 	type QuestionOption
 } from './db/schema';
-import { guildId, listGuildRoles, type DiscordRole } from './discord';
+import { guildId, listGuildChannels, listGuildRoles, type DiscordRole } from './discord';
 import { syncAllMembers } from './guild-sync';
 import { parseJstLocal } from '../datetime';
 import {
@@ -34,6 +34,7 @@ import {
 	MAX_RESPONSE_BYTES,
 	MAX_TEXT_ANSWER,
 	MAX_TITLE,
+	NO_TARGET_ROLE,
 	OTHER_OPTION_ID,
 	QUESTION_TYPES,
 	sameAnswers,
@@ -94,7 +95,8 @@ export type ParsedQuestion = QuestionDraft & { sourceId: number | null };
 export type CreateFormInput = {
 	title: string;
 	description: string | null;
-	targetRoleId: string;
+	/** Null for a form aimed at the whole guild. */
+	targetRoleId: string | null;
 	submitScope: SubmitScope;
 	visibility: Visibility;
 	deadline: Date | null;
@@ -117,6 +119,20 @@ export async function selectableRoles(): Promise<DiscordRole[]> {
 	return (await listGuildRoles())
 		.filter((role) => role.id !== id && !role.managed)
 		.sort((a, b) => b.position - a.position);
+}
+
+/** The editor's pickers: only what they draw, roles in Discord's order and channels by name. */
+export async function editorChoices(): Promise<{
+	roles: { id: string; name: string }[];
+	channels: { id: string; name: string; category: string | null }[];
+}> {
+	const [roles, channels] = await Promise.all([selectableRoles(), listGuildChannels()]);
+	return {
+		roles: roles.map((role) => ({ id: role.id, name: role.name })),
+		channels: channels
+			.map((channel) => ({ id: channel.id, name: channel.name, category: channel.categoryName }))
+			.sort((a, b) => a.name.localeCompare(b.name))
+	};
 }
 
 /** `name` is the field as posted, and where the error is shown; `label` names it in the message. */
@@ -273,11 +289,16 @@ export function parseCreateFormPayload(data: FormData): ParsedForm {
 		});
 	}
 
+	const role = requireText(data, 'targetRoleId', '対象ロール', MAX_SNOWFLAKE);
+	const targetRoleId = role === NO_TARGET_ROLE ? null : role;
+	const submitScope = pickEnum(data, 'submitScope', SUBMIT_SCOPES, '提出できる人', 'everyone');
+
 	return {
 		title: requireText(data, 'title', 'タイトル', MAX_TITLE),
 		description: optionalText(data, 'description', '説明', MAX_DESCRIPTION),
-		targetRoleId: requireText(data, 'targetRoleId', '対象ロール', MAX_SNOWFLAKE),
-		submitScope: pickEnum(data, 'submitScope', SUBMIT_SCOPES, '提出できる人', 'everyone'),
+		targetRoleId,
+		// Without a role there is nobody to narrow the submitters to, and the editor hides the choice.
+		submitScope: targetRoleId === null ? 'everyone' : submitScope,
 		visibility: pickEnum(data, 'visibility', VISIBILITIES, '結果の公開範囲', 'public'),
 		deadline,
 		closesAt,
@@ -353,9 +374,12 @@ export async function createForm(
 
 export type MemberContext = { roleIds: string[] };
 
-/** Guild membership is the floor; target_role narrows it to the roster the form is aimed at. */
+/**
+ * Guild membership is the floor; target_role narrows it to the roster the form is aimed at. A form
+ * without a role is open to every member, whatever its submitScope says.
+ */
 export function canSubmit(target: Pick<Form, 'submitScope' | 'targetRoleId'>, member: MemberContext) {
-	if (target.submitScope === 'everyone') return true;
+	if (target.submitScope === 'everyone' || target.targetRoleId === null) return true;
 	return member.roleIds.includes(target.targetRoleId);
 }
 
@@ -790,16 +814,18 @@ function inRoster(member: RosterFacts | undefined, targetRoleId: string): boolea
 /**
  * Whether a responder counts toward the target. Must match targetRoster, or a response would
  * change sides the moment the form closes. Forms closed before final_target_ids existed have no
- * frozen roster and fall back to the mirror.
+ * frozen roster and fall back to the mirror. Without a role everyone who answered counts.
  */
 function targetMatcher(
 	target: Pick<Form, 'targetRoleId' | 'closedAt' | 'finalTargetIds'>
 ): (discordId: string, member: RosterFacts | undefined) => boolean {
+	const roleId = target.targetRoleId;
+	if (roleId === null) return () => true;
 	if (target.closedAt !== null && target.finalTargetIds !== null) {
 		const frozen = new Set(target.finalTargetIds);
 		return (discordId) => frozen.has(discordId);
 	}
-	return (_, member) => inRoster(member, target.targetRoleId);
+	return (_, member) => inRoster(member, roleId);
 }
 
 /** Closing is what fixes the record: after it the non-submitters may not drift with the mirror. */
@@ -831,11 +857,15 @@ async function targetRoster(exec: Executor, targetRoleId: string) {
 		);
 }
 
-/** The target roster and its non-submitters, both taken from one read of the mirror. */
+/**
+ * The target roster and its non-submitters, both taken from one read of the mirror. A form without
+ * a role has no roster, and both are empty.
+ */
 export async function rosterStatus(
 	exec: Executor,
 	target: Pick<Form, 'id' | 'targetRoleId'>
 ): Promise<{ targetIds: string[]; nonSubmitters: FrozenMember[] }> {
+	if (target.targetRoleId === null) return { targetIds: [], nonSubmitters: [] };
 	const roster = await targetRoster(exec, target.targetRoleId);
 	const responded = await exec
 		.select({ discordId: response.discordId })
@@ -885,11 +915,16 @@ export type ResultRow = {
 export type FormResults = {
 	/** True when the non-submitter list came from the frozen record instead of the mirror. */
 	frozen: boolean;
-	targetCount: number;
+	/** Null for a form without a role: there is no roster to count against. */
+	targetCount: number | null;
+	/** Every response, when the form has no role. */
 	submitted: ResultRow[];
-	/** Responses from outside the target roster: no target role, a bot, or no longer in the guild. */
+	/**
+	 * Responses from outside the target roster: no target role, a bot, or no longer in the guild.
+	 * Always empty without a role.
+	 */
 	outsiders: ResultRow[];
-	/** Display names only, for the same reason as ResultRow. */
+	/** Display names only, for the same reason as ResultRow. Always empty without a role. */
 	nonSubmitters: string[];
 };
 
@@ -958,6 +993,10 @@ export async function loadResults(target: Form): Promise<FormResults> {
 		else outsiders.push(entry);
 	}
 
+	if (target.targetRoleId === null) {
+		return { frozen: false, targetCount: null, submitted, outsiders, nonSubmitters: [] };
+	}
+
 	const frozen = frozenNonSubmitters(target);
 	const nonSubmitters = frozen ?? (await computeNonSubmitters(db, target));
 
@@ -1022,7 +1061,8 @@ export async function loadResponseHistory(
 	};
 }
 
-export type ResponseCounts = { submitted: number; targetCount: number; outsiders: number };
+/** `targetCount` is null for a form without a role, as in FormResults. */
+export type ResponseCounts = { submitted: number; targetCount: number | null; outsiders: number };
 
 type CountTarget = Pick<
 	Form,
@@ -1056,15 +1096,16 @@ export async function responseCounter(): Promise<(target: CountTarget) => Respon
 
 	return (target) => {
 		const ids = respondents.get(target.id) ?? [];
+		const roleId = target.targetRoleId;
+		if (roleId === null) return { submitted: ids.length, targetCount: null, outsiders: 0 };
+
 		const isTarget = targetMatcher(target);
 		const submitted = ids.filter((id) => isTarget(id, byId.get(id))).length;
 
 		const answered = new Set(ids);
 		const nonSubmitters =
 			frozenNonSubmitters(target)?.length ??
-			members.filter(
-				(row) => inRoster(row, target.targetRoleId) && !answered.has(row.discordId)
-			).length;
+			members.filter((row) => inRoster(row, roleId) && !answered.has(row.discordId)).length;
 
 		return {
 			submitted,
@@ -1124,7 +1165,8 @@ export function tallyChoices(questions: Question[], rows: ResultRow[]): ChoiceTa
 }
 
 export type CloseResult =
-	| { ok: true; frozen: number }
+	/** `frozen`: the non-submitters fixed by the close. Null for a form without a role. */
+	| { ok: true; frozen: number | null }
 	| { ok: false; reason: 'not_found' | 'already_closed' | 'not_due' };
 
 /**
@@ -1139,15 +1181,28 @@ export type CloseTime = 'now' | 'closes_at';
  * stale roster would name the wrong people forever. A Discord failure propagates and the form
  * stays open rather than being frozen on old data. The roster is frozen as it stands when the close
  * runs, whatever `at` records. The close is posted to Discord afterwards, by postCloseNotice.
+ *
+ * A form without a role has no roster: nothing is asked of Discord, and final_target_ids and
+ * final_non_submitters stay null.
  */
 export async function closeForm(formId: string, at: CloseTime = 'now'): Promise<CloseResult> {
-	try {
-		await syncAllMembers();
-	} catch (cause) {
-		throw new RosterRefreshError('roster refresh failed before close', { cause });
+	const [before] = await db
+		.select({ targetRoleId: form.targetRoleId })
+		.from(form)
+		.where(eq(form.id, formId))
+		.limit(1);
+	if (!before) return { ok: false, reason: 'not_found' };
+
+	const refreshed = before.targetRoleId !== null;
+	if (refreshed) {
+		try {
+			await syncAllMembers();
+		} catch (cause) {
+			throw new RosterRefreshError('roster refresh failed before close', { cause });
+		}
 	}
 
-	return db.transaction(async (tx) => {
+	const result = await db.transaction(async (tx) => {
 		// FOR UPDATE pairs with the FOR SHARE in submitResponse: without it a submission can commit
 		// between rosterStatus and the write, landing the same person in both lists.
 		const [target] = await tx
@@ -1158,6 +1213,8 @@ export async function closeForm(formId: string, at: CloseTime = 'now'): Promise<
 			.limit(1);
 		if (!target) return { ok: false, reason: 'not_found' } as const;
 		if (target.closedAt) return { ok: false, reason: 'already_closed' } as const;
+		// An edit gave the form a role after the read above, so its roster was not refreshed.
+		if (target.targetRoleId !== null && !refreshed) return 'refresh' as const;
 
 		let closedAt = new Date();
 		if (at === 'closes_at') {
@@ -1167,19 +1224,25 @@ export async function closeForm(formId: string, at: CloseTime = 'now'): Promise<
 			closedAt = target.closesAt;
 		}
 
-		const { targetIds, nonSubmitters } = await rosterStatus(tx, target);
+		const roster = target.targetRoleId === null ? null : await rosterStatus(tx, target);
 
 		await tx
 			.update(form)
-			.set({ closedAt, finalNonSubmitters: nonSubmitters, finalTargetIds: targetIds })
+			.set({
+				closedAt,
+				finalNonSubmitters: roster?.nonSubmitters ?? null,
+				finalTargetIds: roster?.targetIds ?? null
+			})
 			.where(and(eq(form.id, formId), isNull(form.closedAt)));
 
 		// Under the FOR UPDATE above, which a draft save's FOR SHARE waits for: no draft can be
 		// written after this and before the commit. Reopening does not bring them back.
 		await tx.delete(responseDraft).where(eq(responseDraft.formId, formId));
 
-		return { ok: true, frozen: nonSubmitters.length } as const;
+		return { ok: true, frozen: roster?.nonSubmitters.length ?? null } as const;
 	});
+
+	return result === 'refresh' ? closeForm(formId, at) : result;
 }
 
 /** Why reopenForm did nothing, as the results and edit pages say it. */

@@ -52,14 +52,23 @@ function announcementContent(target: Announced): string {
 	return `${head}${body}\n\n${tail}`;
 }
 
-function reminderContent(target: Form, discordIds: string[]): string {
-	const head = [
-		`🔔 **${truncate(target.title, TITLE_IN_MESSAGE)}** が未提出です。回答をお願いします。`,
+/** A reminder's text up to the mentions. `lead` follows the title in bold. */
+function reminderHead(target: Form, emoji: string, lead: string): string {
+	return [
+		`${emoji} **${truncate(target.title, TITLE_IN_MESSAGE)}** ${lead}`,
 		`締切: ${formatJstWithYear(target.deadline, NO_DEADLINE)}`,
 		formUrl(target.id)
 	].join('\n');
+}
 
+function reminderContent(target: Form, discordIds: string[]): string {
+	const head = reminderHead(target, '🔔', 'が未提出です。回答をお願いします。');
 	return `${head}\n\n${discordIds.map((id) => `<@${id}>`).join(' ')}`;
+}
+
+/** A form without a role has nobody to mention, so its reminder speaks to the whole channel. */
+function noticeContent(target: Form): string {
+	return reminderHead(target, '📣', 'の回答を受け付けています。まだの人は回答をお願いします。');
 }
 
 export type AnnounceResult =
@@ -185,8 +194,17 @@ export async function postDeadlineChange(
 	}
 }
 
-function closeNoticeContent(target: { title: string; targetRoleId: string }): string {
-	return `<@&${target.targetRoleId}> 「${truncate(target.title, TITLE_IN_MESSAGE)}」を締め切りました。`;
+/** Mentions the target role, or nobody for a form without one. */
+function closeNotice(target: {
+	title: string;
+	targetRoleId: string | null;
+}): Pick<CreateMessage, 'content' | 'allowed_mentions'> {
+	const text = `「${truncate(target.title, TITLE_IN_MESSAGE)}」を締め切りました。`;
+	if (target.targetRoleId === null) return { content: text, allowed_mentions: SILENT };
+	return {
+		content: `<@&${target.targetRoleId}> ${text}`,
+		allowed_mentions: { parse: [], roles: [target.targetRoleId], replied_user: false }
+	};
 }
 
 /** 'skipped': nothing to post. The form is open or gone, posts no close, or the close is claimed. */
@@ -195,8 +213,8 @@ export type CloseNoticeResult =
 	| { ok: false; reason: 'skipped' | 'post_failed' };
 
 /**
- * Posts that a form has closed, mentioning its target role. Run after the close has committed and
- * retried by the tick: a failed post never undoes the close.
+ * Posts that a form has closed, mentioning its target role if it has one. Run after the close has
+ * committed and retried by the tick: a failed post never undoes the close.
  */
 export async function postCloseNotice(formId: string): Promise<CloseNoticeResult> {
 	// Claimed in one conditional statement before anything is posted, like a reminder's reserved
@@ -229,8 +247,7 @@ export async function postCloseNotice(formId: string): Promise<CloseNoticeResult
 	let message;
 	try {
 		message = await postMessage(target.channelId, {
-			content: closeNoticeContent(target),
-			allowed_mentions: { parse: [], roles: [target.targetRoleId], replied_user: false },
+			...closeNotice(target),
 			...replyTo(target.announcementMessageId)
 		});
 	} catch (cause) {
@@ -254,6 +271,8 @@ export type ReminderResult =
 			/** True when this finished an earlier send that had failed partway, of either kind. */
 			continued: boolean;
 	  }
+	/** A form without a role: one message, mentioning nobody. */
+	| { ok: true; notice: true }
 	| {
 			ok: false;
 			reason: 'post_failed';
@@ -400,6 +419,56 @@ async function postPending(
 	}
 }
 
+/**
+ * The reminder of a form without a role: one message to the channel, mentioning nobody. Kept in a
+ * reminder row like any other, with nobody mentioned or pending, so that an automatic one is still
+ * sent once per deadline. The row is reserved before the post and removed again if the post fails.
+ */
+async function sendNotice(
+	target: Form,
+	channelId: string,
+	options: ReminderOptions
+): Promise<ReminderResult> {
+	// Sends left partway while the form had a role have nobody left to mention. Settled here, and an
+	// automatic one for this deadline counts as the deadline's send, as when its members all answered.
+	let ownAutoDone = false;
+	for (const unfinished of await findUnfinished(target.id)) {
+		await narrowPending(unfinished.id, []);
+		ownAutoDone ||= unfinished.kind === 'auto' && sameDeadline(unfinished.deadline, target.deadline);
+	}
+	if (options.kind === 'auto' && ownAutoDone) return { ok: false, reason: 'no_targets' };
+
+	const [reserved] = await db
+		.insert(reminder)
+		.values({
+			formId: target.id,
+			kind: options.kind,
+			sentBy: options.sentBy,
+			targetDiscordIds: [],
+			targetDeadline: target.deadline
+		})
+		.onConflictDoNothing()
+		.returning({ id: reminder.id });
+	if (!reserved) return { ok: false, reason: 'already_sent' };
+
+	let message;
+	try {
+		message = await postMessage(channelId, {
+			content: noticeContent(target),
+			allowed_mentions: SILENT,
+			...replyTo(target.announcementMessageId)
+		});
+	} catch (cause) {
+		console.error('notice post failed', cause);
+		// Gone again, so that an automatic one does not hold the deadline's slot unsent.
+		await db.delete(reminder).where(eq(reminder.id, reserved.id));
+		return { ok: false, reason: 'post_failed', targets: 0, remaining: 0 };
+	}
+
+	await db.update(reminder).set({ messageIds: [message.id] }).where(eq(reminder.id, reserved.id));
+	return { ok: true, notice: true };
+}
+
 export async function sendReminder(
 	formId: string,
 	options: ReminderOptions
@@ -411,6 +480,9 @@ export async function sendReminder(
 
 	const channelId = target.announcementChannelId;
 	if (!channelId) return { ok: false, reason: 'no_channel' };
+
+	// No roster, so no sync either.
+	if (target.targetRoleId === null) return sendNotice(target, channelId, options);
 
 	// Live roster rather than the mirror: a stale list pings people who already left the guild and
 	// silently skips whoever joined since the last sync.
@@ -493,6 +565,11 @@ export type ReminderLogEntry = {
 	/** Not mentioned yet: a send that failed partway, until the next send of either kind continues it. */
 	pendingCount: number;
 	messageCount: number;
+	/**
+	 * A send of a form without a role, which mentioned nobody. Told by what it posted: a send with a
+	 * role posts only messages that mention someone.
+	 */
+	notice: boolean;
 	/** The first message of the send. Null when nothing was posted. */
 	url: string | null;
 };
@@ -518,6 +595,7 @@ export async function listReminders(
 
 	return rows.map(({ firstMessageId, ...entry }) => ({
 		...entry,
+		notice: entry.messageCount > 0 && entry.targetCount === 0,
 		url: channelId && firstMessageId ? messageUrl(channelId, firstMessageId) : null
 	}));
 }

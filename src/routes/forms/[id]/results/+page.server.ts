@@ -66,8 +66,9 @@ export const load: PageServerLoad = async ({ locals, params, url }) => {
 	const results = await loadResults(target);
 
 	// From the last full sync's snapshot, never from Discord. Without one there is nothing to judge
-	// by, so no warning. A frozen roster no longer depends on the role or on how fresh the mirror is.
-	const liveRoster = manage && !results.frozen;
+	// by, so no warning. A frozen roster no longer depends on the role or on how fresh the mirror is,
+	// and a form without a role has no roster at all.
+	const liveRoster = manage && results.targetCount !== null && !results.frozen;
 	const [synced, rosterSyncedAt] = liveRoster
 		? await Promise.all([syncedGuildRoles(), lastSyncedAt()])
 		: [null, null];
@@ -158,9 +159,11 @@ export const actions: Actions = {
 
 		return {
 			notice:
-				result.frozen === 0
-					? '締め切りました。未提出者はいません。'
-					: `締め切りました。未提出者 ${result.frozen}名を確定しました。`
+				result.frozen === null
+					? '締め切りました。'
+					: result.frozen === 0
+						? '締め切りました。未提出者はいません。'
+						: `締め切りました。未提出者 ${result.frozen}名を確定しました。`
 		};
 	},
 
@@ -215,6 +218,8 @@ export const actions: Actions = {
 			const failure = REMINDER_FAILURES[result.reason];
 			return fail(failure.status, { message: failure.message });
 		}
+
+		if ('notice' in result) return { notice: 'お知らせを投稿しました。' };
 
 		const split = result.messages > 1 ? `（${result.messages}通に分けて送信）` : '';
 		// A reminder left unfinished is sent on before any new one, so this click may only have done that.

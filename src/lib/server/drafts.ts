@@ -4,7 +4,7 @@ import { formDraft, newFormId, type Form, type Question } from './db/schema';
 import { loadQuestions } from './forms';
 import { toJstLocal } from '../datetime';
 import { draftPayload, questionsField, type FormDraftPayload } from '../form-draft';
-import { liveOptions, MAX_TITLE } from '../forms';
+import { liveOptions, MAX_TITLE, NO_TARGET_ROLE } from '../forms';
 
 /**
  * Drafts touch no other row and take no lock: they affect nobody but their author, and the
@@ -148,7 +148,7 @@ export function formFields(
 	const fields: Record<string, string[]> = {
 		title: [copy ? copyTitle(source.title) : source.title],
 		description: [source.description ?? ''],
-		targetRoleId: [source.targetRoleId],
+		targetRoleId: [source.targetRoleId ?? NO_TARGET_ROLE],
 		announcementChannelId: [source.announcementChannelId ?? ''],
 		announceClose: [source.announceClose ? 'on' : 'off'],
 		submitScope: [source.submitScope],

@@ -1,16 +1,18 @@
 <script lang="ts">
 	import { untrack, type Snippet } from 'svelte';
 	import FieldError from '$lib/components/FieldError.svelte';
+	import SearchSelect, { type SearchOption } from '$lib/components/SearchSelect.svelte';
 	import type { EditorState } from '$lib/form-draft';
 	import {
 		AUDIENCE_LOCKED,
 		CHANNEL_LOCKED,
 		MAX_DESCRIPTION,
 		MAX_TITLE,
+		NO_TARGET_ROLE,
 		type FormField,
 		type InputError
 	} from '$lib/forms';
-	import type { Choice, EditorLocks } from './editor';
+	import type { ChannelChoice, Choice, EditorLocks } from './editor';
 
 	type Props = {
 		/**
@@ -19,7 +21,7 @@
 		 */
 		initial: EditorState | null;
 		roles: Choice[];
-		channels: Choice[];
+		channels: ChannelChoice[];
 		locks: EditorLocks;
 		/** The last submission's rejected input, drawn under the field it names. */
 		inputError: InputError | null;
@@ -44,6 +46,7 @@
 	}: Props = $props();
 
 	const ROLE_MISSING = '元のロールが見つかりません。選び直してください';
+	const ROLE_UNCHOSEN = '対象ロールを一覧から選んでください';
 	const CHANNEL_MISSING = '元のチャンネルが見つかりません。選び直してください';
 
 	// Bound rather than given as defaultValue, which the server leaves out of its HTML. The title and
@@ -60,8 +63,23 @@
 	let targetRoleId = $state(untrack(() => initial?.targetRoleId ?? ''));
 	let announcementChannelId = $state(untrack(() => initial?.announcementChannelId ?? ''));
 
+	// "なし" first, then the roles in Discord's order.
+	const roleOptions: SearchOption[] = $derived([
+		{ value: NO_TARGET_ROLE, label: 'なし（サーバーの全員）' },
+		...roles.map((role) => ({ value: role.id, label: role.name }))
+	]);
+	const channelOptions: SearchOption[] = $derived([
+		{ value: '', label: '告知しない' },
+		...channels.map((channel) => ({
+			value: channel.id,
+			label: `#${channel.name}`,
+			hint: channel.category
+		}))
+	]);
+
+	const noRole = $derived(targetRoleId === NO_TARGET_ROLE);
 	const roleUnlisted = $derived(
-		targetRoleId !== '' && !roles.some((role) => role.id === targetRoleId)
+		targetRoleId !== '' && !roleOptions.some((option) => option.value === targetRoleId)
 	);
 	const channelUnlisted = $derived(
 		announcementChannelId !== '' && !channels.some((channel) => channel.id === announcementChannelId)
@@ -71,10 +89,9 @@
 	const channelMissing = $derived(channelUnlisted && !locks.channel);
 	const noChannel = $derived(announcementChannelId === '');
 
-	/** Blocks the submission, with the reason in the browser's own bubble, until it is resolved. */
-	const validity = (message: () => string) => (node: HTMLSelectElement) => {
-		node.setCustomValidity(message());
-	};
+	const roleInvalid = $derived(
+		roleMissing ? ROLE_MISSING : targetRoleId === '' && !locks.audience ? ROLE_UNCHOSEN : ''
+	);
 
 	// closesAt defaults to the announced deadline until the admin types their own value.
 	function onDeadlineInput(value: string) {
@@ -101,7 +118,8 @@
 	<FieldError id={errorId(name)} message={errorOf(name)} class="mt-1" />
 {/snippet}
 
-<!-- A disabled field drops out of the form data, so a locked one is posted from a hidden field. -->
+<!-- A disabled field drops out of the form data, so a locked one is posted from a hidden field. The
+     pickers post from one of their own whatever their state. -->
 {#snippet locked(name: FormField, value: string, note: string)}
 	<input type="hidden" {name} {value} />
 	<span class="mt-1 block text-xs text-text-muted">{note}</span>
@@ -140,85 +158,71 @@
 
 	<div class="grid gap-4 sm:grid-cols-2">
 		<div>
-			<label class="block">
-				<span class="text-sm font-medium">対象ロール</span>
-				<select
-					name={locks.audience ? undefined : 'targetRoleId'}
-					required
-					disabled={locks.audience}
-					bind:value={targetRoleId}
-					{@attach validity(() => (roleMissing ? ROLE_MISSING : ''))}
-					{...described('targetRoleId')}
-					class="field mt-1"
-				>
-					{#if roleUnlisted}
-						<!-- Keeps the stored id, so a reload shows the notice again instead of a default. -->
-						<option value={targetRoleId} hidden>選択してください</option>
-					{/if}
-					<option value="">選択してください</option>
-					{#each roles as role (role.id)}
-						<option value={role.id}>{role.name}</option>
-					{/each}
-				</select>
-				{#if roleMissing}
-					<span class="mt-1 block text-xs text-warning">{ROLE_MISSING}</span>
-				{/if}
-				{#if locks.audience}
-					{@render locked('targetRoleId', targetRoleId, AUDIENCE_LOCKED)}
-				{/if}
-			</label>
+			<label for="targetRoleId-input" class="block text-sm font-medium">対象ロール</label>
+			<!-- An id missing from the list keeps its value, so a reload shows the notice again. -->
+			<SearchSelect
+				id="targetRoleId-input"
+				name="targetRoleId"
+				bind:value={targetRoleId}
+				options={roleOptions}
+				placeholder="選択してください"
+				disabled={locks.audience}
+				invalidMessage={roleInvalid}
+				{...described('targetRoleId')}
+			/>
+			{#if roleMissing}
+				<span class="mt-1 block text-xs text-warning">{ROLE_MISSING}</span>
+			{/if}
+			{#if locks.audience}
+				<span class="mt-1 block text-xs text-text-muted">{AUDIENCE_LOCKED}</span>
+			{/if}
 			{@render error('targetRoleId')}
 		</div>
 
 		<div>
-			<label class="block">
-				<span class="text-sm font-medium">告知チャンネル</span>
-				<!-- An empty value means no announcement, so a missing channel cannot fall back to it. -->
-				<select
-					name={locks.channel ? undefined : 'announcementChannelId'}
-					disabled={locks.channel}
-					bind:value={announcementChannelId}
-					{@attach validity(() => (channelMissing ? CHANNEL_MISSING : ''))}
-					{...described('announcementChannelId')}
-					class="field mt-1"
-				>
-					{#if channelUnlisted}
-						<option value={announcementChannelId} hidden>選択してください</option>
-					{/if}
-					<option value="">告知しない</option>
-					{#each channels as channel (channel.id)}
-						<option value={channel.id}>#{channel.name}</option>
-					{/each}
-				</select>
-				{#if channelMissing}
-					<span class="mt-1 block text-xs text-warning">{CHANNEL_MISSING}</span>
-				{/if}
-				{#if locks.channel}
-					{@render locked('announcementChannelId', announcementChannelId, CHANNEL_LOCKED)}
-				{/if}
-			</label>
+			<label for="announcementChannelId-input" class="block text-sm font-medium">告知チャンネル</label>
+			<!-- An empty value means no announcement, so a missing channel cannot fall back to it. -->
+			<SearchSelect
+				id="announcementChannelId-input"
+				name="announcementChannelId"
+				bind:value={announcementChannelId}
+				options={channelOptions}
+				placeholder="選択してください"
+				disabled={locks.channel}
+				invalidMessage={channelMissing ? CHANNEL_MISSING : ''}
+				{...described('announcementChannelId')}
+			/>
+			{#if channelMissing}
+				<span class="mt-1 block text-xs text-warning">{CHANNEL_MISSING}</span>
+			{/if}
+			{#if locks.channel}
+				<span class="mt-1 block text-xs text-text-muted">{CHANNEL_LOCKED}</span>
+			{/if}
 			{@render error('announcementChannelId')}
 		</div>
 
-		<div>
-			<label class="block">
-				<span class="text-sm font-medium">提出できる人</span>
-				<select
-					name={locks.audience ? undefined : 'submitScope'}
-					disabled={locks.audience}
-					bind:value={submitScope}
-					{...described('submitScope')}
-					class="field mt-1"
-				>
-					<option value="everyone">サーバーのメンバー全員</option>
-					<option value="target_role">対象ロールの人のみ</option>
-				</select>
-				{#if locks.audience}
-					{@render locked('submitScope', submitScope, AUDIENCE_LOCKED)}
-				{/if}
-			</label>
-			{@render error('submitScope')}
-		</div>
+		<!-- Without a role everyone may submit, and the server stores it so whatever is posted. -->
+		{#if !noRole}
+			<div>
+				<label class="block">
+					<span class="text-sm font-medium">提出できる人</span>
+					<select
+						name={locks.audience ? undefined : 'submitScope'}
+						disabled={locks.audience}
+						bind:value={submitScope}
+						{...described('submitScope')}
+						class="field mt-1"
+					>
+						<option value="everyone">サーバーのメンバー全員</option>
+						<option value="target_role">対象ロールの人のみ</option>
+					</select>
+					{#if locks.audience}
+						{@render locked('submitScope', submitScope, AUDIENCE_LOCKED)}
+					{/if}
+				</label>
+				{@render error('submitScope')}
+			</div>
+		{/if}
 
 		<div>
 			<label class="block">
@@ -289,7 +293,9 @@
 		<span id="announce-close-hint" class="mt-1 block pl-6 text-xs text-text-muted">
 			{noChannel
 				? '告知チャンネルを選ぶと設定できます。'
-				: '対象ロールをメンションして、告知への返信として投稿します。'}
+				: noRole
+					? '告知への返信として、誰もメンションせずに投稿します。'
+					: '対象ロールをメンションして、告知への返信として投稿します。'}
 		</span>
 		<!-- Sent in the box's place: a disabled box drops out of the form data, choice and all. -->
 		<input type="hidden" name="announceClose" value={announceClose ? 'on' : 'off'} />

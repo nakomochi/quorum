@@ -42,7 +42,11 @@ export const load: PageServerLoad = async ({ locals }) => {
 			title: row.title,
 			submitScope: row.submitScope,
 			deadline: row.deadline,
-			roleName: roleNames.get(row.targetRoleId) ?? '（削除されたロール）',
+			// Null for a form without a role.
+			roleName:
+				row.targetRoleId === null
+					? null
+					: (roleNames.get(row.targetRoleId) ?? '（削除されたロール）'),
 			closed: isClosed(row),
 			...count(row)
 		}))

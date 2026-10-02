@@ -14,7 +14,7 @@ import {
 import { formFields } from './drafts';
 import { FormInputError, loadQuestions, type ParsedForm } from './forms';
 import { draftPayload, type EditorState, type FormDraftPayload } from '../form-draft';
-import { AUDIENCE_LOCKED, CHANNEL_LOCKED, liveOptions, TYPE_LOCKED } from '../forms';
+import { AUDIENCE_LOCKED, CHANNEL_LOCKED, liveOptions, NO_TARGET_ROLE, TYPE_LOCKED } from '../forms';
 
 /**
  * Editing a published form. The edit is saved as the editor's draft, one per form and person, and
@@ -137,7 +137,10 @@ export function withLocksApplied(
 	const byId = new Map(questions.map((q) => [q.id, q]));
 	return {
 		...state,
-		...(locks.answered && { targetRoleId: target.targetRoleId, submitScope: target.submitScope }),
+		...(locks.answered && {
+			targetRoleId: target.targetRoleId ?? NO_TARGET_ROLE,
+			submitScope: target.submitScope
+		}),
 		...(locks.posted && { announcementChannelId: target.announcementChannelId ?? '' }),
 		questions: state.questions.map((q) => {
 			const source = q.sourceId === null ? undefined : byId.get(q.sourceId);

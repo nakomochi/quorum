@@ -5,6 +5,7 @@ import { DRAFT_NOT_FOUND } from '$lib/server/draft-api';
 import { loadDraft } from '$lib/server/drafts';
 import {
 	createForm,
+	editorChoices,
 	FormInputError,
 	parseCreateFormPayload,
 	selectableRoles
@@ -24,13 +25,8 @@ export const load: PageServerLoad = async ({ locals, url }) => {
 		error(404, `${DRAFT_NOT_FOUND}。作成済みか、破棄された可能性があります`);
 	}
 
-	const [roles, channels] = await Promise.all([selectableRoles(), listGuildChannels()]);
-
 	return {
-		roles: roles.map((role) => ({ id: role.id, name: role.name })),
-		channels: channels
-			.map((channel) => ({ id: channel.id, name: channel.name }))
-			.sort((a, b) => a.name.localeCompare(b.name)),
+		...(await editorChoices()),
 		// The payload is read into the editor's fields here, so nothing else stored in it is sent.
 		draft: draft && {
 			id: draft.id,
@@ -62,9 +58,11 @@ export const actions: Actions = {
 
 			// The role list is re-fetched rather than trusted: the client could post @everyone,
 			// a bot role, or an id from another guild.
-			const roles = await selectableRoles();
-			if (!roles.some((role) => role.id === input.targetRoleId)) {
-				throw new FormInputError('対象ロールが不正です', { field: 'targetRoleId' });
+			if (input.targetRoleId !== null) {
+				const roles = await selectableRoles();
+				if (!roles.some((role) => role.id === input.targetRoleId)) {
+					throw new FormInputError('対象ロールが不正です', { field: 'targetRoleId' });
+				}
 			}
 
 			if (input.announcementChannelId) {
@@ -83,11 +81,14 @@ export const actions: Actions = {
 			);
 
 			// A role granted just before creating the form must count among the non-submitters at
-			// once. A failure is left to the next sync rather than failing the creation.
-			try {
-				await syncAllMembers();
-			} catch (cause) {
-				console.error('[guild-sync] roster refresh after creating a form failed', cause);
+			// once. A failure is left to the next sync rather than failing the creation. A form
+			// without a role has no roster to refresh.
+			if (input.targetRoleId !== null) {
+				try {
+					await syncAllMembers();
+				} catch (cause) {
+					console.error('[guild-sync] roster refresh after creating a form failed', cause);
+				}
 			}
 
 			// The form is already committed: a Discord outage is reported on the results page, which

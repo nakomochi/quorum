@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import ContextLink from '$lib/components/ContextLink.svelte';
 	import MetaLine from '$lib/components/MetaLine.svelte';
 	import RevisionList from '$lib/components/RevisionList.svelte';
@@ -9,7 +10,11 @@
 
 <main class="page">
 	<div class="flex flex-col gap-3">
-		<ContextLink href="/forms/{data.form.id}/results" label="回答状況へ戻る" direction="back" />
+		<ContextLink
+			href={resolve('/forms/[id]/results', { id: data.form.id })}
+			label="回答状況へ戻る"
+			direction="back"
+		/>
 
 		<header>
 			<h1 class="page-title">{data.response.displayName} さんの回答履歴</h1>

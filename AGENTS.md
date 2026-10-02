@@ -6,5 +6,7 @@
 ## コマンド
 
 - `bun run check` — 型チェック
+- `bun run lint` — Prettier の差分確認と ESLint
+- `bun run format` — Prettier で整形
 - `bun run test` — テスト（`bun run db:start` で DB を起動しておく。一時 DB を作って消す）
 - `bun run build` — ビルド

@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
+	import type { ResolvedPathname } from '$app/types';
 	import CreatedFormItem from '$lib/components/CreatedFormItem.svelte';
 	import { deadlineItem, UNDER_ICON } from '$lib/components/form-rows';
 	import ItemHeader from '$lib/components/ItemHeader.svelte';
@@ -30,7 +32,7 @@
 </script>
 
 <!-- The load sends the newest few; the rest are on the list's own page. -->
-{#snippet seeAll(href: string, total: number, shown: number)}
+{#snippet seeAll(href: ResolvedPathname, total: number, shown: number)}
 	{#if total > shown}
 		<a href={href} class="text-text-muted hover:text-text-subtle mt-2 inline-block text-xs hover:underline">
 			すべて見る（{total}件）
@@ -62,7 +64,7 @@
 							<li
 								class="card border-l-2 {level === 'overdue' ? 'border-l-danger' : 'border-l-accent'}"
 							>
-								<a href="/forms/{row.id}" class="flex flex-col gap-1 px-5 py-4">
+								<a href={resolve('/forms/[id]', { id: row.id })} class="flex flex-col gap-1 px-5 py-4">
 									<ItemHeader title={row.title}>
 										{#snippet badges()}
 											{#if level === 'overdue'}
@@ -90,7 +92,7 @@
 							<SubmittedFormItem {row} />
 						{/each}
 					</ul>
-					{@render seeAll('/forms/submitted', data.submittedTotal, data.submitted.length)}
+					{@render seeAll(resolve('/forms/submitted'), data.submittedTotal, data.submitted.length)}
 				</section>
 			{/if}
 
@@ -101,7 +103,7 @@
 						{#each data.drafts as row (row.id)}
 							<li class="card flex items-center gap-2 pr-3">
 								<a
-									href="/forms/new?draft={row.id}"
+									href="{resolve('/forms/new')}?draft={row.id}"
 									class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5"
 								>
 									<ItemHeader
@@ -147,7 +149,7 @@
 							<CreatedFormItem {row} />
 						{/each}
 					</ul>
-					{@render seeAll('/forms/created', data.createdTotal, data.created.length)}
+					{@render seeAll(resolve('/forms/created'), data.createdTotal, data.created.length)}
 				</section>
 			{/if}
 		{/if}

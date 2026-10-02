@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import { CASE_GROUPS, CASE_IDS } from '$lib/dev/fixtures';
 
 	const WIDTHS = ['375px', '768px', '100%'] as const;
@@ -88,7 +89,7 @@
 						<div class="flex flex-wrap items-baseline gap-3">
 							<h3 class="text-sm font-medium text-text-subtle">{entry.title}</h3>
 							<a
-								href="/dev/ui/{entry.id}{themeQuery}"
+								href="{resolve('/dev/ui/[case]', { case: entry.id })}{themeQuery}"
 								target="_blank"
 								rel="noreferrer"
 								class="font-mono text-xs text-text-muted hover:text-text-subtle hover:underline"
@@ -99,7 +100,7 @@
 						<!-- iframe rather than inline: every page fills at least the viewport, so sharing a
 						     document would break both the heights and the viewport-relative styles. -->
 						<iframe
-							src="/dev/ui/{entry.id}{themeQuery}"
+							src="{resolve('/dev/ui/[case]', { case: entry.id })}{themeQuery}"
 							title={entry.title}
 							loading="lazy"
 							style="width: {entry.width ?? width}; height: {height}px"

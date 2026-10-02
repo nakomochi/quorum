@@ -2,6 +2,7 @@
 	import { onMount, tick, untrack, type Snippet } from 'svelte';
 	import type { ActionResult } from '@sveltejs/kit';
 	import { enhance } from '$app/forms';
+	import type { ResolvedPathname } from '$app/types';
 	import ContextLink from '$lib/components/ContextLink.svelte';
 	import SaveStatus from '$lib/components/SaveStatus.svelte';
 	import {
@@ -57,7 +58,7 @@
 		/** Drawn under the deadline field, given its current value. */
 		afterDeadline?: Snippet<[deadline: string]>;
 		/** A link above the heading back to where the editor was opened from. */
-		back?: { href: string; label: string };
+		back?: { href: ResolvedPathname; label: string };
 	};
 
 	let {

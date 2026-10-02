@@ -1,6 +1,8 @@
 <script lang="ts" module>
+	import type { ResolvedPathname } from '$app/types';
+
 	export type MenuItem =
-		| { kind: 'link'; label: string; href: string }
+		| { kind: 'link'; label: string; href: ResolvedPathname }
 		| {
 				kind: 'post';
 				label: string;

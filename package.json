@@ -9,9 +9,11 @@
 		"preview": "vite preview",
 		"start": "node build",
 		"cron": "CRON_HOST=localhost PORT=5173 bun scripts/cron.js",
-		"prepare": "svelte-kit sync || echo ''",
+		"prepare": "(svelte-kit sync || echo '') && (lefthook install || echo 'lefthook: hooks not installed')",
 		"check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+		"lint": "prettier --check . && eslint .",
+		"format": "prettier --write .",
 		"test": "bun test",
 		"db:start": "docker compose up -d",
 		"db:stop": "docker compose down",
@@ -26,6 +28,8 @@
 		"postgres": "^3.4.9"
 	},
 	"devDependencies": {
+		"@eslint/compat": "^2.1.1",
+		"@eslint/js": "^10.0.1",
 		"@sveltejs/adapter-node": "^5.5.7",
 		"@sveltejs/kit": "^2.63.0",
 		"@sveltejs/vite-plugin-svelte": "^7.1.2",
@@ -33,11 +37,20 @@
 		"@types/node": "^24",
 		"bits-ui": "^2.19.4",
 		"drizzle-kit": "^0.31.10",
+		"eslint": "^10.11.0",
+		"eslint-config-prettier": "^10.1.8",
+		"eslint-plugin-svelte": "^3.23.0",
+		"globals": "^17.13.0",
+		"lefthook": "^2.1.16",
+		"prettier": "^3.9.9",
+		"prettier-plugin-svelte": "^4.1.1",
+		"prettier-plugin-tailwindcss": "^0.8.1",
 		"svelte": "^5.56.1",
 		"svelte-check": "^4.6.0",
 		"svelte-dnd-action": "^0.9.79",
 		"tailwindcss": "^4.3.0",
 		"typescript": "^6.0.3",
+		"typescript-eslint": "^8.71.0",
 		"vite": "^8.0.16"
 	}
 }

@@ -2,6 +2,7 @@
 	import { onMount, untrack } from 'svelte';
 	import type { ActionResult } from '@sveltejs/kit';
 	import { replaceState } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import ContextLink from '$lib/components/ContextLink.svelte';
 	import { displayJst } from '$lib/display-date';
@@ -11,7 +12,7 @@
 
 	let { data, form } = $props();
 
-	const resultsHref = $derived(`/forms/${data.form.id}/results`);
+	const resultsHref = $derived(resolve('/forms/[id]/results', { id: data.form.id }));
 
 	// Told by the load, or by a save refused because someone else saved first.
 	const stale = $derived(!!data.editor?.stale || form?.reason === 'stale');
@@ -24,6 +25,7 @@
 		const timer = setTimeout(() => {
 			const url = new URL(page.url);
 			url.searchParams.delete('reopened');
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- a copy of page.url, already resolved; only its query changes
 			replaceState(url, page.state);
 		});
 		return () => clearTimeout(timer);

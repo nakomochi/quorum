@@ -9,6 +9,7 @@
 	function trackDraft(id: string) {
 		const url = new URL(page.url);
 		url.searchParams.set('draft', id);
+		// eslint-disable-next-line svelte/no-navigation-without-resolve -- a copy of page.url, already resolved; only its query changes
 		replaceState(url, page.state);
 	}
 </script>

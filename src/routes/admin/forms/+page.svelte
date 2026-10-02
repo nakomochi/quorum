@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import { resolve } from '$app/paths';
 	import Pager from '$lib/components/Pager.svelte';
 	import { displayJst } from '$lib/display-date';
 
@@ -14,7 +15,7 @@
 			<h1 class="page-title">フォーム管理</h1>
 			<p class="mt-1 text-sm text-text-muted">全{data.total}件</p>
 		</div>
-		<a href="/forms/new" class="btn-primary px-4 py-2">新規作成</a>
+		<a href={resolve('/forms/new')} class="btn-primary px-4 py-2">新規作成</a>
 	</header>
 
 	<!-- The button stays at the right end at every width; the line wraps beside it instead. -->
@@ -65,7 +66,7 @@
 					{#each data.forms as row (row.id)}
 						<tr>
 							<td class="max-w-64 font-medium">
-								<a href="/forms/{row.id}/results" class="hover:underline">{row.title}</a>
+								<a href={resolve('/forms/[id]/results', { id: row.id })} class="hover:underline">{row.title}</a>
 							</td>
 							<td class="whitespace-nowrap text-text-subtle">
 								{#if row.roleName === null}

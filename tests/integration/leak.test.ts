@@ -455,7 +455,7 @@ describe('what a member receives', () => {
 	});
 
 	test('results page: whether the announcement is out of date, never its text', async () => {
-		const { creator, viewer, open, secrets } = await scene();
+		const { creator, viewer, open } = await scene();
 		const announced = await announceForm(open.id);
 		const messageId = announced.ok ? announced.messageId : '';
 		await patchForm(open.id, { title: '改題' });

@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, untrack } from 'svelte';
 	import { replaceState } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import { page } from '$app/state';
 	import AdminPanel from '$lib/components/AdminPanel.svelte';
 	import ContextLink from '$lib/components/ContextLink.svelte';
@@ -102,6 +103,7 @@
 		const timer = setTimeout(() => {
 			const url = new URL(page.url);
 			for (const name of flags) url.searchParams.delete(name);
+			// eslint-disable-next-line svelte/no-navigation-without-resolve -- a copy of page.url, already resolved; only its query changes
 			replaceState(url, page.state);
 		});
 		return () => clearTimeout(timer);
@@ -149,7 +151,7 @@
 	<a
 		href={url}
 		target="_blank"
-		rel="noopener noreferrer"
+		rel="external noopener noreferrer"
 		aria-label={name}
 		class="inline-flex items-center gap-1 text-text-muted underline underline-offset-2 hover:text-text-subtle"
 	>
@@ -195,7 +197,10 @@
 									<span>更新 {displayJst(row.updatedAt)}</span>
 									{#if data.manage}
 										<a
-											href="/forms/{data.form.id}/results/{row.responseId}"
+											href={resolve('/forms/[id]/results/[responseId]', {
+												id: data.form.id,
+												responseId: String(row.responseId)
+											})}
 											title="編集履歴を見る"
 											class="chip py-0.5">編集済み</a
 										>
@@ -218,7 +223,11 @@
 <main class="page-wide">
 	<div class="flex flex-col gap-3">
 		<!-- Not "back": the creator and admins usually arrive from the top page or the admin list. -->
-		<ContextLink href="/forms/{data.form.id}" label="回答画面へ" direction="forward" />
+		<ContextLink
+			href={resolve('/forms/[id]', { id: data.form.id })}
+			label="回答画面へ"
+			direction="forward"
+		/>
 
 		<header class="min-w-0">
 			<h1 class="page-title">{data.form.title}</h1>
@@ -268,7 +277,10 @@
 							</p>
 						</div>
 						<div class="flex flex-wrap gap-2">
-							<a href="/forms/{data.form.id}/edit" class="btn-secondary inline-block px-4 py-2">
+							<a
+								href={resolve('/forms/[id]/edit', { id: data.form.id })}
+								class="btn-secondary inline-block px-4 py-2"
+							>
 								フォームを編集
 							</a>
 						</div>
@@ -469,7 +481,7 @@
 					</button>
 					<!-- `download` keeps the router from treating it as a page. -->
 					<a
-						href="/forms/{data.form.id}/results/csv"
+						href={resolve('/forms/[id]/results/csv', { id: data.form.id })}
 						download
 						class="btn-secondary {ICON_BUTTON}"
 						aria-label="CSV をダウンロード"

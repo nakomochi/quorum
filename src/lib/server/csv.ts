@@ -18,6 +18,7 @@ export function toCsv(records: string[][]): string {
 }
 
 // Characters that no file system takes in a name, and control characters.
+// eslint-disable-next-line no-control-regex -- matching the control characters is the point
 const UNSAFE_IN_NAME = /[\\/:*?"<>|\u0000-\u001f\u007f]/g;
 
 /** In code points: cutting UTF-16 units could split a surrogate pair, which cannot be encoded. */

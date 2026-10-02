@@ -1,8 +1,9 @@
 <script lang="ts">
+	import type { ResolvedPathname } from '$app/types';
 	import Icon from '$lib/icons/Icon.svelte';
 
 	type Props = {
-		href: string;
+		href: ResolvedPathname;
 		label: string;
 		/** Where the arrow points: `back` puts it before the label, `forward` after. */
 		direction: 'forward' | 'back';

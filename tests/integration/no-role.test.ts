@@ -194,7 +194,7 @@ describe('results', () => {
 		await submit(id, holder, [TARGET_ROLE], inputs(questions, { 0: 'あ' }));
 
 		const response = await csv({ locals: sessionLocals(creator), params: { id } } as never);
-		const [header, row] = (await response.text()).replace(/^﻿/, '').trim().split('\r\n');
+		const [header, row] = (await response.text()).replace(/^\u{FEFF}/u, '').trim().split('\r\n');
 
 		expect(header).toBe('回答者,提出日時,最終更新日時,名前,参加');
 		expect(row.startsWith('ロールあり,')).toBe(true);

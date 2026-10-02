@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import ItemHeader from '$lib/components/ItemHeader.svelte';
 	import MetaLine from '$lib/components/MetaLine.svelte';
 	import { displayJst } from '$lib/display-date';
@@ -13,7 +14,7 @@
 </script>
 
 <li class="card">
-	<a href="/forms/{row.id}" class="flex flex-col gap-1 px-5 py-4">
+	<a href={resolve('/forms/[id]', { id: row.id })} class="flex flex-col gap-1 px-5 py-4">
 		<ItemHeader title={row.title} titleClass="text-text-subtle">
 			{#snippet icon()}
 				<Icon name="check" class="text-success size-4 shrink-0" />

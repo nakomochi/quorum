@@ -15,6 +15,8 @@ bun run dev           # http://localhost:5173
 
 ```sh
 bun run check
+bun run lint
+bun run format
 bun run test
 bun run build
 ```

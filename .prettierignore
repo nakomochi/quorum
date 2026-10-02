@@ -1,0 +1,17 @@
+# Package managers
+bun.lock
+bun.lockb
+package-lock.json
+pnpm-lock.yaml
+yarn.lock
+flake.lock
+
+# Build output and generated files
+/build/
+/.svelte-kit/
+/node_modules/
+/.output/
+/drizzle/meta/
+
+# Miscellaneous
+/static/

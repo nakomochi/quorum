@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { resolve } from '$app/paths';
 	import ContextLink from '$lib/components/ContextLink.svelte';
 	import Pager from '$lib/components/Pager.svelte';
 	import SubmittedFormItem from '$lib/components/SubmittedFormItem.svelte';
@@ -8,7 +9,7 @@
 
 <main class="page">
 	<div class="flex flex-col gap-3">
-		<ContextLink href="/" label="トップへ戻る" direction="back" />
+		<ContextLink href={resolve('/')} label="トップへ戻る" direction="back" />
 		<header>
 			<h1 class="page-title">提出済みのフォーム</h1>
 			<p class="text-text-muted mt-1 text-sm">全{data.total}件</p>

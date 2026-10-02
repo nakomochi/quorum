@@ -1,0 +1,19 @@
+# Installed by the `prepare` script (`bun install` runs it).
+# Piped, not parallel: both jobs rewrite the same staged files, so running them at once could lose
+# one job's changes. ESLint goes first so that Prettier has the last word on layout.
+pre-commit:
+  piped: true
+  jobs:
+    - name: eslint
+      glob: '*.{js,ts,svelte}'
+      run: bunx eslint --fix --no-warn-ignored {staged_files}
+      stage_fixed: true
+    - name: prettier
+      glob: '*.{js,ts,svelte,css,json,md,yml,yaml,html}'
+      run: bunx prettier --write --ignore-unknown {staged_files}
+      stage_fixed: true
+
+pre-push:
+  jobs:
+    - name: check
+      run: bun run check

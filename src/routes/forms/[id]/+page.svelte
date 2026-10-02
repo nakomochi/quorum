@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount, tick, untrack } from 'svelte';
 	import { invalidateAll } from '$app/navigation';
+	import { resolve } from '$app/paths';
 	import type { SubmitFunction } from '@sveltejs/kit';
 	import AdminPanel from '$lib/components/AdminPanel.svelte';
 	import AnswerList from '$lib/components/AnswerList.svelte';
@@ -26,6 +27,8 @@
 
 	type Answers = Record<string, AnswerValue | undefined>;
 	type Revision = (typeof data.history)[number];
+
+	const resultsHref = $derived(resolve('/forms/[id]/results', { id: data.form.id }));
 
 	const submittedAnswers = $derived(data.answers as Answers);
 	// The same as the fields can hold them: an option an edit has deleted since is no choice.
@@ -243,14 +246,10 @@
 		{#if data.resultsManagersOnly}
 			<!-- The members see no link here, so it is framed as the managers' own control. -->
 			<AdminPanel labelTag="span" class="self-start">
-				<ContextLink
-					href="/forms/{data.form.id}/results"
-					label="回答状況を見る"
-					direction="forward"
-				/>
+				<ContextLink href={resultsHref} label="回答状況を見る" direction="forward" />
 			</AdminPanel>
 		{:else if data.resultsVisible}
-			<ContextLink href="/forms/{data.form.id}/results" label="回答状況を見る" direction="forward" />
+			<ContextLink href={resultsHref} label="回答状況を見る" direction="forward" />
 		{/if}
 		<FormHeader form={data.form} {closed} {submitted} />
 	</div>

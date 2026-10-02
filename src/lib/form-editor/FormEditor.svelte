@@ -2,6 +2,7 @@
 	import { onMount, tick, untrack, type Snippet } from 'svelte';
 	import type { ActionResult } from '@sveltejs/kit';
 	import { enhance } from '$app/forms';
+	import ContextLink from '$lib/components/ContextLink.svelte';
 	import SaveStatus from '$lib/components/SaveStatus.svelte';
 	import {
 		DraftAutosave,
@@ -54,8 +55,8 @@
 		notices?: Snippet;
 		/** Drawn under the deadline field, given its current value. */
 		afterDeadline?: Snippet<[deadline: string]>;
-		/** Controls after the submit button. */
-		actions?: Snippet;
+		/** A link above the heading back to where the editor was opened from. */
+		back?: { href: string; label: string };
 	};
 
 	let {
@@ -73,7 +74,7 @@
 		onresult,
 		notices,
 		afterDeadline,
-		actions
+		back
 	}: Props = $props();
 
 	// Everything the editor owns, deep-copied so a history entry can never alias live state.
@@ -212,9 +213,14 @@
 <!-- From md the sides widen by the width of the open card's toolbar, which floats in the right one;
      the column itself stays as wide as before. -->
 <main class="page max-w-3xl md:max-w-[55rem] md:px-20">
-	<header>
-		<h1 class="page-title">{heading}</h1>
-	</header>
+	<div class="flex flex-col gap-3">
+		{#if back}
+			<ContextLink href={back.href} label={back.label} direction="back" />
+		{/if}
+		<header>
+			<h1 class="page-title">{heading}</h1>
+		</header>
+	</div>
 
 	{@render notices?.()}
 
@@ -283,7 +289,6 @@
 			{conflictMessage}
 		>
 			<button type="submit" class="btn-primary px-5 py-2.5">{submitLabel}</button>
-			{@render actions?.()}
 		</SaveStatus>
 	</form>
 </main>

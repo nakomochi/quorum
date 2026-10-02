@@ -94,6 +94,7 @@
 		conflictMessage="別の画面でこの編集が更新されたか、保存・破棄されました。この画面の自動保存は停止しています。"
 		{onresult}
 		afterDeadline={deadlineReply}
+		back={{ href: resultsHref, label: '回答状況へ戻る' }}
 	>
 		{#snippet notices()}
 			{#if stale}
@@ -114,9 +115,6 @@
 					{@render reload('破棄して最新の内容を読み込む')}
 				</div>
 			{/if}
-		{/snippet}
-		{#snippet actions()}
-			<a href={resultsHref} class="text-sm text-text-muted hover:underline">キャンセル</a>
 		{/snippet}
 	</FormEditor>
 {:else}

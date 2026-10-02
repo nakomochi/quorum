@@ -199,7 +199,9 @@ export const form = pgTable(
 	(t) => [
 		index('form_deadline_idx').on(t.deadline),
 		index('form_closes_at_idx').on(t.closesAt),
-		index('form_target_role_id_idx').on(t.targetRoleId)
+		// The keyset pages of the lists (lib/server/keyset): the admin's, and each creator's.
+		index('form_created_at_id_idx').on(t.createdAt, t.id),
+		index('form_created_by_created_at_id_idx').on(t.createdBy, t.createdAt, t.id)
 	]
 );
 
@@ -245,7 +247,9 @@ export const response = pgTable(
 	},
 	(t) => [
 		uniqueIndex('response_form_user_uq').on(t.formId, t.userId),
-		index('response_form_discord_idx').on(t.formId, t.discordId)
+		index('response_form_discord_idx').on(t.formId, t.discordId),
+		// The keyset pages of each member's submitted forms.
+		index('response_user_submitted_at_id_idx').on(t.userId, t.submittedAt, t.id)
 	]
 );
 
@@ -326,7 +330,9 @@ export const reminder = pgTable(
 	(t) => [
 		uniqueIndex('reminder_auto_once_uq')
 			.on(t.formId, t.targetDeadline)
-			.where(sql`${t.kind} = 'auto'`)
+			.where(sql`${t.kind} = 'auto'`),
+		// A form's reminders, in the history's order.
+		index('reminder_form_sent_at_id_idx').on(t.formId, t.sentAt, t.id)
 	]
 );
 

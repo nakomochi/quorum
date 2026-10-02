@@ -1,15 +1,14 @@
 <script lang="ts">
+	import CreatedFormItem from '$lib/components/CreatedFormItem.svelte';
+	import { deadlineItem, UNDER_ICON } from '$lib/components/form-rows';
 	import ItemHeader from '$lib/components/ItemHeader.svelte';
-	import Menu, { type MenuItem } from '$lib/components/Menu.svelte';
-	import MetaLine, { type MetaItem } from '$lib/components/MetaLine.svelte';
+	import MetaLine from '$lib/components/MetaLine.svelte';
+	import RowMenu from '$lib/components/RowMenu.svelte';
+	import SubmittedFormItem from '$lib/components/SubmittedFormItem.svelte';
 	import { displayJst } from '$lib/display-date';
-	import { FORM_STATUS_LABELS, type FormStatus } from '$lib/forms';
-	import Icon, { type IconName } from '$lib/icons/Icon.svelte';
+	import Icon from '$lib/icons/Icon.svelte';
 
 	let { data } = $props();
-
-	const deadlineItem = (value: Date | null): MetaItem =>
-		value ? { label: '締切', value: displayJst(value) } : { value: '締切なし' };
 
 	const SOON_MS = 48 * 60 * 60 * 1000;
 
@@ -28,36 +27,15 @@
 		if (remaining < 0) return 'overdue';
 		return remaining <= SOON_MS ? 'soon' : null;
 	};
-
-	const STATUS_ICONS: Record<FormStatus, { name: IconName; tone: string }> = {
-		open: { name: 'clock', tone: 'text-accent' },
-		ended: { name: 'hourglass', tone: 'text-warning' },
-		closed: { name: 'lock', tone: 'text-text-muted' }
-	};
-
-	/** Lines the details up with the title in lists whose rows lead with a size-4 icon and gap-2. */
-	const UNDER_ICON = 'pl-6';
-
-	// These two only ever grow; show a window of them until asked for the rest.
-	const PREVIEW = 3;
-
-	let allSubmitted = $state(false);
-	let allCreated = $state(false);
-
-	const submitted = $derived(allSubmitted ? data.submitted : data.submitted.slice(0, PREVIEW));
-	const created = $derived(allCreated ? data.created : data.created.slice(0, PREVIEW));
 </script>
 
-{#snippet rowMenu(label: string, items: MenuItem[])}
-	<Menu
-		{label}
-		{items}
-		triggerClass="text-text-muted hover:bg-surface-raised hover:text-text-subtle focus-visible:ring-accent/60 rounded-lg p-2 outline-none focus-visible:ring-2"
-	>
-		{#snippet trigger()}
-			<Icon name="ellipsis" />
-		{/snippet}
-	</Menu>
+<!-- The load sends the newest few; the rest are on the list's own page. -->
+{#snippet seeAll(href: string, total: number, shown: number)}
+	{#if total > shown}
+		<a href={href} class="text-text-muted hover:text-text-subtle mt-2 inline-block text-xs hover:underline">
+			すべて見る（{total}件）
+		</a>
+	{/if}
 {/snippet}
 
 <!-- Signed in, the shared header sits above; signed out there is none, and the login is centred. -->
@@ -105,39 +83,14 @@
 			{#if data.submitted.length > 0}
 				<section>
 					<h2 class="section-title">
-						提出済みのフォーム {data.submitted.length}件
+						提出済みのフォーム {data.submittedTotal}件
 					</h2>
 					<ul class="mt-2 flex flex-col gap-2">
-						{#each submitted as row (row.id)}
-							<li class="card">
-								<a href="/forms/{row.id}" class="flex flex-col gap-1 px-5 py-4">
-									<ItemHeader title={row.title} titleClass="text-text-subtle">
-										{#snippet icon()}
-											<Icon name="check" class="text-success size-4 shrink-0" />
-										{/snippet}
-										{#snippet badges()}
-											{#if row.revisionCount > 1}
-												<span class="badge badge-muted">編集済み</span>
-											{/if}
-										{/snippet}
-									</ItemHeader>
-									<MetaLine
-										class={UNDER_ICON}
-										items={[{ label: '提出', value: displayJst(row.submittedAt) }]}
-									/>
-								</a>
-							</li>
+						{#each data.submitted as row (row.id)}
+							<SubmittedFormItem {row} />
 						{/each}
 					</ul>
-					{#if data.submitted.length > PREVIEW}
-						<button
-							type="button"
-							class="text-text-muted hover:text-text-subtle mt-2 text-xs hover:underline"
-							onclick={() => (allSubmitted = !allSubmitted)}
-						>
-							{allSubmitted ? '一部だけ表示' : `すべて表示（${data.submitted.length}件）`}
-						</button>
-					{/if}
+					{@render seeAll('/forms/submitted', data.submittedTotal, data.submitted.length)}
 				</section>
 			{/if}
 
@@ -164,17 +117,20 @@
 										items={[{ label: '更新', value: displayJst(row.updatedAt) }]}
 									/>
 								</a>
-								{@render rowMenu(`「${row.title ?? '無題のフォーム'}」の下書きの操作`, [
-									{
-										kind: 'post',
-										label: '破棄',
-										action: '?/discardDraft',
-										fields: { id: row.id },
-										confirm: 'この下書きを削除します',
-										enhance: true,
-										danger: true
-									}
-								])}
+								<RowMenu
+									label="「{row.title ?? '無題のフォーム'}」の下書きの操作"
+									items={[
+										{
+											kind: 'post',
+											label: '破棄',
+											action: '?/discardDraft',
+											fields: { id: row.id },
+											confirm: 'この下書きを削除します',
+											enhance: true,
+											danger: true
+										}
+									]}
+								/>
 							</li>
 						{/each}
 					</ul>
@@ -184,54 +140,14 @@
 			{#if data.created.length > 0}
 				<section>
 					<h2 class="section-title">
-						自分が作成したフォーム {data.created.length}件
+						自分が作成したフォーム {data.createdTotal}件
 					</h2>
 					<ul class="mt-2 flex flex-col gap-2">
-						{#each created as row (row.id)}
-							{@const status = STATUS_ICONS[row.status]}
-							<li class="card flex items-center gap-2 pr-3">
-								<a
-									href="/forms/{row.id}/results"
-									class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5"
-								>
-									<ItemHeader title={row.title}>
-										{#snippet icon()}
-											<!-- The icon's shape and label carry the status, so no text badge repeats it. -->
-											<span
-												role="img"
-												aria-label={FORM_STATUS_LABELS[row.status]}
-												title={FORM_STATUS_LABELS[row.status]}
-												class="flex shrink-0"
-											>
-												<Icon name={status.name} class="{status.tone} size-4" />
-											</span>
-										{/snippet}
-									</ItemHeader>
-									<MetaLine
-										class={UNDER_ICON}
-										items={[deadlineItem(row.deadline), { label: '回答', value: `${row.responseCount}名` }]}
-									/>
-								</a>
-								<!-- 複製 is the results page's own action: it redirects to the new draft. A
-								     closed form is reopened before it is edited. -->
-								{@render rowMenu(`「${row.title}」の操作`, [
-									...(row.status === 'closed'
-										? []
-										: [{ kind: 'link' as const, label: '編集', href: `/forms/${row.id}/edit` }]),
-									{ kind: 'post', label: '複製', action: `/forms/${row.id}/results?/duplicate` }
-								])}
-							</li>
+						{#each data.created as row (row.id)}
+							<CreatedFormItem {row} />
 						{/each}
 					</ul>
-					{#if data.created.length > PREVIEW}
-						<button
-							type="button"
-							class="text-text-muted hover:text-text-subtle mt-2 text-xs hover:underline"
-							onclick={() => (allCreated = !allCreated)}
-						>
-							{allCreated ? '一部だけ表示' : `すべて表示（${data.created.length}件）`}
-						</button>
-					{/if}
+					{@render seeAll('/forms/created', data.createdTotal, data.created.length)}
 				</section>
 			{/if}
 		{/if}

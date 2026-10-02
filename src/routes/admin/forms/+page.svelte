@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { enhance } from '$app/forms';
+	import Pager from '$lib/components/Pager.svelte';
 	import { displayJst } from '$lib/display-date';
 
 	let { data } = $props();
@@ -11,7 +12,7 @@
 	<header class="flex items-center justify-between gap-4">
 		<div>
 			<h1 class="page-title">フォーム管理</h1>
-			<p class="mt-1 text-sm text-text-muted">{data.forms.length}件</p>
+			<p class="mt-1 text-sm text-text-muted">全{data.total}件</p>
 		</div>
 		<a href="/forms/new" class="btn-primary px-4 py-2">新規作成</a>
 	</header>
@@ -46,7 +47,7 @@
 
 	{#if data.forms.length === 0}
 		<p class="card p-6 text-sm text-text-muted">
-			まだフォームがありません。
+			{data.total === 0 ? 'まだフォームがありません。' : 'このページにはフォームがありません。'}
 		</p>
 	{:else}
 		<div class="table-wrap">
@@ -101,4 +102,6 @@
 			</table>
 		</div>
 	{/if}
+
+	<Pager newer={data.newer} older={data.older} />
 </main>

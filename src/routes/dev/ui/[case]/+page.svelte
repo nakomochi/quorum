@@ -2,18 +2,22 @@
 	import {
 		ADMIN_CASES,
 		ANSWER_CASES,
+		CREATED_CASES,
 		draftApiResponse,
 		EDIT_CASES,
 		HISTORY_CASES,
 		HOME_CASES,
 		NEW_CASES,
-		RESULTS_CASES
+		RESULTS_CASES,
+		SUBMITTED_CASES
 	} from '$lib/dev/fixtures';
 	import SiteHeader from '$lib/components/SiteHeader.svelte';
 	import ToastItem from '$lib/components/ToastItem.svelte';
 	import { toastOf } from '$lib/action-toast';
 	// The real pages, not copies: a markup change must show up here without being mirrored.
 	import HomePage from '../../../+page.svelte';
+	import SubmittedPage from '../../../forms/submitted/+page.svelte';
+	import CreatedPage from '../../../forms/created/+page.svelte';
 	import AnswerPage from '../../../forms/[id]/+page.svelte';
 	import ResultsPage from '../../../forms/[id]/results/+page.svelte';
 	import HistoryPage from '../../../forms/[id]/results/[responseId]/+page.svelte';
@@ -24,6 +28,8 @@
 	let { data } = $props();
 
 	const home = $derived(HOME_CASES.find((entry) => entry.id === data.case));
+	const submitted = $derived(SUBMITTED_CASES.find((entry) => entry.id === data.case));
+	const createdList = $derived(CREATED_CASES.find((entry) => entry.id === data.case));
 	const answer = $derived(ANSWER_CASES.find((entry) => entry.id === data.case));
 	const results = $derived(RESULTS_CASES.find((entry) => entry.id === data.case));
 	const history = $derived(HISTORY_CASES.find((entry) => entry.id === data.case));
@@ -31,7 +37,9 @@
 	const edited = $derived(EDIT_CASES.find((entry) => entry.id === data.case));
 	const admin = $derived(ADMIN_CASES.find((entry) => entry.id === data.case));
 
-	const entry = $derived([home, answer, results, history, created, edited, admin].find(Boolean));
+	const entry = $derived(
+		[home, submitted, createdList, answer, results, history, created, edited, admin].find(Boolean)
+	);
 	const setup = $derived(entry?.setup);
 
 	// The root layout's Toaster reads the real action result, which the catalogue never has. The
@@ -79,6 +87,10 @@
 
 {#if home}
 	<HomePage data={home.data} />
+{:else if submitted}
+	<SubmittedPage data={submitted.data} />
+{:else if createdList}
+	<CreatedPage data={createdList.data} />
 {:else if answer}
 	<AnswerPage data={answer.data} form={answer.form ?? null} />
 {:else if results}

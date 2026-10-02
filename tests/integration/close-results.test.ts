@@ -6,8 +6,8 @@ import {
 	closeForm,
 	loadForm,
 	loadResults,
+	countResponses,
 	reopenForm,
-	responseCounter,
 	RosterRefreshError
 } from '$lib/server/forms';
 import { syncAllMembers } from '$lib/server/guild-sync';
@@ -30,8 +30,7 @@ async function formRow(id: string) {
 }
 
 async function counted(id: string) {
-	const count = await responseCounter();
-	return count((await loadForm(id))!);
+	return (await countResponses([id])).get(id);
 }
 
 describe('closeForm', () => {
@@ -198,7 +197,7 @@ describe('reopenForm', () => {
 });
 
 describe('loadResults classification', () => {
-	test('while open: members, leavers, bots, role-less and unmirrored responders, matching responseCounter', async () => {
+	test('while open: members, leavers, bots, role-less and unmirrored responders, matching countResponses', async () => {
 		const ids = {
 			creator: snowflake(1),
 			inRoster: snowflake(2),

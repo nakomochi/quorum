@@ -5,7 +5,9 @@ import { questionsField, type EditorState } from '$lib/form-draft';
 import { AUDIENCE_LOCKED, NO_TARGET_ROLE } from '$lib/forms';
 import { db } from '$lib/server/db';
 import { form, reminder, responseDraft } from '$lib/server/db/schema';
-import { closeForm, listFormsForMember, loadForm, responseCounter } from '$lib/server/forms';
+import { listPendingForms, pageSubmittedForms } from '$lib/server/form-lists';
+import { closeForm, countResponses, loadForm } from '$lib/server/forms';
+import { FIRST_PAGE } from '$lib/server/keyset';
 import { listReminders, sendReminder } from '$lib/server/notify';
 import { runTick } from '$lib/server/scheduler';
 import { load as formLoad } from '../../src/routes/forms/[id]/+page.server';
@@ -150,12 +152,13 @@ describe('answering', () => {
 		const { id, questions } = await noRoleForm(creator);
 		await submit(id, holder, [TARGET_ROLE], inputs(questions, { 0: 'x' }));
 
-		const forBare = await listFormsForMember({ roleIds: [] }, bare.id);
-		const forHolder = await listFormsForMember({ roleIds: [TARGET_ROLE] }, holder.id);
+		const forBare = await listPendingForms({ roleIds: [] }, bare.id);
+		const forHolder = await listPendingForms({ roleIds: [TARGET_ROLE] }, holder.id);
+		const holderSubmitted = await pageSubmittedForms({ roleIds: [] }, holder.id, FIRST_PAGE, 20);
 
-		expect(forBare.pending.map((row) => row.id)).toEqual([id]);
-		expect(forHolder.pending).toEqual([]);
-		expect(forHolder.submitted.map((row) => row.id)).toEqual([id]);
+		expect(forBare.map((row) => row.id)).toEqual([id]);
+		expect(forHolder).toEqual([]);
+		expect(holderSubmitted.rows.map((row) => row.id)).toEqual([id]);
 	});
 });
 
@@ -180,7 +183,7 @@ describe('results', () => {
 			'ロールあり',
 			'別ロール'
 		]);
-		const counts = (await responseCounter())((await loadForm(id))!);
+		const counts = (await countResponses([id])).get(id);
 		expect(counts).toEqual({ submitted: 2, targetCount: null, outsiders: 0 });
 		expect(discord.count()).toBe(0);
 	});

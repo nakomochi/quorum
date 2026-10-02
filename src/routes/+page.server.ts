@@ -1,11 +1,23 @@
 import { error, fail, redirect } from '@sveltejs/kit';
 import { auth } from '$lib/server/auth';
 import { deleteDraft, listDrafts } from '$lib/server/drafts';
-import { listFormsCreatedBy, listFormsForMember } from '$lib/server/forms';
+import { listPendingForms, pageCreatedForms, pageSubmittedForms } from '$lib/server/form-lists';
 import { gateMember, requireMember } from '$lib/server/guards';
+import { FIRST_PAGE } from '$lib/server/keyset';
 import type { Actions, PageServerLoad } from './$types';
 
-const ANONYMOUS = { member: false, pending: [], submitted: [], created: [], drafts: [] };
+/** The newest of the submitted and the created forms; the rest are on their own pages. */
+const PREVIEW = 5;
+
+const ANONYMOUS = {
+	member: false,
+	pending: [],
+	submitted: [],
+	submittedTotal: 0,
+	created: [],
+	createdTotal: 0,
+	drafts: []
+};
 
 /**
  * The header's flags come from the root layout. `member` is decided again here, by gateMember
@@ -19,13 +31,23 @@ export const load: PageServerLoad = async ({ locals }) => {
 	const member = await gateMember(locals);
 	if (!member) return ANONYMOUS;
 
-	const [forms, created, drafts] = await Promise.all([
-		listFormsForMember(member, user.id),
-		listFormsCreatedBy(user.id),
+	const [pending, submitted, created, drafts] = await Promise.all([
+		listPendingForms(member, user.id),
+		pageSubmittedForms(member, user.id, FIRST_PAGE, PREVIEW),
+		pageCreatedForms(user.id, FIRST_PAGE, PREVIEW),
 		listDrafts(user.id)
 	]);
 
-	return { member: true, created, drafts, ...forms };
+	// Totals for the links to the rest; the cursors are not drawn here.
+	return {
+		member: true,
+		pending,
+		submitted: submitted.rows,
+		submittedTotal: submitted.total,
+		created: created.rows,
+		createdTotal: created.total,
+		drafts
+	};
 };
 
 export const actions: Actions = {

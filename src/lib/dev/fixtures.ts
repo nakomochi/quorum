@@ -28,6 +28,8 @@ import type {
 	ActionData as AdminAction,
 	PageData as AdminData
 } from '../../routes/admin/forms/$types';
+import type { PageData as SubmittedData } from '../../routes/forms/submitted/$types';
+import type { PageData as CreatedData } from '../../routes/forms/created/$types';
 
 /** How the catalogue answers draft saves, the editor's and the answer page's, in place of the server. */
 export type DraftApiMode = 'ok' | 'hang' | 'fail' | 'conflict' | 'closed';
@@ -844,7 +846,39 @@ const NO_ROLE_RESULTS: Partial<ResultsData> = {
 	reminders: NOTICES
 };
 
-const HOME_WITH_DRAFTS: HomeData = {
+/** The top page's share of the submitted and the created lists. */
+const HOME_PREVIEW = 5;
+
+/** Newest first, long enough for two full pages of 20 and a part. */
+const MANY_SUBMITTED: SubmittedRow[] = Array.from({ length: 47 }, (_, i) =>
+	submittedRow({
+		id: `done${String(i + 1).padStart(8, '0')}`,
+		title: `定例会の出欠（第${47 - i}回）`,
+		submittedAt: fromNow(-24 * 7 * (i + 1) - 30),
+		revisionCount: i % 3 === 0 ? 2 : 1
+	})
+);
+
+const MANY_CREATED: CreatedRow[] = Array.from({ length: 23 }, (_, i) =>
+	createdRow({
+		id: `mine${String(i + 1).padStart(8, '0')}`,
+		title: i === 2 ? LONG_TITLE : `イベントの出欠確認 ${23 - i}`,
+		responseCount: 40 - i,
+		deadline: i === 4 ? null : fromNow(-24 * 10 * i + 48),
+		status: i === 0 ? 'open' : i === 1 ? 'ended' : 'closed'
+	})
+);
+
+type HomeTotals = 'submittedTotal' | 'createdTotal';
+
+/** The top page as its load sends it: the totals are the rows' own count unless a case says more. */
+const home = (data: Omit<HomeData, HomeTotals> & Partial<Pick<HomeData, HomeTotals>>): HomeData => ({
+	submittedTotal: data.submitted.length,
+	createdTotal: data.created.length,
+	...data
+});
+
+const HOME_WITH_DRAFTS: HomeData = home({
 	...SESSION,
 	pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })],
 	submitted: [],
@@ -854,16 +888,16 @@ const HOME_WITH_DRAFTS: HomeData = {
 		{ id: 'draft0000002', title: null, updatedAt: at('2026-09-28T21:05:00') },
 		{ id: 'draft0000003', title: LONG_TITLE, updatedAt: at('2026-09-20T08:00:00') }
 	]
-};
+});
 
-const ADMIN_HOME: HomeData = {
+const ADMIN_HOME: HomeData = home({
 	...ADMIN_SESSION,
 	user: { ...USER, name: 'とてもながい表示名のサーバー運営アカウント' },
 	pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認' })],
 	submitted: [],
 	created: [createdRow({ id: 'mine00000001', title: '春合宿の参加確認', responseCount: 12 })],
 	drafts: []
-};
+});
 
 // --- cases ---
 
@@ -871,7 +905,7 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 	{
 		id: 'home-anonymous',
 		title: '未ログイン',
-		data: {
+		data: home({
 			user: null,
 			member: false,
 			isAdmin: false,
@@ -880,17 +914,17 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 			submitted: [],
 			created: [],
 			drafts: []
-		}
+		})
 	},
 	{
 		id: 'home-empty',
 		title: 'メンバー / フォーム0件',
-		data: { ...SESSION, pending: [], submitted: [], created: [], drafts: [] }
+		data: home({ ...SESSION, pending: [], submitted: [], created: [], drafts: [] })
 	},
 	{
 		id: 'home-member',
 		title: 'メンバー / 全一覧（印のある行とない行・長いタイトル・作成フォームの各状態）',
-		data: {
+		data: home({
 			...SESSION,
 			pending: [
 				pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(-36) }),
@@ -944,7 +978,7 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 				{ id: 'draft0000002', title: null, updatedAt: at('2026-09-28T21:05:00') },
 				{ id: 'draft0000003', title: LONG_TITLE, updatedAt: at('2026-09-20T08:00:00') }
 			]
-		}
+		})
 	},
 	{
 		id: 'home-drafts',
@@ -954,33 +988,31 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 	{
 		id: 'home-long-lists',
 		title: 'メンバー / 提出済みと作成済みが多い',
-		data: {
+		data: home({
 			...SESSION,
 			pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })],
-			submitted: Array.from({ length: 9 }, (_, i) =>
-				submittedRow({
-					id: `done0000000${i + 1}`,
-					title: `定例会の出欠（第 ${i + 1} 回）`,
-					submittedAt: fromNow(-24 * 7 * (i + 1) - 30),
-					revisionCount: i % 3 === 0 ? 2 : 1
-				})
-			),
-			created: Array.from({ length: 6 }, (_, i) =>
-				createdRow({
-					id: `mine0000000${i + 1}`,
-					title: `イベントの出欠確認 ${i + 1}`,
-					responseCount: 20 - i * 3,
-					deadline: fromNow(-24 * 10 * (i + 1)),
-					status: i === 0 ? 'ended' : 'closed'
-				})
-			),
+			submitted: MANY_SUBMITTED.slice(0, HOME_PREVIEW),
+			submittedTotal: MANY_SUBMITTED.length,
+			created: MANY_CREATED.slice(0, HOME_PREVIEW),
+			createdTotal: MANY_CREATED.length,
 			drafts: []
-		}
+		})
+	},
+	{
+		id: 'home-five',
+		title: 'メンバー / 提出済みと作成済みがちょうど5件（「すべて見る」なし）',
+		data: home({
+			...SESSION,
+			pending: [],
+			submitted: MANY_SUBMITTED.slice(0, HOME_PREVIEW),
+			created: MANY_CREATED.slice(0, HOME_PREVIEW),
+			drafts: []
+		})
 	},
 	{
 		id: 'home-mixed-years',
 		title: 'メンバー / 今年と去年の日付が混ざる（去年の日付だけ年つき）',
-		data: {
+		data: home({
 			...SESSION,
 			pending: [pendingRow({ id: 'pending000001', title: '定例会の出欠（10月）', deadline: fromNow(24 * 21) })],
 			submitted: [
@@ -1006,12 +1038,12 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 				})
 			],
 			drafts: [{ id: 'draft0000001', title: '秋合宿の参加確認', updatedAt: lastYear('11-30T08:00:00') }]
-		}
+		})
 	},
 	{
 		id: 'home-outsider',
 		title: '非メンバー',
-		data: { ...SESSION, member: false, pending: [], submitted: [], created: [], drafts: [] }
+		data: home({ ...SESSION, member: false, pending: [], submitted: [], created: [], drafts: [] })
 	},
 	{
 		id: 'home-discard-failed',
@@ -1047,6 +1079,78 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 		title: '運営 / アバターのメニューを開いた（長い表示名・フォーム管理）',
 		data: ADMIN_HOME,
 		setup: openMenu('header')
+	}
+];
+
+// Opaque to the page, which only puts them in its links.
+const OLDER = 'b2xkZXI';
+const NEWER = 'bmV3ZXI';
+
+/** Page `index` of `rows` as the lists' loads cut them, 20 to a page. */
+function listPage<Row>(rows: Row[], index: number) {
+	const size = 20;
+	return {
+		rows: rows.slice(index * size, (index + 1) * size),
+		total: rows.length,
+		older: (index + 1) * size < rows.length ? OLDER : null,
+		newer: index > 0 ? NEWER : null
+	};
+}
+
+export const SUBMITTED_CASES: UiCase<SubmittedData>[] = [
+	{
+		id: 'submitted-first',
+		title: '最初のページ（古い方へだけ）',
+		data: { ...SESSION, ...listPage(MANY_SUBMITTED, 0) }
+	},
+	{
+		id: 'submitted-middle',
+		title: '途中のページ（両方向）',
+		data: { ...SESSION, ...listPage(MANY_SUBMITTED, 1) }
+	},
+	{
+		id: 'submitted-last',
+		title: '最後のページ（新しい方へだけ）',
+		data: { ...SESSION, ...listPage(MANY_SUBMITTED, 2) }
+	},
+	{
+		id: 'submitted-single',
+		title: '1ページに収まる（ページ送りなし）',
+		data: { ...SESSION, ...listPage(MANY_SUBMITTED.slice(0, 3), 0) }
+	},
+	{
+		id: 'submitted-empty',
+		title: '0件',
+		data: { ...SESSION, ...listPage([], 0) }
+	},
+	{
+		id: 'submitted-past-end',
+		title: '最後より古いページ（行なし・新しい方へだけ）',
+		data: { ...SESSION, rows: [], total: MANY_SUBMITTED.length, older: null, newer: NEWER }
+	}
+];
+
+export const CREATED_CASES: UiCase<CreatedData>[] = [
+	{
+		id: 'created-first',
+		title: '最初のページ（各状態・長いタイトル・締切なし）',
+		data: { ...SESSION, ...listPage(MANY_CREATED, 0) }
+	},
+	{
+		id: 'created-last',
+		title: '最後のページ（新しい方へだけ）',
+		data: { ...SESSION, ...listPage(MANY_CREATED, 1) }
+	},
+	{
+		id: 'created-empty',
+		title: '0件',
+		data: { ...SESSION, ...listPage([], 0) }
+	},
+	{
+		id: 'created-menu',
+		title: 'メニューを開いた（編集・複製）',
+		data: { ...SESSION, ...listPage(MANY_CREATED, 0) },
+		setup: openMenu('main', 0)
 	}
 ];
 
@@ -2976,14 +3080,32 @@ const adminRow = (over: Partial<AdminRow> & Pick<AdminRow, 'id' | 'title'>): Adm
 	...over
 });
 
+const ADMIN_SYNCED_AT = at('2026-04-09T08:30:00');
+
+/** One page of the list; a single page unless `paging` says where the others lie. */
+const adminData = (
+	syncedAt: Date | null,
+	forms: AdminRow[],
+	paging: Partial<Pick<AdminData, 'total' | 'older' | 'newer'>> = {}
+): AdminData => ({
+	...ADMIN_SESSION,
+	syncedAt,
+	forms,
+	total: forms.length,
+	older: null,
+	newer: null,
+	...paging
+});
+
+const ONE_ADMIN_ROW = [
+	adminRow({ id: 'pending000001', title: '春合宿の参加確認', submitted: 12, targetCount: 18 })
+];
+
 export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 	{
 		id: 'admin-list',
 		title: 'フォーム数件 / 同期済み',
-		data: {
-			...ADMIN_SESSION,
-			syncedAt: at('2026-04-09T08:30:00'),
-			forms: [
+		data: adminData(ADMIN_SYNCED_AT, [
 				adminRow({
 					id: 'pending000001',
 					title: '春合宿の参加確認',
@@ -3014,56 +3136,53 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 					targetCount: 60,
 					roleName: '（削除されたロール）'
 				})
-			]
-		}
+		])
+	},
+	{
+		id: 'admin-paged',
+		title: '途中のページ（全57件・両方向）',
+		data: adminData(
+			ADMIN_SYNCED_AT,
+			Array.from({ length: 20 }, (_, i) =>
+				adminRow({
+					id: `page${String(i + 1).padStart(8, '0')}`,
+					title: `定例会の出欠（第${37 - i}回）`,
+					deadline: at(`2026-0${(i % 9) + 1}-15T18:00:00`),
+					submitted: 20 + (i % 7),
+					targetCount: 30,
+					outsiders: i % 5 === 0 ? 1 : 0,
+					closed: true
+				})
+			),
+			{ total: 57, older: OLDER, newer: NEWER }
+		)
 	},
 	{
 		id: 'admin-synced',
 		title: '同期が成功（成功のトースト）',
-		data: {
-			...ADMIN_SESSION,
-			syncedAt: at('2026-04-09T08:30:00'),
-			forms: [
-				adminRow({ id: 'pending000001', title: '春合宿の参加確認', submitted: 12, targetCount: 18 })
-			]
-		},
+		data: adminData(ADMIN_SYNCED_AT, ONE_ADMIN_ROW),
 		form: { notice: '42名を同期しました（退会 1名）' }
 	},
 	{
 		id: 'admin-sync-failed',
 		title: '同期が失敗（エラーのトースト）',
-		data: {
-			...ADMIN_SESSION,
-			syncedAt: at('2026-04-09T08:30:00'),
-			forms: [
-				adminRow({ id: 'pending000001', title: '春合宿の参加確認', submitted: 12, targetCount: 18 })
-			]
-		},
+		data: adminData(ADMIN_SYNCED_AT, ONE_ADMIN_ROW),
 		form: { message: 'Discord からメンバー一覧を取得できませんでした' }
 	},
 	{
 		id: 'admin-unsynced',
 		title: '未同期',
-		data: {
-			...ADMIN_SESSION,
-			syncedAt: null,
-			forms: [
-				adminRow({ id: 'pending000001', title: '春合宿の参加確認', submitted: 12, targetCount: 18 })
-			]
-		}
+		data: adminData(null, ONE_ADMIN_ROW)
 	},
 	{
 		id: 'admin-empty',
 		title: 'フォーム0件',
-		data: { ...ADMIN_SESSION, syncedAt: at('2026-04-09T08:30:00'), forms: [] }
+		data: adminData(ADMIN_SYNCED_AT, [])
 	},
 	{
 		id: 'admin-wide',
 		title: '横に長いフォーム一覧（80字前後のタイトル・削除されたロール）',
-		data: {
-			...ADMIN_SESSION,
-			syncedAt: at('2026-04-09T08:30:00'),
-			forms: [
+		data: adminData(ADMIN_SYNCED_AT, [
 				adminRow({
 					id: 'wide00000001',
 					title: WIDE_ADMIN_TITLE,
@@ -3097,8 +3216,7 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 					outsiders: 3,
 					roleName: '（削除されたロール）'
 				})
-			]
-		}
+		])
 	}
 ];
 
@@ -3108,6 +3226,8 @@ export const CASE_GROUPS: {
 	cases: { id: string; title: string; width?: string }[];
 }[] = [
 	{ label: 'トップ', route: '/', cases: HOME_CASES },
+	{ label: '提出済みのフォーム', route: '/forms/submitted', cases: SUBMITTED_CASES },
+	{ label: '作成したフォーム', route: '/forms/created', cases: CREATED_CASES },
 	{ label: '回答画面', route: '/forms/[id]', cases: ANSWER_CASES },
 	{ label: '結果画面', route: '/forms/[id]/results', cases: RESULTS_CASES },
 	{ label: '回答履歴', route: '/forms/[id]/results/[responseId]', cases: HISTORY_CASES },

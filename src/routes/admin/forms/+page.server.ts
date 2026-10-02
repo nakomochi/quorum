@@ -1,32 +1,16 @@
 import { fail } from '@sveltejs/kit';
-import { desc } from 'drizzle-orm';
-import { db } from '$lib/server/db';
-import { form } from '$lib/server/db/schema';
-import { isClosed, responseCounter } from '$lib/server/forms';
+import { formsPageRequest, pageAllForms } from '$lib/server/form-lists';
 import { requireAdmin } from '$lib/server/guards';
 import { listGuildRoles } from '$lib/server/discord';
 import { lastSyncedAt, syncAllMembers } from '$lib/server/guild-sync';
+import { PAGE_SIZE } from '$lib/server/keyset';
 import type { Actions, PageServerLoad } from './$types';
 
-export const load: PageServerLoad = async ({ locals }) => {
+export const load: PageServerLoad = async ({ locals, url }) => {
 	await requireAdmin(locals);
 
-	const [rows, count, roles, syncedAt] = await Promise.all([
-		db
-			.select({
-				id: form.id,
-				title: form.title,
-				targetRoleId: form.targetRoleId,
-				submitScope: form.submitScope,
-				deadline: form.deadline,
-				closesAt: form.closesAt,
-				closedAt: form.closedAt,
-				finalTargetIds: form.finalTargetIds,
-				finalNonSubmitters: form.finalNonSubmitters
-			})
-			.from(form)
-			.orderBy(desc(form.createdAt)),
-		responseCounter(),
+	const [page, roles, syncedAt] = await Promise.all([
+		pageAllForms(formsPageRequest(url), PAGE_SIZE),
 		listGuildRoles(),
 		lastSyncedAt()
 	]);
@@ -35,20 +19,15 @@ export const load: PageServerLoad = async ({ locals }) => {
 
 	return {
 		syncedAt,
-		// Mapped field by field: the role id, the frozen lists and the close times are only needed
-		// for the role name, the counts and `closed`.
-		forms: rows.map((row) => ({
-			id: row.id,
-			title: row.title,
-			submitScope: row.submitScope,
-			deadline: row.deadline,
+		total: page.total,
+		older: page.older,
+		newer: page.newer,
+		// The role id is only needed for its name.
+		forms: page.rows.map(({ targetRoleId, ...row }) => ({
+			...row,
 			// Null for a form without a role.
 			roleName:
-				row.targetRoleId === null
-					? null
-					: (roleNames.get(row.targetRoleId) ?? '（削除されたロール）'),
-			closed: isClosed(row),
-			...count(row)
+				targetRoleId === null ? null : (roleNames.get(targetRoleId) ?? '（削除されたロール）')
 		}))
 	};
 };

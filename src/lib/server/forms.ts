@@ -1,4 +1,17 @@
-import { and, asc, count, desc, eq, inArray, isNotNull, isNull, sql } from 'drizzle-orm';
+import {
+	and,
+	asc,
+	count,
+	desc,
+	eq,
+	gt,
+	inArray,
+	isNotNull,
+	isNull,
+	or,
+	sql,
+	type SQL
+} from 'drizzle-orm';
 import { db } from './db';
 import {
 	answer,
@@ -383,12 +396,24 @@ export function canSubmit(target: Pick<Form, 'submitScope' | 'targetRoleId'>, me
 	return member.roleIds.includes(target.targetRoleId);
 }
 
+/** The SQL twin of canSubmit, for the lists. A test holds the two to the same answers. */
+export function canSubmitSql(member: MemberContext): SQL {
+	const conditions = [eq(form.submitScope, 'everyone'), isNull(form.targetRoleId)];
+	if (member.roleIds.length > 0) conditions.push(inArray(form.targetRoleId, member.roleIds));
+	return or(...conditions)!;
+}
+
 export function closesAtPassed(target: Pick<Form, 'closesAt'>, now = new Date()): boolean {
 	return target.closesAt !== null && target.closesAt.getTime() <= now.getTime();
 }
 
 export function isClosed(target: Pick<Form, 'closesAt' | 'closedAt'>, now = new Date()): boolean {
 	return target.closedAt !== null || closesAtPassed(target, now);
+}
+
+/** The SQL twin of `!isClosed`, judged by the same clock as the caller's. */
+export function isOpenSql(now: Date): SQL {
+	return and(isNull(form.closedAt), or(isNull(form.closesAt), gt(form.closesAt, now)))!;
 }
 
 /** 'ended': closes_at has passed but the close has not run yet, so the rosters are not frozen. */
@@ -666,104 +691,6 @@ export async function loadOwnResponse(formId: string, userId: string) {
 	return { response: row, answers };
 }
 
-/**
- * What the top page shows of a form. Sent to the browser as is, so it must never carry a column
- * the member is not meant to read, such as the frozen rosters or the audience settings.
- */
-export type PendingFormSummary = {
-	id: string;
-	title: string;
-	deadline: Date | null;
-};
-
-export type SubmittedFormSummary = {
-	id: string;
-	title: string;
-	submittedAt: Date;
-	/** More than one means the response was edited. */
-	revisionCount: number;
-};
-
-export type MemberFormLists = {
-	pending: PendingFormSummary[];
-	submitted: SubmittedFormSummary[];
-};
-
-export async function listFormsForMember(
-	member: MemberContext,
-	userId: string
-): Promise<MemberFormLists> {
-	// submitScope and targetRoleId feed canSubmit here and are dropped from what is returned.
-	const rows = await db
-		.select({
-			id: form.id,
-			title: form.title,
-			deadline: form.deadline,
-			closesAt: form.closesAt,
-			closedAt: form.closedAt,
-			submitScope: form.submitScope,
-			targetRoleId: form.targetRoleId
-		})
-		.from(form)
-		.orderBy(desc(form.createdAt));
-	const eligible = rows.filter((row) => canSubmit(row, member));
-	if (eligible.length === 0) return { pending: [], submitted: [] };
-
-	// Grouped by the primary key, so each response comes back once with its revision count.
-	const answered = await db
-		.select({
-			formId: response.formId,
-			submittedAt: response.submittedAt,
-			revisionCount: count(responseRevision.id)
-		})
-		.from(response)
-		.leftJoin(responseRevision, eq(responseRevision.responseId, response.id))
-		.where(
-			and(
-				eq(response.userId, userId),
-				inArray(
-					response.formId,
-					eligible.map((row) => row.id)
-				)
-			)
-		)
-		.groupBy(response.id);
-	const own = new Map(answered.map((row) => [row.formId, row]));
-
-	const pending = eligible
-		.filter((row) => !own.has(row.id) && !isClosed(row))
-		.sort((a, b) => deadlineRank(a) - deadlineRank(b))
-		.map((row) => ({ id: row.id, title: row.title, deadline: row.deadline }));
-
-	const submitted = eligible.flatMap((row) => {
-		const entry = own.get(row.id);
-		return entry
-			? [
-					{
-						id: row.id,
-						title: row.title,
-						submittedAt: entry.submittedAt,
-						revisionCount: entry.revisionCount
-					}
-				]
-			: [];
-	});
-
-	return { pending, submitted };
-}
-
-function deadlineRank(row: Pick<Form, 'deadline'>): number {
-	return row.deadline ? row.deadline.getTime() : Number.POSITIVE_INFINITY;
-}
-
-export type CreatedFormSummary = {
-	id: string;
-	title: string;
-	deadline: Date | null;
-	responseCount: number;
-	status: FormStatus;
-};
-
 export function canViewResults(
 	target: Pick<Form, 'visibility' | 'deadline' | 'closesAt' | 'closedAt'>,
 	manage: boolean,
@@ -800,7 +727,7 @@ type RosterFacts = {
 	isBot: boolean | null;
 };
 
-/** The JS twin of targetRoster's filter. The two must change together. */
+/** The JS twin of targetRoster's filter and of countResponses'. The three must change together. */
 function inRoster(member: RosterFacts | undefined, targetRoleId: string): boolean {
 	return (
 		member !== undefined &&
@@ -828,7 +755,10 @@ function targetMatcher(
 	return (_, member) => inRoster(member, roleId);
 }
 
-/** Closing is what fixes the record: after it the non-submitters may not drift with the mirror. */
+/**
+ * Closing is what fixes the record: after it the non-submitters may not drift with the mirror.
+ * countResponses repeats this and targetMatcher in SQL.
+ */
 function frozenNonSubmitters(
 	target: Pick<Form, 'closedAt' | 'finalNonSubmitters'>
 ): FrozenMember[] | null {
@@ -1064,55 +994,62 @@ export async function loadResponseHistory(
 /** `targetCount` is null for a form without a role, as in FormResults. */
 export type ResponseCounts = { submitted: number; targetCount: number | null; outsiders: number };
 
-type CountTarget = Pick<
-	Form,
-	'id' | 'targetRoleId' | 'closedAt' | 'finalTargetIds' | 'finalNonSubmitters'
->;
-
 /**
- * Counts any form as loadResults would, from a single read of the mirror and of every response
- * instead of a query per form.
+ * The counts of the given forms as loadResults would give them, computed in the database so that
+ * neither the mirror nor the responses are read whole. The SQL twin of targetMatcher, inRoster and
+ * frozenNonSubmitters; a test holds it to loadResults.
  */
-export async function responseCounter(): Promise<(target: CountTarget) => ResponseCounts> {
-	const [members, responses] = await Promise.all([
-		db
-			.select({
-				discordId: guildMember.discordId,
-				roleIds: guildMember.roleIds,
-				leftAt: guildMember.leftAt,
-				isBot: guildMember.isBot
-			})
-			.from(guildMember),
-		db.select({ formId: response.formId, discordId: response.discordId }).from(response)
-	]);
+export async function countResponses(formIds: string[]): Promise<Map<string, ResponseCounts>> {
+	if (formIds.length === 0) return new Map();
 
-	const byId = new Map(members.map((row) => [row.discordId, row]));
-	const respondents = new Map<string, string[]>();
-	for (const row of responses) {
-		const ids = respondents.get(row.formId);
-		if (ids) ids.push(row.discordId);
-		else respondents.set(row.formId, [row.discordId]);
-	}
+	// Spelled out with table names: drizzle leaves them off the columns of a single-table select,
+	// which the subqueries would then read as their own.
+	const inRosterSql = sql.raw(`m.left_at IS NULL AND m.is_bot = false
+		AND m.role_ids @> jsonb_build_array(f.target_role_id)`);
+	const rows = await db
+		.select({
+			id: sql<string>`f.id`,
+			total: sql<number>`(SELECT count(*)::int FROM response r WHERE r.form_id = f.id)`,
+			// Null without a role, like targetCount.
+			inTarget: sql<number | null>`CASE
+				WHEN f.target_role_id IS NULL THEN NULL
+				WHEN f.closed_at IS NOT NULL AND f.final_target_ids IS NOT NULL THEN (
+					SELECT count(*)::int FROM response r
+					WHERE r.form_id = f.id AND f.final_target_ids @> jsonb_build_array(r.discord_id)
+				)
+				ELSE (
+					SELECT count(*)::int FROM response r
+					JOIN guild_member m ON m.discord_id = r.discord_id
+					WHERE r.form_id = f.id AND ${inRosterSql}
+				)
+			END`,
+			nonSubmitters: sql<number | null>`CASE
+				WHEN f.target_role_id IS NULL THEN NULL
+				WHEN f.closed_at IS NOT NULL AND f.final_non_submitters IS NOT NULL
+					THEN jsonb_array_length(f.final_non_submitters)
+				ELSE (
+					SELECT count(*)::int FROM guild_member m
+					WHERE ${inRosterSql} AND NOT EXISTS (
+						SELECT 1 FROM response r WHERE r.form_id = f.id AND r.discord_id = m.discord_id
+					)
+				)
+			END`
+		})
+		.from(sql`${form} f`)
+		.where(sql`f.id IN ${formIds}`);
 
-	return (target) => {
-		const ids = respondents.get(target.id) ?? [];
-		const roleId = target.targetRoleId;
-		if (roleId === null) return { submitted: ids.length, targetCount: null, outsiders: 0 };
-
-		const isTarget = targetMatcher(target);
-		const submitted = ids.filter((id) => isTarget(id, byId.get(id))).length;
-
-		const answered = new Set(ids);
-		const nonSubmitters =
-			frozenNonSubmitters(target)?.length ??
-			members.filter((row) => inRoster(row, roleId) && !answered.has(row.discordId)).length;
-
-		return {
-			submitted,
-			targetCount: submitted + nonSubmitters,
-			outsiders: ids.length - submitted
-		};
-	};
+	return new Map(
+		rows.map(({ id, total, inTarget, nonSubmitters }) => [
+			id,
+			inTarget === null
+				? { submitted: total, targetCount: null, outsiders: 0 }
+				: {
+						submitted: inTarget,
+						targetCount: inTarget + (nonSubmitters ?? 0),
+						outsiders: total - inTarget
+					}
+		])
+	);
 }
 
 export type ChoiceTally = {
@@ -1267,28 +1204,4 @@ export async function reopenForm(formId: string): Promise<boolean> {
 		.where(and(eq(form.id, formId), isNotNull(form.closedAt)))
 		.returning({ id: form.id });
 	return rows.length > 0;
-}
-
-export async function listFormsCreatedBy(userId: string): Promise<CreatedFormSummary[]> {
-	const rows = await db
-		.select({
-			id: form.id,
-			title: form.title,
-			deadline: form.deadline,
-			closesAt: form.closesAt,
-			closedAt: form.closedAt,
-			responseCount: count(response.id)
-		})
-		.from(form)
-		.leftJoin(response, eq(response.formId, form.id))
-		.where(eq(form.createdBy, userId))
-		.groupBy(form.id)
-		.orderBy(desc(form.createdAt));
-
-	// The two times decide the status and are not sent on.
-	const now = new Date();
-	return rows.map(({ closesAt, closedAt, ...row }) => ({
-		...row,
-		status: formStatus({ closesAt, closedAt }, now)
-	}));
 }

@@ -6,16 +6,20 @@ import { db } from '$lib/server/db';
 import { reminder } from '$lib/server/db/schema';
 import { createDraft } from '$lib/server/drafts';
 import { closeForm } from '$lib/server/forms';
+import { syncAllMembers } from '$lib/server/guild-sync';
 import { announceForm, sendReminder } from '$lib/server/notify';
 import { load as layoutLoad } from '../../src/routes/+layout.server';
 import { load as topLoad } from '../../src/routes/+page.server';
+import { load as adminLoad } from '../../src/routes/admin/forms/+page.server';
+import { load as createdLoad } from '../../src/routes/forms/created/+page.server';
+import { load as submittedLoad } from '../../src/routes/forms/submitted/+page.server';
 import { actions as formActions, load as formLoad } from '../../src/routes/forms/[id]/+page.server';
 import { actions as editActions, load as editLoad } from '../../src/routes/forms/[id]/edit/+page.server';
 import {
 	actions as resultsActions,
 	load as resultsLoad
 } from '../../src/routes/forms/[id]/results/+page.server';
-import { CHANNEL_ID, discord, GUILD_ID, OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
+import { ADMIN_ROLE, CHANNEL_ID, discord, GUILD_ID, OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
 import {
 	createUsers,
 	inputs,
@@ -233,6 +237,58 @@ describe('what a member receives', () => {
 		);
 		expectNoLeak(data, secrets);
 		expect(discord.count()).toBe(0);
+	});
+
+	test('top page: the newest five of the submitted and created lists, with their totals', async () => {
+		const { creator, other, secrets } = await scene();
+
+		const mine = (await topLoad(event(creator))) as Record<string, unknown>;
+		const theirs = (await topLoad(event(other))) as Record<string, unknown>;
+
+		expect(Object.keys(mine).sort()).toEqual(
+			['created', 'createdTotal', 'drafts', 'member', 'pending', 'submitted', 'submittedTotal'].sort()
+		);
+		expect([mine.createdTotal, theirs.submittedTotal]).toEqual([3, 3]);
+		expect(keysOf(theirs.submitted)).toEqual(new Set(['id', 'title', 'submittedAt', 'revisionCount']));
+		expectNoLeak(mine, secrets);
+		expectNoLeak(theirs, secrets);
+		expect(discord.count()).toBe(0);
+	});
+
+	test('list pages: rows, a total and two opaque cursors, and no Discord call', async () => {
+		const { creator, other, secrets } = await scene();
+
+		const created = await createdLoad(event(creator, {}, '/forms/created'));
+		const submitted = await submittedLoad(event(other, {}, '/forms/submitted'));
+
+		for (const data of [created, submitted]) {
+			expect(Object.keys(data).sort()).toEqual(['newer', 'older', 'rows', 'total']);
+			expect(data).toMatchObject({ total: 3, older: null, newer: null });
+		}
+		expect(keysOf(created.rows)).toEqual(new Set(['id', 'title', 'deadline', 'responseCount', 'status']));
+		expect(keysOf(submitted.rows)).toEqual(new Set(['id', 'title', 'submittedAt', 'revisionCount']));
+		expectNoLeak(created, [...secrets, SECRET_NAME]);
+		expectNoLeak(submitted, [...secrets, SECRET_NAME, other.id]);
+		expect(discord.count()).toBe(0);
+	});
+
+	test('admin list: the drawn columns and counts, never the frozen lists or the role id', async () => {
+		const { secrets } = await scene();
+		const [admin] = await createUsers([snowflake(9)]);
+		discord.members.push(member(admin.discordId, [ADMIN_ROLE]));
+		await syncAllMembers();
+
+		const data = (await adminLoad(event(admin, {}, '/admin/forms'))) as { forms: unknown[] };
+
+		expect(Object.keys(data).sort()).toEqual(['forms', 'newer', 'older', 'syncedAt', 'total']);
+		expect(data.forms).toHaveLength(3);
+		expect(keysOf(data.forms)).toEqual(
+			new Set(['id', 'title', 'submitScope', 'deadline', 'closed', 'roleName', 'submitted', 'targetCount', 'outsiders'])
+		);
+		const keys = keysOf(data);
+		expect(FORBIDDEN_KEYS.filter((key) => key !== 'submitScope' && keys.has(key))).toEqual([]);
+		const text = JSON.stringify(data);
+		expect([...secrets, SECRET_NAME].filter((secret) => text.includes(secret))).toEqual([]);
 	});
 
 	test('top page: drafts as id, title and time only, and only the viewer’s own', async () => {

@@ -14,12 +14,22 @@ import { load as adminLoad } from '../../src/routes/admin/forms/+page.server';
 import { load as createdLoad } from '../../src/routes/forms/created/+page.server';
 import { load as submittedLoad } from '../../src/routes/forms/submitted/+page.server';
 import { actions as formActions, load as formLoad } from '../../src/routes/forms/[id]/+page.server';
-import { actions as editActions, load as editLoad } from '../../src/routes/forms/[id]/edit/+page.server';
+import {
+	actions as editActions,
+	load as editLoad
+} from '../../src/routes/forms/[id]/edit/+page.server';
 import {
 	actions as resultsActions,
 	load as resultsLoad
 } from '../../src/routes/forms/[id]/results/+page.server';
-import { ADMIN_ROLE, CHANNEL_ID, discord, GUILD_ID, OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
+import {
+	ADMIN_ROLE,
+	CHANNEL_ID,
+	discord,
+	GUILD_ID,
+	OTHER_ROLE,
+	TARGET_ROLE
+} from '../helpers/discord';
 import {
 	createUsers,
 	inputs,
@@ -81,8 +91,14 @@ async function scene() {
 		member(secretPending.discordId, [TARGET_ROLE], { nick: SECRET_NAME })
 	]);
 
-	const open = await makeForm(creator, { announcementChannelId: CHANNEL_ID, submitScope: 'target_role' });
-	const adminOnly = await makeForm(creator, { visibility: 'admin_only', announcementChannelId: CHANNEL_ID });
+	const open = await makeForm(creator, {
+		announcementChannelId: CHANNEL_ID,
+		submitScope: 'target_role'
+	});
+	const adminOnly = await makeForm(creator, {
+		visibility: 'admin_only',
+		announcementChannelId: CHANNEL_ID
+	});
 	const afterClose = await makeForm(creator, { visibility: 'after_deadline' });
 	for (const f of [open, adminOnly, afterClose]) {
 		await submit(f.id, other, [TARGET_ROLE], inputs(f.questions, { 0: 'x' }));
@@ -171,14 +187,20 @@ describe('what a member receives', () => {
 	});
 
 	test('root layout: the server avatar, then the account avatar, then the login image, then none', async () => {
-		const [both, accountOnly, bare, outsider, none] = await createUsers([21, 22, 23, 24, 25].map(snowflake));
+		const [both, accountOnly, bare, outsider, none] = await createUsers(
+			[21, 22, 23, 24, 25].map(snowflake)
+		);
 		await seedGuild([
-			member(both.discordId, [TARGET_ROLE], { avatar: 'account-hash', guildAvatar: 'a_server-hash' }),
+			member(both.discordId, [TARGET_ROLE], {
+				avatar: 'account-hash',
+				guildAvatar: 'a_server-hash'
+			}),
 			member(accountOnly.discordId, [TARGET_ROLE], { avatar: 'account-hash' }),
 			member(bare.discordId, [TARGET_ROLE]),
 			member(none.discordId, [TARGET_ROLE])
 		]);
-		const login = (who: TestUser) => `https://cdn.discordapp.com/avatars/${who.discordId}/login.png`;
+		const login = (who: TestUser) =>
+			`https://cdn.discordapp.com/avatars/${who.discordId}/login.png`;
 
 		const images: unknown[] = [];
 		for (const [who, image] of [
@@ -246,10 +268,20 @@ describe('what a member receives', () => {
 		const theirs = (await topLoad(event(other))) as Record<string, unknown>;
 
 		expect(Object.keys(mine).sort()).toEqual(
-			['created', 'createdTotal', 'drafts', 'member', 'pending', 'submitted', 'submittedTotal'].sort()
+			[
+				'created',
+				'createdTotal',
+				'drafts',
+				'member',
+				'pending',
+				'submitted',
+				'submittedTotal'
+			].sort()
 		);
 		expect([mine.createdTotal, theirs.submittedTotal]).toEqual([3, 3]);
-		expect(keysOf(theirs.submitted)).toEqual(new Set(['id', 'title', 'submittedAt', 'revisionCount']));
+		expect(keysOf(theirs.submitted)).toEqual(
+			new Set(['id', 'title', 'submittedAt', 'revisionCount'])
+		);
 		expectNoLeak(mine, secrets);
 		expectNoLeak(theirs, secrets);
 		expect(discord.count()).toBe(0);
@@ -265,8 +297,12 @@ describe('what a member receives', () => {
 			expect(Object.keys(data).sort()).toEqual(['newer', 'older', 'rows', 'total']);
 			expect(data).toMatchObject({ total: 3, older: null, newer: null });
 		}
-		expect(keysOf(created.rows)).toEqual(new Set(['id', 'title', 'deadline', 'responseCount', 'status']));
-		expect(keysOf(submitted.rows)).toEqual(new Set(['id', 'title', 'submittedAt', 'revisionCount']));
+		expect(keysOf(created.rows)).toEqual(
+			new Set(['id', 'title', 'deadline', 'responseCount', 'status'])
+		);
+		expect(keysOf(submitted.rows)).toEqual(
+			new Set(['id', 'title', 'submittedAt', 'revisionCount'])
+		);
 		expectNoLeak(created, [...secrets, SECRET_NAME]);
 		expectNoLeak(submitted, [...secrets, SECRET_NAME, other.id]);
 		expect(discord.count()).toBe(0);
@@ -283,7 +319,17 @@ describe('what a member receives', () => {
 		expect(Object.keys(data).sort()).toEqual(['forms', 'newer', 'older', 'syncedAt', 'total']);
 		expect(data.forms).toHaveLength(3);
 		expect(keysOf(data.forms)).toEqual(
-			new Set(['id', 'title', 'submitScope', 'deadline', 'closed', 'roleName', 'submitted', 'targetCount', 'outsiders'])
+			new Set([
+				'id',
+				'title',
+				'submitScope',
+				'deadline',
+				'closed',
+				'roleName',
+				'submitted',
+				'targetCount',
+				'outsiders'
+			])
 		);
 		const keys = keysOf(data);
 		expect(FORBIDDEN_KEYS.filter((key) => key !== 'submitScope' && keys.has(key))).toEqual([]);
@@ -337,20 +383,39 @@ describe('what a member receives', () => {
 			return { resultsVisible: data.resultsVisible, resultsManagersOnly: data.resultsManagersOnly };
 		};
 
-		expect(await flags(creator, adminOnly.id)).toEqual({ resultsVisible: true, resultsManagersOnly: true });
+		expect(await flags(creator, adminOnly.id)).toEqual({
+			resultsVisible: true,
+			resultsManagersOnly: true
+		});
 		// Closed, so its results are open to the members as well.
-		expect(await flags(creator, afterClose.id)).toEqual({ resultsVisible: true, resultsManagersOnly: false });
-		expect(await flags(viewer, adminOnly.id)).toEqual({ resultsVisible: false, resultsManagersOnly: false });
-		expect(await flags(viewer, open.id)).toEqual({ resultsVisible: true, resultsManagersOnly: false });
+		expect(await flags(creator, afterClose.id)).toEqual({
+			resultsVisible: true,
+			resultsManagersOnly: false
+		});
+		expect(await flags(viewer, adminOnly.id)).toEqual({
+			resultsVisible: false,
+			resultsManagersOnly: false
+		});
+		expect(await flags(viewer, open.id)).toEqual({
+			resultsVisible: true,
+			resultsManagersOnly: false
+		});
 		expect(discord.count()).toBe(0);
 	});
 
 	test('results page of a public form: names without ids, no manager fields', async () => {
 		const { viewer, open, secrets } = await scene();
 
-		const data = (await resultsLoad(event(viewer, { id: open.id }, `/forms/${open.id}/results`))) as Record<string, unknown>;
+		const data = (await resultsLoad(
+			event(viewer, { id: open.id }, `/forms/${open.id}/results`)
+		)) as Record<string, unknown>;
 
-		expect(data).toMatchObject({ manage: false, announcement: null, reminders: [], rosterSyncedAt: null });
+		expect(data).toMatchObject({
+			manage: false,
+			announcement: null,
+			reminders: [],
+			rosterSyncedAt: null
+		});
 		expect((data.form as Record<string, unknown>).visibility).toBeNull();
 		expect((data.form as Record<string, unknown>).closedAt).toBeNull();
 		expect(data.nonSubmitters).toEqual(expect.arrayContaining(['閲覧者', SECRET_NAME]));
@@ -378,10 +443,14 @@ describe('what a member receives', () => {
 		});
 		discord.calls = [];
 
-		const url = (messageId: string) => `https://discord.com/channels/${GUILD_ID}/${CHANNEL_ID}/${messageId}`;
+		const url = (messageId: string) =>
+			`https://discord.com/channels/${GUILD_ID}/${CHANNEL_ID}/${messageId}`;
 		const path = `/forms/${open.id}/results`;
 
-		const seen = (await resultsLoad(event(viewer, { id: open.id }, path))) as Record<string, unknown>;
+		const seen = (await resultsLoad(event(viewer, { id: open.id }, path))) as Record<
+			string,
+			unknown
+		>;
 		expect(seen).toMatchObject({ manage: false, announcement: null, reminders: [] });
 		expectNoLeak(seen, [
 			...secrets,
@@ -395,7 +464,11 @@ describe('what a member receives', () => {
 			announcement: unknown;
 			reminders: { url: string | null }[];
 		};
-		expect(managed.announcement).toEqual({ hasChannel: true, url: url(announcementId), stale: false });
+		expect(managed.announcement).toEqual({
+			hasChannel: true,
+			url: url(announcementId),
+			stale: false
+		});
 		expect(managed.reminders.map((entry) => entry.url)).toEqual([null, url(sent.messageIds[0])]);
 		const keys = keysOf(managed);
 		expect(['channelId', 'messageId', 'messageIds'].filter((key) => keys.has(key))).toEqual([]);
@@ -428,14 +501,24 @@ describe('what a member receives', () => {
 
 	test('after_deadline results stay closed to members while the form is open', async () => {
 		const { viewer, creator } = await scene();
-		const pending = await makeForm(creator, { visibility: 'after_deadline', deadline: new Date(Date.now() + 86_400_000) });
+		const pending = await makeForm(creator, {
+			visibility: 'after_deadline',
+			deadline: new Date(Date.now() + 86_400_000)
+		});
 
 		expect(await httpStatus(resultsLoad(event(viewer, { id: pending.id })))).toBe(403);
 	});
 
 	test('results page actions answer with a sentence and nothing else', async () => {
 		const { creator, open, secrets } = await scene();
-		const names = ['announce', 'refreshAnnouncement', 'remind', 'syncRoster', 'close', 'reopen'] as const;
+		const names = [
+			'announce',
+			'refreshAnnouncement',
+			'remind',
+			'syncRoster',
+			'close',
+			'reopen'
+		] as const;
 		const run = (name: (typeof names)[number]) =>
 			resultsActions[name]({ locals: sessionLocals(creator), params: { id: open.id } } as never);
 
@@ -472,7 +555,10 @@ describe('what a member receives', () => {
 		// The recorded text opens with the old title in bold.
 		expectNoLeak(managed, ['📋', 'テストフォーム']);
 
-		const seen = (await resultsLoad(event(viewer, { id: open.id }, path))) as Record<string, unknown>;
+		const seen = (await resultsLoad(event(viewer, { id: open.id }, path))) as Record<
+			string,
+			unknown
+		>;
 		expect(seen).toMatchObject({
 			announcement: null,
 			announceEditFailed: false,
@@ -519,7 +605,16 @@ describe('what a member receives', () => {
 			'reopened'
 		]);
 		expect(Object.keys(data.editor).sort()).toEqual(
-			['baseVersion', 'channels', 'deadlineReply', 'draft', 'locks', 'resumed', 'roles', 'stale'].sort()
+			[
+				'baseVersion',
+				'channels',
+				'deadlineReply',
+				'draft',
+				'locks',
+				'resumed',
+				'roles',
+				'stale'
+			].sort()
 		);
 		// Announced without a deadline: the published deadline as the editor writes it, nothing else.
 		expect(data.editor.deadlineReply).toEqual({ from: '' });
@@ -527,18 +622,34 @@ describe('what a member receives', () => {
 		// The settings the editor draws are the manager's to see; nobody's answers or ids are.
 		const keys = keysOf(data);
 		expect(
-			['payload', 'createdBy', 'finalNonSubmitters', 'finalTargetIds', 'announcementMessageId', 'closeMessageId', 'discordId'].filter((key) => keys.has(key))
+			[
+				'payload',
+				'createdBy',
+				'finalNonSubmitters',
+				'finalTargetIds',
+				'announcementMessageId',
+				'closeMessageId',
+				'discordId'
+			].filter((key) => keys.has(key))
 		).toEqual([]);
 		const text = JSON.stringify(data);
-		expect([creator.id, other.id, other.discordId, SECRET_NAME, messageId].filter((s) => text.includes(s))).toEqual([]);
+		expect(
+			[creator.id, other.id, other.discordId, SECRET_NAME, messageId].filter((s) =>
+				text.includes(s)
+			)
+		).toEqual([]);
 		// Roles and channels for the pickers: the only Discord calls.
-		expect(new Set(discord.calls.map((call) => call.route))).toEqual(new Set(['roles', 'channels']));
+		expect(new Set(discord.calls.map((call) => call.route))).toEqual(
+			new Set(['roles', 'channels'])
+		);
 	});
 
 	test('edit page: a closed form gives its title and what reopening it would do, and nothing more', async () => {
 		const { creator, adminOnly } = await scene();
 
-		const data = await editLoad(event(creator, { id: adminOnly.id }, `/forms/${adminOnly.id}/edit`));
+		const data = await editLoad(
+			event(creator, { id: adminOnly.id }, `/forms/${adminOnly.id}/edit`)
+		);
 
 		expect(data).toEqual({
 			form: { id: adminOnly.id, title: 'テストフォーム' },
@@ -555,7 +666,10 @@ describe('what a member receives', () => {
 		const publish = async (id: string, fields: Record<string, string>) => {
 			const body = new FormData();
 			for (const [name, value] of Object.entries(fields)) body.set(name, value);
-			const request = new Request(`http://forms.test/forms/${id}/edit?/publish`, { method: 'POST', body });
+			const request = new Request(`http://forms.test/forms/${id}/edit?/publish`, {
+				method: 'POST',
+				body
+			});
 			return (await editActions.publish({
 				locals: sessionLocals(creator),
 				params: { id },
@@ -602,30 +716,61 @@ describe('what a member receives', () => {
 			params: { id: open.id }
 		} as never)) as object;
 		expect(remind).toEqual({ notice: 'お知らせを投稿しました。' });
-		const [sent] = await db.select({ messageIds: reminder.messageIds }).from(reminder).where(eq(reminder.formId, open.id));
+		const [sent] = await db
+			.select({ messageIds: reminder.messageIds })
+			.from(reminder)
+			.where(eq(reminder.formId, open.id));
 		discord.calls = [];
 		const path = `/forms/${open.id}/results`;
 
-		const seen = (await resultsLoad(event(viewer, { id: open.id }, path))) as Record<string, unknown>;
-		expect(seen).toMatchObject({ targetCount: null, nonSubmitters: [], outsiders: [], reminders: [] });
-		expectNoLeak(seen, [...secrets, viewer.discordId, ...sent.messageIds, announced.ok ? announced.messageId : '']);
+		const seen = (await resultsLoad(event(viewer, { id: open.id }, path))) as Record<
+			string,
+			unknown
+		>;
+		expect(seen).toMatchObject({
+			targetCount: null,
+			nonSubmitters: [],
+			outsiders: [],
+			reminders: []
+		});
+		expectNoLeak(seen, [
+			...secrets,
+			viewer.discordId,
+			...sent.messageIds,
+			announced.ok ? announced.messageId : ''
+		]);
 
 		const managed = (await resultsLoad(event(creator, { id: open.id }, path))) as {
 			reminders: Record<string, unknown>[];
 		};
 		expect(Object.keys(managed.reminders[0]).sort()).toEqual(
-			['id', 'kind', 'messageCount', 'notice', 'pendingCount', 'sentAt', 'targetCount', 'url'].sort()
+			[
+				'id',
+				'kind',
+				'messageCount',
+				'notice',
+				'pendingCount',
+				'sentAt',
+				'targetCount',
+				'url'
+			].sort()
 		);
 		expectNoLeak(managed, [...secrets.filter((s) => s !== CHANNEL_ID), SECRET_NAME]);
 
-		const closed = await resultsActions.close({ locals: sessionLocals(creator), params: { id: open.id } } as never);
+		const closed = await resultsActions.close({
+			locals: sessionLocals(creator),
+			params: { id: open.id }
+		} as never);
 		expect(closed).toEqual({ notice: '締め切りました。' });
 	});
 
 	test('the creator does see the manager fields', async () => {
 		const { creator, adminOnly } = await scene();
 
-		const data = (await resultsLoad(event(creator, { id: adminOnly.id }))) as Record<string, unknown>;
+		const data = (await resultsLoad(event(creator, { id: adminOnly.id }))) as Record<
+			string,
+			unknown
+		>;
 
 		expect(data.manage).toBe(true);
 		expect(data.nonSubmitters).toContain(SECRET_NAME);

@@ -35,7 +35,12 @@ async function counted(id: string) {
 
 describe('closeForm', () => {
 	test('freezes the target roster and the non-submitters', async () => {
-		const [creator, a, b, c] = await createUsers([snowflake(1), snowflake(2), snowflake(3), snowflake(4)]);
+		const [creator, a, b, c] = await createUsers([
+			snowflake(1),
+			snowflake(2),
+			snowflake(3),
+			snowflake(4)
+		]);
 		await seedGuild([
 			member(creator.discordId, [OTHER_ROLE]),
 			member(a.discordId, [TARGET_ROLE], { nick: 'Aさん' }),
@@ -228,14 +233,21 @@ describe('loadResults classification', () => {
 			expect(result.ok).toBe(true);
 		}
 		// The leavers leave after answering.
-		discord.members = discord.members.filter((m) => m.id !== ids.leaver && m.id !== ids.pendingLeaver);
+		discord.members = discord.members.filter(
+			(m) => m.id !== ids.leaver && m.id !== ids.pendingLeaver
+		);
 		await syncAllMembers();
 
 		const results = await loadResults((await loadForm(id))!);
 
 		expect(results.frozen).toBe(false);
 		expect(results.submitted.map((r) => r.displayName)).toEqual(['在籍']);
-		expect(results.outsiders.map((r) => r.displayName)).toEqual(['離脱', 'bot', 'ロールなし', ids.unmirrored]);
+		expect(results.outsiders.map((r) => r.displayName)).toEqual([
+			'離脱',
+			'bot',
+			'ロールなし',
+			ids.unmirrored
+		]);
 		expect(results.nonSubmitters).toEqual(['未提出']);
 		expect(results.targetCount).toBe(2);
 		expect(await counted(id)).toEqual({ submitted: 1, targetCount: 2, outsiders: 4 });

@@ -111,7 +111,7 @@
 				<div class="card action-row px-4 py-3">
 					<p class="min-w-0 flex-1 text-sm text-text-subtle">
 						前回の編集内容を復元しました
-						<span class="whitespace-nowrap text-xs text-text-muted">
+						<span class="text-xs whitespace-nowrap text-text-muted">
 							（{displayJst(data.editor.draft.updatedAt)} に保存）
 						</span>
 					</p>

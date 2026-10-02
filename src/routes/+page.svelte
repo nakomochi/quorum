@@ -34,7 +34,10 @@
 <!-- The load sends the newest few; the rest are on the list's own page. -->
 {#snippet seeAll(href: ResolvedPathname, total: number, shown: number)}
 	{#if total > shown}
-		<a href={href} class="text-text-muted hover:text-text-subtle mt-2 inline-block text-xs hover:underline">
+		<a
+			{href}
+			class="mt-2 inline-block text-xs text-text-muted hover:text-text-subtle hover:underline"
+		>
 			すべて見る（{total}件）
 		</a>
 	{/if}
@@ -44,27 +47,32 @@
 <main class="page {data.user ? '' : 'min-h-screen justify-center py-10'}">
 	{#if data.user}
 		{#if !data.member}
-			<p class="card text-text-muted p-5 text-sm">
+			<p class="card p-5 text-sm text-text-muted">
 				対象の Discord サーバーのメンバーではないため、フォームは表示されません。
 			</p>
 		{:else}
 			<section>
-				<h2 class="text-text text-base font-semibold">
+				<h2 class="text-base font-semibold text-text">
 					未提出{data.pending.length > 0 ? ` ${data.pending.length}件` : ''}
 				</h2>
 				{#if data.pending.length === 0}
 					<div class="card mt-3 flex flex-col items-center gap-2 p-6 text-center">
-						<Icon name="check" class="text-success size-6" />
-						<p class="text-text-subtle text-sm">すべて提出済みです</p>
+						<Icon name="check" class="size-6 text-success" />
+						<p class="text-sm text-text-subtle">すべて提出済みです</p>
 					</div>
 				{:else}
 					<ul class="mt-3 flex flex-col gap-2">
 						{#each data.pending as row (row.id)}
 							{@const level = urgency(row.deadline)}
 							<li
-								class="card border-l-2 {level === 'overdue' ? 'border-l-danger' : 'border-l-accent'}"
+								class="card border-l-2 {level === 'overdue'
+									? 'border-l-danger'
+									: 'border-l-accent'}"
 							>
-								<a href={resolve('/forms/[id]', { id: row.id })} class="flex flex-col gap-1 px-5 py-4">
+								<a
+									href={resolve('/forms/[id]', { id: row.id })}
+									class="flex flex-col gap-1 px-5 py-4"
+								>
 									<ItemHeader title={row.title}>
 										{#snippet badges()}
 											{#if level === 'overdue'}
@@ -111,7 +119,7 @@
 										titleClass={row.title ? 'font-medium' : 'text-text-muted'}
 									>
 										{#snippet icon()}
-											<Icon name="pencil" class="text-text-muted size-4 shrink-0" />
+											<Icon name="pencil" class="size-4 shrink-0 text-text-muted" />
 										{/snippet}
 									</ItemHeader>
 									<MetaLine
@@ -156,7 +164,7 @@
 	{:else}
 		<header>
 			<h1 class="page-title text-2xl">Quorum</h1>
-			<p class="text-text-muted mt-1 text-sm">Discord 認証つきフォーム / 出欠管理</p>
+			<p class="mt-1 text-sm text-text-muted">Discord 認証つきフォーム / 出欠管理</p>
 		</header>
 
 		<form method="POST" action="?/login">

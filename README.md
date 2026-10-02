@@ -44,9 +44,9 @@ https://discord.com/oauth2/authorize?client_id=<CLIENT_ID>&scope=bot&permissions
 3. 環境変数: `DATABASE_URL` / `BETTER_AUTH_SECRET` / `BETTER_AUTH_URL` / `ORIGIN` / `DISCORD_CLIENT_ID` / `DISCORD_CLIENT_SECRET` / `DISCORD_BOT_TOKEN` / `DISCORD_GUILD_ID` / `CRON_SECRET`
 4. Scheduled Tasks に登録する
 
-   | Command | Frequency |
-   | --- | --- |
-   | `node scripts/cron.js tick` | `* * * * *` |
+   | Command                             | Frequency   |
+   | ----------------------------------- | ----------- |
+   | `node scripts/cron.js tick`         | `* * * * *` |
    | `node scripts/cron.js sync-members` | `0 * * * *` |
 
 マイグレーションはコンテナ起動時に自動で流れる。

@@ -214,7 +214,9 @@ export async function reconcileMember(
 ): Promise<Reconciled> {
 	const live = await lookupMember(discordId);
 	const agrees =
-		live === null ? mirrored === null : mirrored !== null && sameRoles(live.roles, mirrored.roleIds);
+		live === null
+			? mirrored === null
+			: mirrored !== null && sameRoles(live.roles, mirrored.roleIds);
 	if (agrees) return { live, synced: false };
 
 	try {

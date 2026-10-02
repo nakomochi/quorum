@@ -40,7 +40,8 @@ async function call(
 	}
 ): Promise<Call> {
 	const path = options.id ? `/forms/drafts/${options.id}` : '/forms/drafts';
-	const body = options.raw ?? (options.body === undefined ? undefined : JSON.stringify(options.body));
+	const body =
+		options.raw ?? (options.body === undefined ? undefined : JSON.stringify(options.body));
 	const request = new Request(`${ORIGIN}${path}`, {
 		method: options.method,
 		headers: { origin: ORIGIN, 'content-type': 'application/json', ...options.headers },
@@ -131,7 +132,12 @@ describe('saving a draft', () => {
 	test('a stale version is a 409 and changes nothing', async () => {
 		const { author } = await setup();
 		const { id } = await created(author, '最初');
-		await call(PUT, { who: author, method: 'PUT', id, body: { version: 1, payload: payload('別の画面') } });
+		await call(PUT, {
+			who: author,
+			method: 'PUT',
+			id,
+			body: { version: 1, payload: payload('別の画面') }
+		});
 
 		const stale = await call(PUT, {
 			who: author,
@@ -151,7 +157,12 @@ describe('saving a draft', () => {
 		const { id } = await created(author);
 		expect(await discard(author, id)).toBe(200);
 
-		const late = await call(PUT, { who: author, method: 'PUT', id, body: { version: 1, payload: payload('x') } });
+		const late = await call(PUT, {
+			who: author,
+			method: 'PUT',
+			id,
+			body: { version: 1, payload: payload('x') }
+		});
 
 		expect(late).toEqual({ status: 409, body: { reason: 'conflict' } });
 		expect(await stored(id)).toBeNull();
@@ -161,11 +172,19 @@ describe('saving a draft', () => {
 		const { author, other } = await setup();
 		const { id } = await created(author, '他人には見せない');
 
-		const put = await call(PUT, { who: other, method: 'PUT', id, body: { version: 1, payload: payload('乗っ取り') } });
+		const put = await call(PUT, {
+			who: other,
+			method: 'PUT',
+			id,
+			body: { version: 1, payload: payload('乗っ取り') }
+		});
 		const discarded = await discard(other, id);
 		let loadStatus: number | 'ok' = 'ok';
 		try {
-			await newLoad({ locals: sessionLocals(other), url: new URL(`${ORIGIN}/forms/new?draft=${id}`) } as never);
+			await newLoad({
+				locals: sessionLocals(other),
+				url: new URL(`${ORIGIN}/forms/new?draft=${id}`)
+			} as never);
 		} catch (e) {
 			loadStatus = isHttpError(e) ? e.status : -1;
 		}
@@ -183,8 +202,19 @@ describe('saving a draft', () => {
 		const { id } = await created(author);
 		const foreign = { origin: 'http://evil.test' };
 
-		const post = await call(POST, { who: author, method: 'POST', body: { payload: payload('x') }, headers: foreign });
-		const put = await call(PUT, { who: author, method: 'PUT', id, body: { version: 1, payload: payload('x') }, headers: foreign });
+		const post = await call(POST, {
+			who: author,
+			method: 'POST',
+			body: { payload: payload('x') },
+			headers: foreign
+		});
+		const put = await call(PUT, {
+			who: author,
+			method: 'PUT',
+			id,
+			body: { version: 1, payload: payload('x') },
+			headers: foreign
+		});
 		const missing = await call(POST, {
 			who: author,
 			method: 'POST',
@@ -210,8 +240,18 @@ describe('saving a draft', () => {
 			return text;
 		};
 
-		const exact = await call(PUT, { who: author, method: 'PUT', id, raw: body(1, MAX_DRAFT_BYTES) });
-		const over = await call(PUT, { who: author, method: 'PUT', id, raw: body(2, MAX_DRAFT_BYTES + 1) });
+		const exact = await call(PUT, {
+			who: author,
+			method: 'PUT',
+			id,
+			raw: body(1, MAX_DRAFT_BYTES)
+		});
+		const over = await call(PUT, {
+			who: author,
+			method: 'PUT',
+			id,
+			raw: body(2, MAX_DRAFT_BYTES + 1)
+		});
 		const declared = await call(POST, {
 			who: author,
 			method: 'POST',
@@ -255,8 +295,16 @@ describe('saving a draft', () => {
 		await setup();
 		const [outsider] = await createUsers([snowflake(9)]);
 
-		const anonymous = await call(POST, { who: null, method: 'POST', body: { payload: payload('x') } });
-		const stranger = await call(POST, { who: outsider, method: 'POST', body: { payload: payload('x') } });
+		const anonymous = await call(POST, {
+			who: null,
+			method: 'POST',
+			body: { payload: payload('x') }
+		});
+		const stranger = await call(POST, {
+			who: outsider,
+			method: 'POST',
+			body: { payload: payload('x') }
+		});
 
 		expect(anonymous.status).toBe(401);
 		expect(stranger.status).toBe(403);
@@ -271,12 +319,15 @@ describe('opening a draft', () => {
 			{
 				title: ['続き'],
 				targetRoleId: [TARGET_ROLE],
-				questions: ['[{"type":"multi","label":"日程","options":[{"id":"a","label":"A"}],"allowOther":true}]'],
+				questions: [
+					'[{"type":"multi","label":"日程","options":[{"id":"a","label":"A"}],"allowOther":true}]'
+				],
 				unknownField: ['使わない値']
 			},
 			true
 		);
-		const { id } = (await call(POST, { who: author, method: 'POST', body: { payload: saved } })).body as {
+		const { id } = (await call(POST, { who: author, method: 'POST', body: { payload: saved } }))
+			.body as {
 			id: string;
 		};
 
@@ -312,7 +363,11 @@ describe('discarding a draft', () => {
 		const { id } = await created(author);
 		const [outsider] = await createUsers([snowflake(9)]);
 
-		const statuses = [await discard(author, null), await discard(null, id), await discard(outsider, id)];
+		const statuses = [
+			await discard(author, null),
+			await discard(null, id),
+			await discard(outsider, id)
+		];
 
 		expect(statuses).toEqual([404, 303, 403]);
 		expect(await stored(id)).not.toBeNull();
@@ -334,7 +389,9 @@ describe('creating the form removes its draft', () => {
 			body: formData({
 				title: '作成後',
 				targetRoleId: TARGET_ROLE,
-				questions: JSON.stringify([{ type: 'text', label: '名前', helpText: '', required: true, options: null }]),
+				questions: JSON.stringify([
+					{ type: 'text', label: '名前', helpText: '', required: true, options: null }
+				]),
 				draftId
 			})
 		});
@@ -403,9 +460,15 @@ describe('creating the form removes its draft', () => {
 });
 
 describe('duplicating a form', () => {
-	async function duplicate(who: TestUser, formId: string): Promise<{ status: number; location?: string }> {
+	async function duplicate(
+		who: TestUser,
+		formId: string
+	): Promise<{ status: number; location?: string }> {
 		try {
-			await resultsActions.duplicate({ locals: sessionLocals(who), params: { id: formId } } as never);
+			await resultsActions.duplicate({
+				locals: sessionLocals(who),
+				params: { id: formId }
+			} as never);
 			return { status: 200 };
 		} catch (e) {
 			if (isRedirect(e)) return { status: e.status, location: e.location };
@@ -457,7 +520,10 @@ describe('duplicating a form', () => {
 				DEFAULT_QUESTIONS[1]
 			]
 		});
-		await db.update(question).set({ deletedAt: new Date() }).where(eq(question.id, source.questions[1].id));
+		await db
+			.update(question)
+			.set({ deletedAt: new Date() })
+			.where(eq(question.id, source.questions[1].id));
 		const [before] = await db.select().from(form).where(eq(form.id, source.id));
 
 		const { location } = await duplicate(author, source.id);

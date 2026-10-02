@@ -169,7 +169,10 @@ class DiscordStub {
 				return json({ id: GUILD_ID, name: 'test guild', icon: null, owner_id: this.ownerId });
 			case 'post': {
 				const channelId = call.url.pathname.split('/')[4];
-				return json({ id: `9${String(++this.messageSeq).padStart(17, '0')}`, channel_id: channelId });
+				return json({
+					id: `9${String(++this.messageSeq).padStart(17, '0')}`,
+					channel_id: channelId
+				});
 			}
 			case 'edit': {
 				const [, , , , channelId, , messageId] = call.url.pathname.split('/');

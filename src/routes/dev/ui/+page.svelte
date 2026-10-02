@@ -24,7 +24,7 @@
 
 <main class="mx-auto flex max-w-[1600px] flex-col gap-8 px-6 py-10">
 	<header
-		class="bg-bg/95 sticky top-0 z-10 -mx-6 flex flex-wrap items-end justify-between gap-4
+		class="sticky top-0 z-10 -mx-6 flex flex-wrap items-end justify-between gap-4 bg-bg/95
 			px-6 py-4 backdrop-blur"
 	>
 		<div>
@@ -78,7 +78,7 @@
 
 	{#each CASE_GROUPS as group (group.label)}
 		<section class="flex flex-col gap-4">
-			<h2 class="border-border flex flex-wrap items-baseline gap-3 border-b pb-2">
+			<h2 class="flex flex-wrap items-baseline gap-3 border-b border-border pb-2">
 				<span class="text-sm font-medium text-text">{group.label}</span>
 				<span class="font-mono text-xs text-text-muted">{group.route}</span>
 			</h2>
@@ -104,7 +104,7 @@
 							title={entry.title}
 							loading="lazy"
 							style="width: {entry.width ?? width}; height: {height}px"
-							class="border-border bg-bg max-w-full rounded-lg border"
+							class="max-w-full rounded-lg border border-border bg-bg"
 						></iframe>
 					</article>
 				{/each}

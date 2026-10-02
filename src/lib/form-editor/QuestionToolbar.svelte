@@ -63,19 +63,19 @@
      of the cards, and the bar floats there instead: the outer box spans the card's height so that
      the bar can stay in view while a tall card scrolls past. -->
 <div
-	class="border-border flex justify-end border-t pt-2 md:absolute md:inset-y-0 md:left-full md:ml-3 md:block md:border-t-0 md:pt-0"
+	class="flex justify-end border-t border-border pt-2 md:absolute md:inset-y-0 md:left-full md:ml-3 md:block md:border-t-0 md:pt-0"
 >
 	<div
 		role="group"
 		aria-label="質問 {index + 1} の操作"
 		data-question-toolbar
-		class="md:border-border md:bg-surface flex items-center gap-0.5 md:sticky md:top-4 md:flex-col md:rounded-xl md:border md:p-1 md:shadow-sm"
+		class="flex items-center gap-0.5 md:sticky md:top-4 md:flex-col md:rounded-xl md:border md:border-border md:bg-surface md:p-1 md:shadow-sm"
 	>
 		{#each groups as group, groupIndex (groupIndex)}
 			{#if groupIndex > 0}
 				<span
 					aria-hidden="true"
-					class="bg-border mx-1 my-1.5 w-px self-stretch md:mx-1.5 md:my-1 md:h-px md:w-auto"
+					class="mx-1 my-1.5 w-px self-stretch bg-border md:mx-1.5 md:my-1 md:h-px md:w-auto"
 				></span>
 			{/if}
 			{#each group as button (button.action)}
@@ -83,7 +83,7 @@
 				<button
 					type="button"
 					class={[
-						'text-text-subtle hover:bg-surface-raised rounded-lg p-1.5 transition disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent md:p-2',
+						'rounded-lg p-1.5 text-text-subtle transition hover:bg-surface-raised disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent md:p-2',
 						button.action === 'remove' && 'hover:text-danger disabled:hover:text-text-subtle'
 					]}
 					aria-label={button.label}

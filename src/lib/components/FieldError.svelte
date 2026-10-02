@@ -11,5 +11,5 @@
 </script>
 
 {#if message}
-	<p {id} role="alert" class="text-danger text-xs {className}">{message}</p>
+	<p {id} role="alert" class="text-xs text-danger {className}">{message}</p>
 {/if}

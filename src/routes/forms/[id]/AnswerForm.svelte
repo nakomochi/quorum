@@ -66,7 +66,12 @@
 >
 	<input type="hidden" name="version" value={version} />
 	{#each questions as q (q.id)}
-		<QuestionField question={q} value={source[q.id]} error={errorOf(q.id)} id={questionAnchor(q.id)} />
+		<QuestionField
+			question={q}
+			value={source[q.id]}
+			error={errorOf(q.id)}
+			id={questionAnchor(q.id)}
+		/>
 	{/each}
 
 	<SaveStatus

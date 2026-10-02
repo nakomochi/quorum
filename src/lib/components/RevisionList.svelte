@@ -34,11 +34,7 @@
 <ol class="flex flex-col gap-3">
 	{#each revisions as revision, index (revision.number)}
 		<li class="card p-5">
-			<ItemHeader
-				title="{revision.number}版目"
-				tag={headingTag}
-				titleClass="text-sm font-semibold"
-			>
+			<ItemHeader title="{revision.number}版目" tag={headingTag} titleClass="text-sm font-semibold">
 				{#snippet badges()}
 					{#if index === 0}<span class="badge badge-success">最新</span>{/if}
 					{#if revision.number === 1}<span class="badge badge-muted">初回提出</span>{/if}

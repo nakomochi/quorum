@@ -31,7 +31,12 @@ describe('csvCell', () => {
 
 describe('toCsv', () => {
 	test('starts with a BOM and ends every record with CRLF', () => {
-		expect(toCsv([['a', 'b'], ['c,d', '']])).toBe(`${String.fromCharCode(0xfeff)}a,b\r\n"c,d",\r\n`);
+		expect(
+			toCsv([
+				['a', 'b'],
+				['c,d', '']
+			])
+		).toBe(`${String.fromCharCode(0xfeff)}a,b\r\n"c,d",\r\n`);
 	});
 });
 

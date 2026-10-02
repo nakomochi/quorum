@@ -29,7 +29,10 @@
 </script>
 
 <li class="card flex items-center gap-2 pr-3">
-	<a href={resolve('/forms/[id]/results', { id: row.id })} class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5">
+	<a
+		href={resolve('/forms/[id]/results', { id: row.id })}
+		class="flex min-w-0 flex-1 flex-col gap-1 py-4 pl-5"
+	>
 		<ItemHeader title={row.title}>
 			{#snippet icon()}
 				<!-- The icon's shape and label carry the status, so no text badge repeats it. -->
@@ -55,7 +58,13 @@
 		items={[
 			...(row.status === 'closed'
 				? []
-				: [{ kind: 'link' as const, label: '編集', href: resolve('/forms/[id]/edit', { id: row.id }) }]),
+				: [
+						{
+							kind: 'link' as const,
+							label: '編集',
+							href: resolve('/forms/[id]/edit', { id: row.id })
+						}
+					]),
 			{ kind: 'post', label: '複製', action: `/forms/${row.id}/results?/duplicate` }
 		]}
 	/>

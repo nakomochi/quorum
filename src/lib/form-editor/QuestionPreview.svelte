@@ -23,7 +23,7 @@
 <div
 	use:dragHandle
 	aria-label="質問 {index + 1} をドラッグして並び替え"
-	class="outline-accent -mx-5 -mt-5 flex touch-none justify-center rounded-t-xl py-2 text-text-muted hover:text-text-subtle focus-visible:-outline-offset-2 focus-visible:outline-2"
+	class="-mx-5 -mt-5 flex touch-none justify-center rounded-t-xl py-2 text-text-muted outline-accent hover:text-text-subtle focus-visible:outline-2 focus-visible:-outline-offset-2"
 >
 	<Icon name="grip-horizontal" />
 </div>
@@ -33,7 +33,7 @@
 <button
 	type="button"
 	onclick={onselect}
-	class="outline-accent hover:bg-surface-alt -mx-5 -mt-3 -mb-5 flex cursor-pointer flex-col gap-3 rounded-b-xl px-5 pt-3 pb-5 text-left focus-visible:-outline-offset-2 focus-visible:outline-2"
+	class="-mx-5 -mt-3 -mb-5 flex cursor-pointer flex-col gap-3 rounded-b-xl px-5 pt-3 pb-5 text-left outline-accent hover:bg-surface-alt focus-visible:outline-2 focus-visible:-outline-offset-2"
 >
 	<span class="flex items-center justify-between gap-2 text-xs text-text-muted">
 		<span>質問 {index + 1}</span>
@@ -43,7 +43,7 @@
 	<!-- Plain text, not an alert: a button's content is read as its name, roles and all dropped.
 	     A submission that fails here opens the card, where the message is an alert. -->
 	{#if error}
-		<span class="text-danger text-xs">{error}</span>
+		<span class="text-xs text-danger">{error}</span>
 	{/if}
 
 	<span class="flex flex-col gap-1">

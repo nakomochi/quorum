@@ -129,12 +129,7 @@ export function inputs(questions: Question[], byPosition: Record<number, RawInpu
 	return out;
 }
 
-export function submit(
-	formId: string,
-	who: TestUser,
-	roleIds: string[],
-	answers: AnswerInputs
-) {
+export function submit(formId: string, who: TestUser, roleIds: string[], answers: AnswerInputs) {
 	return submitResponse(formId, { id: who.id, discordId: who.discordId }, { roleIds }, answers);
 }
 
@@ -220,7 +215,9 @@ export async function withSlowWrites<T>(
 			: target.table === 'question'
 				? `before update on question for each row when (new.form_id = ${literal(target.formId)})`
 				: 'after insert on guild_member for each statement';
-	await db.execute(sql.raw(`create trigger test_slow_write ${spec} execute function test_sleep(${seconds})`));
+	await db.execute(
+		sql.raw(`create trigger test_slow_write ${spec} execute function test_sleep(${seconds})`)
+	);
 	try {
 		return await fn();
 	} finally {

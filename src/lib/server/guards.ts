@@ -78,9 +78,7 @@ export async function gateMember(
 }
 
 export type LiveMembership =
-	| { status: 'member'; roleIds: string[] }
-	| { status: 'absent' }
-	| { status: 'unavailable' };
+	{ status: 'member'; roleIds: string[] } | { status: 'absent' } | { status: 'unavailable' };
 
 /**
  * For writes, which a departure or a removed role must stop at once: Discord is asked every time

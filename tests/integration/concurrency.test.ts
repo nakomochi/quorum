@@ -25,7 +25,8 @@ async function crowd(size: number) {
 }
 
 async function responseCount(formId: string) {
-	return (await db.select({ id: response.id }).from(response).where(eq(response.formId, formId))).length;
+	return (await db.select({ id: response.id }).from(response).where(eq(response.formId, formId)))
+		.length;
 }
 
 describe('concurrent submissions', () => {
@@ -37,7 +38,9 @@ describe('concurrent submissions', () => {
 		// Every submitter holds FOR SHARE on the form row while its insert sleeps, so any later
 		// statement that needs the row exclusively meets all the others at once.
 		const results = await withSlowWrites({ table: 'response', formId: id, seconds: 0.2 }, () =>
-			Promise.all(users.map((u) => settle(submit(id, u, [TARGET_ROLE], inputs(questions, { 0: u.name })))))
+			Promise.all(
+				users.map((u) => settle(submit(id, u, [TARGET_ROLE], inputs(questions, { 0: u.name }))))
+			)
 		);
 
 		const failures = results.filter((r) => !r.ok);
@@ -52,7 +55,9 @@ describe('concurrent submissions', () => {
 		const [who] = users;
 
 		const results = await Promise.all(
-			Array.from({ length: 20 }, (_, i) => settle(submit(id, who, [TARGET_ROLE], inputs(questions, { 0: `edit ${i}` }))))
+			Array.from({ length: 20 }, (_, i) =>
+				settle(submit(id, who, [TARGET_ROLE], inputs(questions, { 0: `edit ${i}` })))
+			)
 		);
 
 		expect(results.every((r) => r.ok && r.value.ok)).toBe(true);
@@ -69,7 +74,9 @@ describe('concurrent submissions', () => {
 		const [who] = users;
 
 		const results = await Promise.all(
-			Array.from({ length: 20 }, (_, i) => settle(submit(id, who, [TARGET_ROLE], inputs(questions, { 0: `try ${i}` }))))
+			Array.from({ length: 20 }, (_, i) =>
+				settle(submit(id, who, [TARGET_ROLE], inputs(questions, { 0: `try ${i}` })))
+			)
 		);
 
 		expect(results.every((r) => r.ok)).toBe(true);
@@ -88,23 +95,32 @@ describe('submissions racing a close', () => {
 		const { outcomes, closed } = await withSlowWrites(
 			{ table: 'response', formId: id, seconds: 0.15 },
 			async () => {
-				const early = users.slice(0, 10).map((u) => settle(submit(id, u, [TARGET_ROLE], inputs(questions, { 0: 'x' }))));
+				const early = users
+					.slice(0, 10)
+					.map((u) => settle(submit(id, u, [TARGET_ROLE], inputs(questions, { 0: 'x' }))));
 				await sleep(50);
 				const closing = settle(closeForm(id));
 				await sleep(50);
-				const late = users.slice(10).map((u) => settle(submit(id, u, [TARGET_ROLE], inputs(questions, { 0: 'x' }))));
+				const late = users
+					.slice(10)
+					.map((u) => settle(submit(id, u, [TARGET_ROLE], inputs(questions, { 0: 'x' }))));
 				return { outcomes: await Promise.all([...early, ...late]), closed: await closing };
 			}
 		);
 
 		expect(closed.ok && closed.value.ok).toBe(true);
-		const reasons = outcomes.map((o) => (o.ok ? (o.value.ok ? 'ok' : o.value.reason) : `error ${o.code}`));
+		const reasons = outcomes.map((o) =>
+			o.ok ? (o.value.ok ? 'ok' : o.value.reason) : `error ${o.code}`
+		);
 		expect(reasons.every((r) => r === 'ok' || r === 'closed')).toBe(true);
 
 		const responders = new Set(
-			(await db.select({ discordId: response.discordId }).from(response).where(eq(response.formId, id))).map(
-				(r) => r.discordId
-			)
+			(
+				await db
+					.select({ discordId: response.discordId })
+					.from(response)
+					.where(eq(response.formId, id))
+			).map((r) => r.discordId)
 		);
 		users.forEach((u, i) => expect(responders.has(u.discordId)).toBe(reasons[i] === 'ok'));
 

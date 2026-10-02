@@ -66,9 +66,9 @@ describe('canViewResults', () => {
 
 	test('public is open to members, admin_only never is', () => {
 		expect(canViewResults(form('public'), false, NOW)).toBe(true);
-		expect(
-			canViewResults(form('admin_only', { deadline: PAST, closedAt: PAST }), false, NOW)
-		).toBe(false);
+		expect(canViewResults(form('admin_only', { deadline: PAST, closedAt: PAST }), false, NOW)).toBe(
+			false
+		);
 	});
 
 	test('after_deadline stays hidden while open and before the deadline', () => {

@@ -16,7 +16,9 @@ describe('toastOf', () => {
 	});
 
 	test('an input error with a field or question stays beside it', () => {
-		expect(toastOf({ inputError: { message: '入力してください', at: { field: 'title' } } })).toBeNull();
+		expect(
+			toastOf({ inputError: { message: '入力してください', at: { field: 'title' } } })
+		).toBeNull();
 		expect(toastOf({ inputError: { message: '不正です', at: { question: 0 } } })).toBeNull();
 		expect(toastOf({ inputError: { message: '不正です', at: { questionId: 3 } } })).toBeNull();
 	});

@@ -27,7 +27,8 @@ import {
 const anyId = () => true;
 
 /** A time with microseconds, which a JS Date cannot hold: ties to the millisecond stay apart. */
-const micros = (n: number) => sql`'2026-03-01T00:00:00Z'::timestamptz + ${n} * interval '1 microsecond'`;
+const micros = (n: number) =>
+	sql`'2026-03-01T00:00:00Z'::timestamptz + ${n} * interval '1 microsecond'`;
 
 /** Inserted directly, all at once: the lists read nothing but these columns. */
 async function insertForms(
@@ -54,7 +55,9 @@ async function insertForms(
 
 /** The list's order as the database sorts it outright. */
 async function orderOfForms(): Promise<string[]> {
-	const rows = await db.execute<{ id: string }>(sql`select id from form order by created_at desc, id desc`);
+	const rows = await db.execute<{ id: string }>(
+		sql`select id from form order by created_at desc, id desc`
+	);
 	return [...rows].map((row) => row.id);
 }
 
@@ -70,7 +73,10 @@ async function walkDown<Row>(
 	return pages;
 }
 
-async function walkUp<Row>(load: (request: PageRequest) => Promise<ListPage<Row>>, from: ListPage<Row>) {
+async function walkUp<Row>(
+	load: (request: PageRequest) => Promise<ListPage<Row>>,
+	from: ListPage<Row>
+) {
 	const pages = [from];
 	while (pages.at(-1)!.newer) {
 		pages.push(await load({ kind: 'after', cursor: decodeCursor(pages.at(-1)!.newer!, anyId)! }));
@@ -95,10 +101,21 @@ describe('who sees which form', () => {
 		];
 		const combos = (['everyone', 'target_role'] as const).flatMap((submitScope) =>
 			[null, TARGET_ROLE, OTHER_ROLE].flatMap((targetRoleId) =>
-				closures.map((closure) => ({ submitScope, targetRoleId, closesAt: null, closedAt: null, ...closure }))
+				closures.map((closure) => ({
+					submitScope,
+					targetRoleId,
+					closesAt: null,
+					closedAt: null,
+					...closure
+				}))
 			)
 		);
-		const ids = await insertForms(creator, combos.length, (i) => i, (i) => combos[i]);
+		const ids = await insertForms(
+			creator,
+			combos.length,
+			(i) => i,
+			(i) => combos[i]
+		);
 		const forms = ids.map((id, i) => ({ id, ...combos[i] }));
 
 		const members: MemberContext[] = [
@@ -111,12 +128,17 @@ describe('who sees which form', () => {
 		for (const m of members) {
 			const pending = await listPendingForms(m, viewer.id, now);
 			expect(pending.map((row) => row.id).sort()).toEqual(
-				forms.filter((f) => canSubmit(f, m) && !isClosed(f, now)).map((f) => f.id).sort()
+				forms
+					.filter((f) => canSubmit(f, m) && !isClosed(f, now))
+					.map((f) => f.id)
+					.sort()
 			);
 		}
 
 		// Having answered every form: none is pending, and the submitted list is canSubmit's.
-		await db.insert(response).values(ids.map((formId) => ({ formId, userId: viewer.id, discordId: viewer.discordId })));
+		await db
+			.insert(response)
+			.values(ids.map((formId) => ({ formId, userId: viewer.id, discordId: viewer.discordId })));
 		for (const m of members) {
 			expect(await listPendingForms(m, viewer.id, now)).toEqual([]);
 			const submitted = await pageSubmittedForms(m, viewer.id, FIRST_PAGE, 100);
@@ -129,9 +151,14 @@ describe('who sees which form', () => {
 	test('pending: nearest deadline first, none last, then the newest', async () => {
 		const [creator, viewer] = await createUsers([snowflake(1), snowflake(2)]);
 		const day = (n: number) => new Date(Date.UTC(2030, 0, n));
-		const ids = await insertForms(creator, 5, (i) => i, (i) => ({
-			deadline: [day(3), null, day(1), day(3), null][i]
-		}));
+		const ids = await insertForms(
+			creator,
+			5,
+			(i) => i,
+			(i) => ({
+				deadline: [day(3), null, day(1), day(3), null][i]
+			})
+		);
 
 		const pending = await listPendingForms({ roleIds: [] }, viewer.id);
 
@@ -174,8 +201,18 @@ describe('keyset pages', () => {
 		const down = await walkDown(load, async () => {
 			// One newest, and one tied with every row of the run at the break.
 			await db.insert(form).values([
-				{ id: `new${added}aaaaaaaa`, title: '追加', createdBy: creator.id, createdAt: micros(1000) as unknown as Date },
-				{ id: `new${added}zzzzzzzz`, title: '追加', createdBy: creator.id, createdAt: micros(6) as unknown as Date }
+				{
+					id: `new${added}aaaaaaaa`,
+					title: '追加',
+					createdBy: creator.id,
+					createdAt: micros(1000) as unknown as Date
+				},
+				{
+					id: `new${added}zzzzzzzz`,
+					title: '追加',
+					createdBy: creator.id,
+					createdAt: micros(6) as unknown as Date
+				}
 			]);
 			added++;
 		});
@@ -187,8 +224,11 @@ describe('keyset pages', () => {
 
 	test('submitted list: by submission time, ties broken by the response, ineligible forms left out', async () => {
 		const [creator, viewer] = await createUsers([snowflake(1), snowflake(2)]);
-		const ids = await insertForms(creator, 30, (i) => i, (i) =>
-			i % 10 === 9 ? { targetRoleId: TARGET_ROLE, submitScope: 'target_role' } : {}
+		const ids = await insertForms(
+			creator,
+			30,
+			(i) => i,
+			(i) => (i % 10 === 9 ? { targetRoleId: TARGET_ROLE, submitScope: 'target_role' } : {})
 		);
 		await db.insert(response).values(
 			ids.map((formId, i) => ({
@@ -204,38 +244,68 @@ describe('keyset pages', () => {
 					where f.target_role_id is null order by r.submitted_at desc, r.id desc`
 			))
 		].map((row) => row.form_id);
-		const load = (request: PageRequest) => pageSubmittedForms({ roleIds: [] }, viewer.id, request, 20);
+		const load = (request: PageRequest) =>
+			pageSubmittedForms({ roleIds: [] }, viewer.id, request, 20);
 
 		const down = await walkDown(load);
 
 		expect(expected).toHaveLength(27);
 		expect(down.flatMap((page) => page.rows.map((row) => row.id))).toEqual(expected);
 		expect(down.map((page) => page.total)).toEqual([27, 27]);
-		expect((await walkUp(load, down[1])).map((page) => page.rows)).toEqual(down.map((page) => page.rows));
-		expect(Object.keys(down[0].rows[0]).sort()).toEqual(['id', 'revisionCount', 'submittedAt', 'title']);
+		expect((await walkUp(load, down[1])).map((page) => page.rows)).toEqual(
+			down.map((page) => page.rows)
+		);
+		expect(Object.keys(down[0].rows[0]).sort()).toEqual([
+			'id',
+			'revisionCount',
+			'submittedAt',
+			'title'
+		]);
 	});
 
 	test('the admin list counts the forms on its page', async () => {
 		const [creator, a] = await createUsers([snowflake(1), snowflake(2)]);
 		await seedGuild([member(a.discordId, [TARGET_ROLE])]);
-		const ids = await insertForms(creator, 22, (i) => i, (i) => (i === 21 ? { targetRoleId: TARGET_ROLE } : {}));
+		const ids = await insertForms(
+			creator,
+			22,
+			(i) => i,
+			(i) => (i === 21 ? { targetRoleId: TARGET_ROLE } : {})
+		);
 		await db.insert(response).values({ formId: ids[21], userId: a.id, discordId: a.discordId });
 
 		const first = await pageAllForms(FIRST_PAGE, 20);
 
-		expect(first.rows[0]).toMatchObject({ id: ids[21], submitted: 1, targetCount: 1, outsiders: 0 });
-		expect(first.rows[1]).toMatchObject({ id: ids[20], submitted: 0, targetCount: null, outsiders: 0 });
+		expect(first.rows[0]).toMatchObject({
+			id: ids[21],
+			submitted: 1,
+			targetCount: 1,
+			outsiders: 0
+		});
+		expect(first.rows[1]).toMatchObject({
+			id: ids[20],
+			submitted: 0,
+			targetCount: null,
+			outsiders: 0
+		});
 	});
 });
 
 describe('the pages', () => {
 	async function scene() {
 		const [creator, viewer] = await createUsers([snowflake(1), snowflake(2)]);
-		await seedGuild([member(creator.discordId, [OTHER_ROLE]), member(viewer.discordId, [TARGET_ROLE])]);
+		await seedGuild([
+			member(creator.discordId, [OTHER_ROLE]),
+			member(viewer.discordId, [TARGET_ROLE])
+		]);
 		const ids = await insertForms(creator, 23, (i) => i);
-		await db.insert(response).values(
-			ids.slice(0, 7).map((formId) => ({ formId, userId: viewer.id, discordId: viewer.discordId }))
-		);
+		await db
+			.insert(response)
+			.values(
+				ids
+					.slice(0, 7)
+					.map((formId) => ({ formId, userId: viewer.id, discordId: viewer.discordId }))
+			);
 		return { creator, viewer, ids };
 	}
 
@@ -254,7 +324,9 @@ describe('the pages', () => {
 		const { creator, viewer } = await scene();
 
 		const first = (await createdLoad(event(creator, '/forms/created'))) as ListPage<{ id: string }>;
-		const second = (await createdLoad(event(creator, `/forms/created?before=${first.older}`))) as ListPage<{
+		const second = (await createdLoad(
+			event(creator, `/forms/created?before=${first.older}`)
+		)) as ListPage<{
 			id: string;
 		}>;
 		expect([first.rows.length, second.rows.length, first.total]).toEqual([20, 3, 23]);
@@ -263,8 +335,15 @@ describe('the pages', () => {
 			expect(await createdLoad(event(creator, `/forms/created${query}`))).toEqual(first);
 		}
 
-		const submitted = (await submittedLoad(event(viewer, '/forms/submitted?after=x'))) as ListPage<unknown>;
-		expect([submitted.rows.length, submitted.total, submitted.older, submitted.newer]).toEqual([7, 7, null, null]);
+		const submitted = (await submittedLoad(
+			event(viewer, '/forms/submitted?after=x')
+		)) as ListPage<unknown>;
+		expect([submitted.rows.length, submitted.total, submitted.older, submitted.newer]).toEqual([
+			7,
+			7,
+			null,
+			null
+		]);
 	});
 
 	test('a visitor is sent to the top page, and a non-member refused', async () => {
@@ -272,7 +351,11 @@ describe('the pages', () => {
 		for (const load of [submittedLoad, createdLoad]) {
 			let thrown: unknown;
 			try {
-				await load({ locals: {}, params: {}, url: new URL('http://forms.test/forms/created') } as never);
+				await load({
+					locals: {},
+					params: {},
+					url: new URL('http://forms.test/forms/created')
+				} as never);
 			} catch (e) {
 				thrown = e;
 			}

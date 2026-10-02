@@ -91,7 +91,9 @@ describe('keyset', () => {
 			params: ['2026-09-21T14:13:20.123456Z', 'abc'],
 			typings: expect.anything()
 		});
-		expect(dialect.sqlToQuery(after.where!).sql).toBe(`("form"."created_at", "form"."id") > ${bound}`);
+		expect(dialect.sqlToQuery(after.where!).sql).toBe(
+			`("form"."created_at", "form"."id") > ${bound}`
+		);
 		expect(before.orderBy.map((part) => dialect.sqlToQuery(part).sql)).toEqual([
 			'"form"."created_at" desc',
 			'"form"."id" desc'
@@ -160,11 +162,13 @@ describe('fetchPage', () => {
 		const fetch = memoryFetch({ rows: rowsOf(47, [18, 23]) });
 
 		const down = [await fetchPage(FIRST_PAGE, 20, fetch)];
-		while (down.at(-1)!.older) down.push(await fetchPage(asRequest('before', down.at(-1)!.older!), 20, fetch));
+		while (down.at(-1)!.older)
+			down.push(await fetchPage(asRequest('before', down.at(-1)!.older!), 20, fetch));
 		expect(down.map((page) => page.rows.length)).toEqual([20, 20, 7]);
 
 		const up = [down.at(-1)!];
-		while (up.at(-1)!.newer) up.push(await fetchPage(asRequest('after', up.at(-1)!.newer!), 20, fetch));
+		while (up.at(-1)!.newer)
+			up.push(await fetchPage(asRequest('after', up.at(-1)!.newer!), 20, fetch));
 
 		expect(up.reverse().map((page) => page.rows)).toEqual(down.map((page) => page.rows));
 		expect(up[0].newer).toBeNull();

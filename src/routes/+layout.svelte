@@ -21,7 +21,7 @@
 	<link rel="icon" href={favicon} />
 </svelte:head>
 
-<div class="bg-bg text-text min-h-screen">
+<div class="min-h-screen bg-bg text-text">
 	{#if data.user && !catalogue}
 		<SiteHeader user={data.user} member={data.member} isAdmin={data.isAdmin} />
 	{/if}

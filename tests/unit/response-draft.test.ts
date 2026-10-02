@@ -52,8 +52,18 @@ describe('answersFromFields', () => {
 describe('readResponseDraft', () => {
 	test('an option an edit deleted is dropped like an unknown one', () => {
 		const edited: DraftQuestion[] = [
-			{ id: 1, type: 'single', options: [{ id: 'yes' }, { id: 'no', deleted: true }], allowOther: false },
-			{ id: 2, type: 'multi', options: [{ id: 'a', deleted: true }, { id: 'b' }], allowOther: false }
+			{
+				id: 1,
+				type: 'single',
+				options: [{ id: 'yes' }, { id: 'no', deleted: true }],
+				allowOther: false
+			},
+			{
+				id: 2,
+				type: 'multi',
+				options: [{ id: 'a', deleted: true }, { id: 'b' }],
+				allowOther: false
+			}
 		];
 
 		const answers = readResponseDraft(
@@ -93,7 +103,10 @@ describe('readResponseDraft', () => {
 		const closedOther = QUESTIONS.map((q) => ({ ...q, allowOther: false }));
 
 		expect(
-			readResponseDraft({ 1: { type: 'single', other: 'x' }, 2: { type: 'multi', optionIds: [], other: 'y' } }, closedOther)
+			readResponseDraft(
+				{ 1: { type: 'single', other: 'x' }, 2: { type: 'multi', optionIds: [], other: 'y' } },
+				closedOther
+			)
 		).toEqual({});
 	});
 });
@@ -119,7 +132,9 @@ describe('draftDiffers', () => {
 
 	test('a changed, added or removed answer is a change', () => {
 		expect(draftDiffers({ ...submitted, 3: { type: 'text', text: '田中' } }, submitted)).toBe(true);
-		expect(draftDiffers({ ...submitted, 4: { type: 'date', date: '2026-05-02' } }, submitted)).toBe(true);
+		expect(draftDiffers({ ...submitted, 4: { type: 'date', date: '2026-05-02' } }, submitted)).toBe(
+			true
+		);
 		expect(draftDiffers({ 3: submitted[3] }, submitted)).toBe(true);
 	});
 

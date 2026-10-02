@@ -1,11 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import {
-	closeForm,
-	countResponses,
-	loadForm,
-	loadQuestions,
-	loadResults
-} from '$lib/server/forms';
+import { closeForm, countResponses, loadForm, loadQuestions, loadResults } from '$lib/server/forms';
 import { syncAllMembers } from '$lib/server/guild-sync';
 import { discord, OTHER_ROLE, TARGET_ROLE } from '../helpers/discord';
 import {
@@ -27,9 +21,22 @@ const GONE_ROLE = '200000000000000099';
  * present or missing, and responders in and out of the roster in each way one can be.
  */
 async function variedForms() {
-	const keys = ['creator', 'a', 'b', 'bot', 'other', 'both', 'leaver', 'unmirrored', 'silent'] as const;
+	const keys = [
+		'creator',
+		'a',
+		'b',
+		'bot',
+		'other',
+		'both',
+		'leaver',
+		'unmirrored',
+		'silent'
+	] as const;
 	const list = await createUsers(keys.map((_, i) => snowflake(i + 1)));
-	const u = Object.fromEntries(keys.map((key, i) => [key, list[i]])) as Record<(typeof keys)[number], TestUser>;
+	const u = Object.fromEntries(keys.map((key, i) => [key, list[i]])) as Record<
+		(typeof keys)[number],
+		TestUser
+	>;
 	await seedGuild([
 		member(u.creator.discordId, [OTHER_ROLE]),
 		member(u.a.discordId, [TARGET_ROLE]),
@@ -69,7 +76,13 @@ async function variedForms() {
 	await answer(await make('closedEmpty'), []);
 	await answer(await make('ended', { closesAt: new Date(Date.now() + 3_600_000) }), [u.a, u.other]);
 
-	for (const name of ['noRoleClosed', 'closed', 'closedLegacyTargets', 'closedNoNonSubmitters', 'closedEmpty']) {
+	for (const name of [
+		'noRoleClosed',
+		'closed',
+		'closedLegacyTargets',
+		'closedNoNonSubmitters',
+		'closedEmpty'
+	]) {
 		expect((await closeForm(ids[name])).ok).toBe(true);
 	}
 	// Closed before the frozen lists were recorded: the mirror decides, as for an open form.
@@ -118,7 +131,9 @@ describe('countResponses', () => {
 			outsiders
 		});
 
-		expect(Object.fromEntries(Object.entries(ids).map(([name, id]) => [name, counts.get(id)]))).toEqual({
+		expect(
+			Object.fromEntries(Object.entries(ids).map(([name, id]) => [name, counts.get(id)]))
+		).toEqual({
 			// Live roster a, other, both, silent: the bot, the leaver and the unmirrored are outside.
 			open: of(3, 4, 3),
 			openTargetScope: of(2, 4, 0),

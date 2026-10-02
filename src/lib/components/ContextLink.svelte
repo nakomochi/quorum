@@ -12,7 +12,7 @@
 	let { href, label, direction }: Props = $props();
 </script>
 
-<nav class="text-text-muted self-start text-sm">
+<nav class="self-start text-sm text-text-muted">
 	<a {href} class="inline-flex items-center gap-1.5 hover:underline">
 		{#if direction === 'back'}
 			<Icon name="arrow-left" />

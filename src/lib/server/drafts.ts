@@ -28,8 +28,7 @@ export async function createDraft(userId: string, payload: unknown): Promise<Sav
 }
 
 export type UpdateResult =
-	| { ok: true; version: number; updatedAt: Date }
-	| { ok: false; reason: 'conflict' | 'not_found' };
+	{ ok: true; version: number; updatedAt: Date } | { ok: false; reason: 'conflict' | 'not_found' };
 
 /**
  * One conditional statement, so a stale version can never overwrite a newer save. A draft that is

@@ -546,7 +546,10 @@ const WIDE_SUBMITTED: ResultRow[] = [
 		26: { type: 'multi', optionIds: ['act2', 'act3', 'act5', 'act6', 'act7', 'act8', 'act10'] },
 		27: { type: 'text', text: WIDE_LONG_TEXT },
 		28: { type: 'single', optionId: 'L' },
-		29: { type: 'text', text: '父・いつき太郎 080-0000-0002\n日中は仕事のため、つながらない場合はSMSでお願いします。' },
+		29: {
+			type: 'text',
+			text: '父・いつき太郎 080-0000-0002\n日中は仕事のため、つながらない場合はSMSでお願いします。'
+		},
 		30: { type: 'date', date: '2026-08-16' },
 		31: { type: 'multi', optionIds: ['light'], other: 'モバイルバッテリー（大容量）を3台' },
 		32: { type: 'text', text: WIDE_LONG_TEXT }
@@ -719,7 +722,9 @@ const OWN_HISTORY: AnswerData['history'] = [
 const openMenu =
 	(scope: 'header' | 'main', index = 0) =>
 	async (doc: Document) => {
-		const triggers = [...doc.querySelectorAll<HTMLButtonElement>(`${scope} [aria-haspopup="menu"]`)];
+		const triggers = [
+			...doc.querySelectorAll<HTMLButtonElement>(`${scope} [aria-haspopup="menu"]`)
+		];
 		triggers.at(index)?.click();
 		await tick();
 	};
@@ -872,7 +877,9 @@ const MANY_CREATED: CreatedRow[] = Array.from({ length: 23 }, (_, i) =>
 type HomeTotals = 'submittedTotal' | 'createdTotal';
 
 /** The top page as its load sends it: the totals are the rows' own count unless a case says more. */
-const home = (data: Omit<HomeData, HomeTotals> & Partial<Pick<HomeData, HomeTotals>>): HomeData => ({
+const home = (
+	data: Omit<HomeData, HomeTotals> & Partial<Pick<HomeData, HomeTotals>>
+): HomeData => ({
 	submittedTotal: data.submitted.length,
 	createdTotal: data.created.length,
 	...data
@@ -930,7 +937,11 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 				pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(-36) }),
 				pendingRow({ id: 'pending000005', title: LONG_TITLE, deadline: fromNow(20) }),
 				pendingRow({ id: 'pending000002', title: '新歓イベントの担当希望', deadline: fromNow(30) }),
-				pendingRow({ id: 'pending000003', title: '定例会の出欠（10月）', deadline: fromNow(24 * 21) }),
+				pendingRow({
+					id: 'pending000003',
+					title: '定例会の出欠（10月）',
+					deadline: fromNow(24 * 21)
+				}),
 				pendingRow({ id: 'pending000004', title: 'Tシャツのサイズ調査', deadline: null })
 			],
 			submitted: [
@@ -990,7 +1001,9 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 		title: 'メンバー / 提出済みと作成済みが多い',
 		data: home({
 			...SESSION,
-			pending: [pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })],
+			pending: [
+				pendingRow({ id: 'pending000001', title: '春合宿の参加確認', deadline: fromNow(30) })
+			],
 			submitted: MANY_SUBMITTED.slice(0, HOME_PREVIEW),
 			submittedTotal: MANY_SUBMITTED.length,
 			created: MANY_CREATED.slice(0, HOME_PREVIEW),
@@ -1014,7 +1027,13 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 		title: 'メンバー / 今年と去年の日付が混ざる（去年の日付だけ年つき）',
 		data: home({
 			...SESSION,
-			pending: [pendingRow({ id: 'pending000001', title: '定例会の出欠（10月）', deadline: fromNow(24 * 21) })],
+			pending: [
+				pendingRow({
+					id: 'pending000001',
+					title: '定例会の出欠（10月）',
+					deadline: fromNow(24 * 21)
+				})
+			],
 			submitted: [
 				submittedRow({
 					id: 'done00000001',
@@ -1037,7 +1056,9 @@ export const HOME_CASES: UiCase<HomeData, HomeAction>[] = [
 					status: 'closed'
 				})
 			],
-			drafts: [{ id: 'draft0000001', title: '秋合宿の参加確認', updatedAt: lastYear('11-30T08:00:00') }]
+			drafts: [
+				{ id: 'draft0000001', title: '秋合宿の参加確認', updatedAt: lastYear('11-30T08:00:00') }
+			]
 		})
 	},
 	{
@@ -1174,7 +1195,8 @@ export const ANSWER_CASES: UiCase<AnswerData, AnswerAction>[] = [
 	},
 	{
 		id: 'answer-manager-private',
-		title: '作成者・管理者 / 結果を一般に見せないフォーム（「回答状況を見る」を管理の枠に入れる・枠は畳めない）',
+		title:
+			'作成者・管理者 / 結果を一般に見せないフォーム（「回答状況を見る」を管理の枠に入れる・枠は畳めない）',
 		data: {
 			...SESSION,
 			resultsVisible: true,
@@ -1864,7 +1886,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-panel-attention',
-		title: '管理者 / 要対応あり（閉じた管理パネルに警告のアイコン: 告知が古い・リマインドの未送信）',
+		title:
+			'管理者 / 要対応あり（閉じた管理パネルに警告のアイコン: 告知が古い・リマインドの未送信）',
 		data: rosterResults({ announcement: STALE_ANNOUNCEMENT, reminders: REMINDERS_WITH_EMPTY })
 	},
 	{
@@ -2178,7 +2201,8 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	},
 	{
 		id: 'results-reminder-links',
-		title: '送信履歴の Discord へのリンク（投稿のない行はリンクなし、途中で失敗した行は未送信の案内つき）',
+		title:
+			'送信履歴の Discord へのリンク（投稿のない行はリンクなし、途中で失敗した行は未送信の案内つき）',
 		data: rosterResults({ reminders: REMINDERS_WITH_EMPTY }),
 		setup: openAdminPanel
 	},
@@ -2418,7 +2442,13 @@ export const RESULTS_CASES: UiCase<ResultsData, ResultsAction>[] = [
 	{
 		id: 'results-no-role-viewer',
 		title: '対象ロールなし / 一般閲覧',
-		data: rosterResults({ ...NO_ROLE_RESULTS, form: viewerForm(), manage: false, announcement: null, reminders: [] })
+		data: rosterResults({
+			...NO_ROLE_RESULTS,
+			form: viewerForm(),
+			manage: false,
+			announcement: null,
+			reminders: []
+		})
 	},
 	{
 		id: 'results-no-role-noticed',
@@ -2538,7 +2568,10 @@ export const HISTORY_CASES: UiCase<HistoryData>[] = [
 			questions: [
 				{
 					...toHistoryQuestion(QUESTIONS[0]),
-					options: [...QUESTIONS[0].options!.filter((o) => o.id !== 'maybe'), { id: 'maybe', label: '未定', deleted: true }]
+					options: [
+						...QUESTIONS[0].options!.filter((o) => o.id !== 'maybe'),
+						{ id: 'maybe', label: '未定', deleted: true }
+					]
 				},
 				toHistoryQuestion(QUESTIONS[1]),
 				toHistoryQuestion(QUESTIONS[3]),
@@ -2938,7 +2971,12 @@ const editData = (over: Partial<Editor> = {}): EditData => ({
 	editor: {
 		roles: ROLES,
 		channels: CHANNELS,
-		draft: { id: 'fixturedraft', version: 1, updatedAt: at('2026-09-29T12:34:00'), state: EDIT_STATE },
+		draft: {
+			id: 'fixturedraft',
+			version: 1,
+			updatedAt: at('2026-09-29T12:34:00'),
+			state: EDIT_STATE
+		},
 		baseVersion: 2,
 		stale: false,
 		// Announced, with the deadline as the editor holds it: the box stays hidden.
@@ -2969,7 +3007,8 @@ export const EDIT_CASES: UiCase<EditData, EditAction>[] = [
 	},
 	{
 		id: 'edit-locked',
-		title: '回答あり・告知済み（対象ロール・提出できる人・告知チャンネル・既存の質問の種類は変更不可）',
+		title:
+			'回答あり・告知済み（対象ロール・提出できる人・告知チャンネル・既存の質問の種類は変更不可）',
 		data: editData({ locks: { audience: true, questionTypes: true, channel: true } })
 	},
 	{
@@ -3106,36 +3145,36 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 		id: 'admin-list',
 		title: 'フォーム数件 / 同期済み',
 		data: adminData(ADMIN_SYNCED_AT, [
-				adminRow({
-					id: 'pending000001',
-					title: '春合宿の参加確認',
-					submitted: 12,
-					targetCount: 18
-				}),
-				adminRow({
-					id: 'pending000002',
-					title: '新歓イベントの担当希望',
-					submitScope: 'everyone',
-					submitted: 1,
-					targetCount: 4,
-					outsiders: 2
-				}),
-				adminRow({
-					id: 'pending000003',
-					title: '文化祭の日程アンケート',
-					submitScope: 'everyone',
-					submitted: 23,
-					targetCount: null,
-					roleName: null
-				}),
-				adminRow({
-					id: 'done00000001',
-					title: LONG_TITLE,
-					closed: true,
-					submitted: 58,
-					targetCount: 60,
-					roleName: '（削除されたロール）'
-				})
+			adminRow({
+				id: 'pending000001',
+				title: '春合宿の参加確認',
+				submitted: 12,
+				targetCount: 18
+			}),
+			adminRow({
+				id: 'pending000002',
+				title: '新歓イベントの担当希望',
+				submitScope: 'everyone',
+				submitted: 1,
+				targetCount: 4,
+				outsiders: 2
+			}),
+			adminRow({
+				id: 'pending000003',
+				title: '文化祭の日程アンケート',
+				submitScope: 'everyone',
+				submitted: 23,
+				targetCount: null,
+				roleName: null
+			}),
+			adminRow({
+				id: 'done00000001',
+				title: LONG_TITLE,
+				closed: true,
+				submitted: 58,
+				targetCount: 60,
+				roleName: '（削除されたロール）'
+			})
 		])
 	},
 	{
@@ -3183,39 +3222,39 @@ export const ADMIN_CASES: UiCase<AdminData, AdminAction>[] = [
 		id: 'admin-wide',
 		title: '横に長いフォーム一覧（80字前後のタイトル・削除されたロール）',
 		data: adminData(ADMIN_SYNCED_AT, [
-				adminRow({
-					id: 'wide00000001',
-					title: WIDE_ADMIN_TITLE,
-					// With the role gone nobody is in the roster, so every response is an outsider's.
-					outsiders: 128,
-					roleName: '（削除されたロール）'
-				}),
-				adminRow({
-					id: 'wide00000002',
-					title: WIDE_ADMIN_TITLE_2,
-					submitScope: 'everyone',
-					deadline: null,
-					submitted: 107,
-					targetCount: 124,
-					outsiders: 16,
-					roleName: '2026年度 新入生（春入部・仮登録を含む）'
-				}),
-				adminRow({
-					id: 'wide00000003',
-					title: '定例会の出欠（10月）',
-					submitted: 31,
-					targetCount: 31
-				}),
-				adminRow({
-					id: 'wide00000004',
-					title: LONG_TITLE,
-					closed: true,
-					// Frozen at close, so the deleted role no longer empties the roster.
-					submitted: 57,
-					targetCount: 60,
-					outsiders: 3,
-					roleName: '（削除されたロール）'
-				})
+			adminRow({
+				id: 'wide00000001',
+				title: WIDE_ADMIN_TITLE,
+				// With the role gone nobody is in the roster, so every response is an outsider's.
+				outsiders: 128,
+				roleName: '（削除されたロール）'
+			}),
+			adminRow({
+				id: 'wide00000002',
+				title: WIDE_ADMIN_TITLE_2,
+				submitScope: 'everyone',
+				deadline: null,
+				submitted: 107,
+				targetCount: 124,
+				outsiders: 16,
+				roleName: '2026年度 新入生（春入部・仮登録を含む）'
+			}),
+			adminRow({
+				id: 'wide00000003',
+				title: '定例会の出欠（10月）',
+				submitted: 31,
+				targetCount: 31
+			}),
+			adminRow({
+				id: 'wide00000004',
+				title: LONG_TITLE,
+				closed: true,
+				// Frozen at close, so the deleted role no longer empties the roster.
+				submitted: 57,
+				targetCount: 60,
+				outsiders: 3,
+				roleName: '（削除されたロール）'
+			})
 		])
 	}
 ];

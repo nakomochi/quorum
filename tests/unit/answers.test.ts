@@ -5,8 +5,14 @@ import type { Question } from '$lib/server/db/schema';
 
 describe('sameAnswers', () => {
 	test('ignores key order', () => {
-		const a: RevisionAnswers = { '1': { type: 'text', text: 'x' }, '2': { type: 'date', date: '2026-01-01' } };
-		const b: RevisionAnswers = { '2': { type: 'date', date: '2026-01-01' }, '1': { type: 'text', text: 'x' } };
+		const a: RevisionAnswers = {
+			'1': { type: 'text', text: 'x' },
+			'2': { type: 'date', date: '2026-01-01' }
+		};
+		const b: RevisionAnswers = {
+			'2': { type: 'date', date: '2026-01-01' },
+			'1': { type: 'text', text: 'x' }
+		};
 		expect(sameAnswers(a, b)).toBe(true);
 	});
 
@@ -32,8 +38,12 @@ describe('sameAnswers', () => {
 	});
 
 	test('compares text literally: trimming happens before, in the submission', () => {
-		expect(sameAnswers({ '1': { type: 'text', text: 'x' } }, { '1': { type: 'text', text: 'x ' } })).toBe(false);
-		expect(sameAnswers({ '1': { type: 'text', text: 'x' } }, { '1': { type: 'text', text: 'x' } })).toBe(true);
+		expect(
+			sameAnswers({ '1': { type: 'text', text: 'x' } }, { '1': { type: 'text', text: 'x ' } })
+		).toBe(false);
+		expect(
+			sameAnswers({ '1': { type: 'text', text: 'x' } }, { '1': { type: 'text', text: 'x' } })
+		).toBe(true);
 	});
 
 	test('an added or dropped answer is a change', () => {
@@ -44,7 +54,10 @@ describe('sameAnswers', () => {
 
 	test('an option and "その他" never compare equal', () => {
 		expect(
-			sameAnswers({ '1': { type: 'single', optionId: 'a' } }, { '1': { type: 'single', other: 'a' } })
+			sameAnswers(
+				{ '1': { type: 'single', optionId: 'a' } },
+				{ '1': { type: 'single', other: 'a' } }
+			)
 		).toBe(false);
 	});
 });
@@ -63,9 +76,15 @@ describe('describeAnswer', () => {
 
 	test('prefixes "その他" and lists multi answers in order', () => {
 		expect(describeAnswer({ type: 'single', other: '梨' }, options)).toBe('その他: 梨');
-		expect(describeAnswer({ type: 'multi', optionIds: ['b', 'a'] }, options)).toBe('みかん、りんご');
-		expect(describeAnswer({ type: 'multi', optionIds: ['a'], other: '梨' }, options)).toBe('りんご、その他: 梨');
-		expect(describeAnswer({ type: 'multi', optionIds: [], other: '梨' }, options)).toBe('その他: 梨');
+		expect(describeAnswer({ type: 'multi', optionIds: ['b', 'a'] }, options)).toBe(
+			'みかん、りんご'
+		);
+		expect(describeAnswer({ type: 'multi', optionIds: ['a'], other: '梨' }, options)).toBe(
+			'りんご、その他: 梨'
+		);
+		expect(describeAnswer({ type: 'multi', optionIds: [], other: '梨' }, options)).toBe(
+			'その他: 梨'
+		);
 	});
 
 	test('shows text and dates as they are', () => {

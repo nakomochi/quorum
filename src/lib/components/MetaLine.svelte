@@ -15,7 +15,7 @@
 <!-- Every item leads with its own ・, and the row is pulled left by one separator's width and
      clipped there. The separator that opens a line falls outside the clip, so no line starts or
      ends with one however the items wrap. The separators are drawn only: not read out, not copied. -->
-<p class="text-text-muted text-xs {className}">
+<p class="text-xs text-text-muted {className}">
 	<span class="-ml-[1.5em] flex flex-wrap [clip-path:inset(0_0_0_1.5em)]">
 		{#each items as item, index (index)}
 			<span class="whitespace-nowrap tabular-nums"

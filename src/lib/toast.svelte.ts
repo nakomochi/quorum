@@ -46,7 +46,11 @@ class Toasts {
 		const id = ++this.#next;
 		this.items = [...this.items, { id, kind, text }];
 		while (this.items.length > MAX_VISIBLE) this.dismiss(this.items[0].id);
-		if (kind === 'success') this.#timers.set(id, setTimeout(() => this.dismiss(id), SUCCESS_MS));
+		if (kind === 'success')
+			this.#timers.set(
+				id,
+				setTimeout(() => this.dismiss(id), SUCCESS_MS)
+			);
 	}
 }
 

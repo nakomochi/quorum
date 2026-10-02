@@ -66,7 +66,9 @@
 					{#each data.forms as row (row.id)}
 						<tr>
 							<td class="max-w-64 font-medium">
-								<a href={resolve('/forms/[id]/results', { id: row.id })} class="hover:underline">{row.title}</a>
+								<a href={resolve('/forms/[id]/results', { id: row.id })} class="hover:underline"
+									>{row.title}</a
+								>
 							</td>
 							<td class="whitespace-nowrap text-text-subtle">
 								{#if row.roleName === null}
@@ -81,11 +83,14 @@
 							<td class="whitespace-nowrap text-text-subtle tabular-nums">
 								{displayJst(row.deadline)}
 							</td>
-							<td class="tabular-nums whitespace-nowrap text-text-subtle">
+							<td class="whitespace-nowrap text-text-subtle tabular-nums">
 								<!-- No denominator without a role: there is no roster to count against. -->
 								{row.targetCount === null ? row.submitted : `${row.submitted}/${row.targetCount}`}
 								{#if row.outsiders > 0}
-									<span class="block text-xs text-text-muted" title="対象外からの回答 {row.outsiders}名">
+									<span
+										class="block text-xs text-text-muted"
+										title="対象外からの回答 {row.outsiders}名"
+									>
 										対象外 +{row.outsiders}
 									</span>
 								{/if}

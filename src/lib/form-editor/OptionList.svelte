@@ -26,7 +26,7 @@
 	}
 </script>
 
-<div class="border-border flex flex-col gap-2 border-t pt-3">
+<div class="flex flex-col gap-2 border-t border-border pt-3">
 	<!-- Nested zone: its own type, so an option can never land in the question list. -->
 	<div
 		class="flex flex-col gap-2"
@@ -44,7 +44,7 @@
 				<div
 					use:dragHandle
 					aria-label="質問 {index + 1} の選択肢 {optionIndex + 1} をドラッグして並び替え"
-					class="outline-accent shrink-0 touch-none rounded p-1 text-text-muted hover:text-text-subtle focus-visible:-outline-offset-2 focus-visible:outline-2"
+					class="shrink-0 touch-none rounded p-1 text-text-muted outline-accent hover:text-text-subtle focus-visible:outline-2 focus-visible:-outline-offset-2"
 				>
 					<Icon name="grip-vertical" />
 				</div>

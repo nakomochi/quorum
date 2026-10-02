@@ -120,8 +120,7 @@ export function announcementStale(
 
 /** `edited`: false when the announcement is known to say what the form does, or there is none. */
 export type RefreshResult =
-	| { ok: true; edited: boolean }
-	| { ok: false; reason: 'not_found' | 'edit_failed' };
+	{ ok: true; edited: boolean } | { ok: false; reason: 'not_found' | 'edit_failed' };
 
 /**
  * Edits the announcement to match the form, as after an edit is published. One whose text was
@@ -162,8 +161,7 @@ function replyTo(announcementMessageId: string | null): Pick<CreateMessage, 'mes
 
 /** 'skipped': the form is gone or has no announcement to reply to. */
 export type DeadlineNoticeResult =
-	| { ok: true; messageId: string }
-	| { ok: false; reason: 'skipped' | 'post_failed' };
+	{ ok: true; messageId: string } | { ok: false; reason: 'skipped' | 'post_failed' };
 
 /**
  * Says in a reply to the announcement that the deadline is now `deadline`, mentioning nobody.
@@ -209,8 +207,7 @@ function closeNotice(target: {
 
 /** 'skipped': nothing to post. The form is open or gone, posts no close, or the close is claimed. */
 export type CloseNoticeResult =
-	| { ok: true; messageId: string }
-	| { ok: false; reason: 'skipped' | 'post_failed' };
+	{ ok: true; messageId: string } | { ok: false; reason: 'skipped' | 'post_failed' };
 
 /**
  * Posts that a form has closed, mentioning its target role if it has one. Run after the close has
@@ -434,7 +431,8 @@ async function sendNotice(
 	let ownAutoDone = false;
 	for (const unfinished of await findUnfinished(target.id)) {
 		await narrowPending(unfinished.id, []);
-		ownAutoDone ||= unfinished.kind === 'auto' && sameDeadline(unfinished.deadline, target.deadline);
+		ownAutoDone ||=
+			unfinished.kind === 'auto' && sameDeadline(unfinished.deadline, target.deadline);
 	}
 	if (options.kind === 'auto' && ownAutoDone) return { ok: false, reason: 'no_targets' };
 
@@ -465,7 +463,10 @@ async function sendNotice(
 		return { ok: false, reason: 'post_failed', targets: 0, remaining: 0 };
 	}
 
-	await db.update(reminder).set({ messageIds: [message.id] }).where(eq(reminder.id, reserved.id));
+	await db
+		.update(reminder)
+		.set({ messageIds: [message.id] })
+		.where(eq(reminder.id, reserved.id));
 	return { ok: true, notice: true };
 }
 
@@ -504,7 +505,8 @@ export async function sendReminder(
 		if ((await narrowPending(unfinished.id, discordIds)) > 0) {
 			return postPending(target, channelId, unfinished.id, true);
 		}
-		ownAutoDone ||= unfinished.kind === 'auto' && sameDeadline(unfinished.deadline, target.deadline);
+		ownAutoDone ||=
+			unfinished.kind === 'auto' && sameDeadline(unfinished.deadline, target.deadline);
 	}
 	// Everyone the automatic send for this deadline had left has answered or left. Its one send for
 	// the deadline is done, and the members it mentioned are not mentioned again. A manual send starts

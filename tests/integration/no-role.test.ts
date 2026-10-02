@@ -11,7 +11,10 @@ import { FIRST_PAGE } from '$lib/server/keyset';
 import { listReminders, sendReminder } from '$lib/server/notify';
 import { runTick } from '$lib/server/scheduler';
 import { load as formLoad } from '../../src/routes/forms/[id]/+page.server';
-import { actions as editActions, load as editLoad } from '../../src/routes/forms/[id]/edit/+page.server';
+import {
+	actions as editActions,
+	load as editLoad
+} from '../../src/routes/forms/[id]/edit/+page.server';
 import {
 	actions as resultsActions,
 	load as resultsLoad
@@ -112,7 +115,13 @@ describe('creating a form without a role', () => {
 				{ id: '300000000000000009', name: 'お知らせ', type: 4, position: 0, parent_id: null },
 				{ id: CHANNEL_ID, name: 'general', type: 0, position: 1, parent_id: '300000000000000009' },
 				{ id: '300000000000000002', name: 'loose', type: 0, position: 2, parent_id: null },
-				{ id: '300000000000000003', name: 'voice', type: 2, position: 3, parent_id: '300000000000000009' }
+				{
+					id: '300000000000000003',
+					name: 'voice',
+					type: 2,
+					position: 3,
+					parent_id: '300000000000000009'
+				}
 			])
 		);
 
@@ -169,7 +178,10 @@ describe('results', () => {
 		await submit(id, holder, [TARGET_ROLE], inputs(questions, { 0: 'あ' }));
 		await submit(id, other, [OTHER_ROLE], inputs(questions, { 0: 'い' }));
 
-		const data = (await resultsLoad(event(creator, id, `/forms/${id}/results`))) as Record<string, unknown>;
+		const data = (await resultsLoad(event(creator, id, `/forms/${id}/results`))) as Record<
+			string,
+			unknown
+		>;
 
 		expect(data).toMatchObject({
 			targetCount: null,
@@ -194,7 +206,10 @@ describe('results', () => {
 		await submit(id, holder, [TARGET_ROLE], inputs(questions, { 0: 'あ' }));
 
 		const response = await csv({ locals: sessionLocals(creator), params: { id } } as never);
-		const [header, row] = (await response.text()).replace(/^\u{FEFF}/u, '').trim().split('\r\n');
+		const [header, row] = (await response.text())
+			.replace(/^\u{FEFF}/u, '')
+			.trim()
+			.split('\r\n');
 
 		expect(header).toBe('回答者,提出日時,最終更新日時,名前,参加');
 		expect(row.startsWith('ロールあり,')).toBe(true);
@@ -220,7 +235,10 @@ describe('closing', () => {
 
 	test('a close by hand says so plainly and posts a reply mentioning nobody', async () => {
 		const { creator } = await guild();
-		const { id } = await noRoleForm(creator, { title: '文化祭', announcementChannelId: CHANNEL_ID });
+		const { id } = await noRoleForm(creator, {
+			title: '文化祭',
+			announcementChannelId: CHANNEL_ID
+		});
 		await patchForm(id, { announcementMessageId: ANNOUNCEMENT_ID });
 
 		const result = await act(resultsActions.close, creator, id);
@@ -243,7 +261,10 @@ const soon = () => new Date(Date.now() + 3_600_000);
 describe('お知らせ', () => {
 	test('by hand: one reply mentioning nobody, no sync, and an お知らせ in the history', async () => {
 		const { creator } = await guild();
-		const { id } = await noRoleForm(creator, { title: '文化祭', announcementChannelId: CHANNEL_ID });
+		const { id } = await noRoleForm(creator, {
+			title: '文化祭',
+			announcementChannelId: CHANNEL_ID
+		});
 		await patchForm(id, { announcementMessageId: ANNOUNCEMENT_ID });
 
 		const result = await act(resultsActions.remind, creator, id);
@@ -256,11 +277,19 @@ describe('お知らせ', () => {
 			`📣 **文化祭** の回答を受け付けています。まだの人は回答をお願いします。\n締切: 未設定\n${ORIGIN}/forms/${id}`
 		);
 		expect(body.allowed_mentions).toEqual({ parse: [] });
-		expect(body.message_reference).toEqual({ message_id: ANNOUNCEMENT_ID, fail_if_not_exists: false });
+		expect(body.message_reference).toEqual({
+			message_id: ANNOUNCEMENT_ID,
+			fail_if_not_exists: false
+		});
 		expect(discord.count('listMembers')).toBe(0);
 
 		const [row] = await db.select().from(reminder).where(eq(reminder.formId, id));
-		expect(row).toMatchObject({ kind: 'manual', sentBy: creator.id, targetDiscordIds: [], pendingDiscordIds: [] });
+		expect(row).toMatchObject({
+			kind: 'manual',
+			sentBy: creator.id,
+			targetDiscordIds: [],
+			pendingDiscordIds: []
+		});
 		expect(row.messageIds).toHaveLength(1);
 		const [entry] = await listReminders(id, CHANNEL_ID);
 		expect(entry).toMatchObject({ notice: true, targetCount: 0, pendingCount: 0, messageCount: 1 });
@@ -269,7 +298,10 @@ describe('お知らせ', () => {
 
 	test('automatic: once per deadline, by the tick, without a sync', async () => {
 		const { creator } = await guild();
-		const { id } = await noRoleForm(creator, { announcementChannelId: CHANNEL_ID, deadline: soon() });
+		const { id } = await noRoleForm(creator, {
+			announcementChannelId: CHANNEL_ID,
+			deadline: soon()
+		});
 
 		expect((await runTick()).reminded).toEqual([id]);
 		expect((await runTick()).reminded).toEqual([]);
@@ -291,7 +323,10 @@ describe('お知らせ', () => {
 
 	test('a failed post leaves no record, so the next tick posts it', async () => {
 		const { creator } = await guild();
-		const { id } = await noRoleForm(creator, { announcementChannelId: CHANNEL_ID, deadline: soon() });
+		const { id } = await noRoleForm(creator, {
+			announcementChannelId: CHANNEL_ID,
+			deadline: soon()
+		});
 		discord.fail('post', 500, 1);
 
 		const { value } = await quietly(() => runTick());
@@ -312,7 +347,10 @@ describe('お知らせ', () => {
 			pendingDiscordIds: [snowflake(3)]
 		});
 
-		expect(await sendReminder(id, { kind: 'manual', sentBy: creator.id })).toEqual({ ok: true, notice: true });
+		expect(await sendReminder(id, { kind: 'manual', sentBy: creator.id })).toEqual({
+			ok: true,
+			notice: true
+		});
 
 		const rows = await db.select().from(reminder).where(eq(reminder.formId, id));
 		expect(rows.map((row) => row.pendingDiscordIds)).toEqual([[], []]);
@@ -323,7 +361,16 @@ describe('お知らせ', () => {
 describe('editing', () => {
 	function publishBody(state: EditorState, baseVersion: number): FormData {
 		const data = new FormData();
-		for (const name of ['title', 'description', 'targetRoleId', 'announcementChannelId', 'submitScope', 'visibility', 'deadline', 'closesAt'] as const) {
+		for (const name of [
+			'title',
+			'description',
+			'targetRoleId',
+			'announcementChannelId',
+			'submitScope',
+			'visibility',
+			'deadline',
+			'closesAt'
+		] as const) {
 			data.set(name, state[name]);
 		}
 		data.set('announceClose', state.announceClose ? 'on' : 'off');
@@ -339,7 +386,13 @@ describe('editing', () => {
 		const state = structuredClone(data.editor.draft.state);
 		change(state);
 		discord.calls = [];
-		return act(editActions.publish, who, id, publishBody(state, data.editor.baseVersion), `/forms/${id}/edit`);
+		return act(
+			editActions.publish,
+			who,
+			id,
+			publishBody(state, data.editor.baseVersion),
+			`/forms/${id}/edit`
+		);
 	}
 
 	test('the editor holds none as its own choice', async () => {
@@ -384,9 +437,16 @@ describe('editing', () => {
 		await submit(none.id, bare, [], inputs(none.questions, { 0: 'x' }));
 		await submit(role.id, holder, [TARGET_ROLE], inputs(role.questions, { 0: 'x' }));
 
-		const locked = { status: 400, data: { inputError: { message: AUDIENCE_LOCKED, at: { field: 'targetRoleId' } } } };
-		expect(await edit(creator, none.id, (state) => void (state.targetRoleId = TARGET_ROLE))).toEqual(locked);
-		expect(await edit(creator, role.id, (state) => void (state.targetRoleId = NO_TARGET_ROLE))).toEqual(locked);
+		const locked = {
+			status: 400,
+			data: { inputError: { message: AUDIENCE_LOCKED, at: { field: 'targetRoleId' } } }
+		};
+		expect(
+			await edit(creator, none.id, (state) => void (state.targetRoleId = TARGET_ROLE))
+		).toEqual(locked);
+		expect(
+			await edit(creator, role.id, (state) => void (state.targetRoleId = NO_TARGET_ROLE))
+		).toEqual(locked);
 		expect((await loadForm(none.id))!.targetRoleId).toBeNull();
 		expect((await loadForm(role.id))!.targetRoleId).toBe(TARGET_ROLE);
 	});

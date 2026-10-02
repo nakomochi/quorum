@@ -391,7 +391,10 @@ export type MemberContext = { roleIds: string[] };
  * Guild membership is the floor; target_role narrows it to the roster the form is aimed at. A form
  * without a role is open to every member, whatever its submitScope says.
  */
-export function canSubmit(target: Pick<Form, 'submitScope' | 'targetRoleId'>, member: MemberContext) {
+export function canSubmit(
+	target: Pick<Form, 'submitScope' | 'targetRoleId'>,
+	member: MemberContext
+) {
 	if (target.submitScope === 'everyone' || target.targetRoleId === null) return true;
 	return member.roleIds.includes(target.targetRoleId);
 }
@@ -463,7 +466,9 @@ export async function loadAnsweredDeletedQuestions(
 	return db
 		.select()
 		.from(question)
-		.where(and(eq(question.formId, formId), inArray(question.id, ids), isNotNull(question.deletedAt)))
+		.where(
+			and(eq(question.formId, formId), inArray(question.id, ids), isNotNull(question.deletedAt))
+		)
 		.orderBy(asc(question.position), asc(question.id));
 }
 
@@ -559,11 +564,11 @@ function answerInputBytes(inputs: AnswerInputs): number {
 }
 
 /** 'form_changed': an edit was published after the answers were checked, or after the page was drawn. */
-export type SubmitFailure = 'not_found' | 'forbidden' | 'closed' | 'already_submitted' | 'form_changed';
+export type SubmitFailure =
+	'not_found' | 'forbidden' | 'closed' | 'already_submitted' | 'form_changed';
 
 export type SubmitResult =
-	| { ok: true; responseId: number; created: boolean }
-	| { ok: false; reason: SubmitFailure };
+	{ ok: true; responseId: number; created: boolean } | { ok: false; reason: SubmitFailure };
 
 /**
  * `member` carries the roles Discord reports now, never the mirror's: a removed role must stop a
@@ -666,7 +671,10 @@ export async function submitResponse(
 			}
 
 			// now() rather than new Date(): the transaction's clock, which the revision below uses too.
-			await tx.update(response).set({ updatedAt: sql`now()` }).where(eq(response.id, responseId));
+			await tx
+				.update(response)
+				.set({ updatedAt: sql`now()` })
+				.where(eq(response.id, responseId));
 			await tx.delete(answer).where(eq(answer.responseId, responseId));
 		}
 
@@ -882,7 +890,11 @@ export async function loadResults(target: Form): Promise<FormResults> {
 		? await Promise.all([
 				// A deleted question's answers stay in the database and out of the results.
 				db
-					.select({ responseId: answer.responseId, questionId: answer.questionId, value: answer.value })
+					.select({
+						responseId: answer.responseId,
+						questionId: answer.questionId,
+						value: answer.value
+					})
 					.from(answer)
 					.innerJoin(question, eq(question.id, answer.questionId))
 					.where(and(inArray(answer.responseId, responseIds), isNull(question.deletedAt))),
@@ -1142,12 +1154,7 @@ export async function closeForm(formId: string, at: CloseTime = 'now'): Promise<
 	const result = await db.transaction(async (tx) => {
 		// FOR UPDATE pairs with the FOR SHARE in submitResponse: without it a submission can commit
 		// between rosterStatus and the write, landing the same person in both lists.
-		const [target] = await tx
-			.select()
-			.from(form)
-			.where(eq(form.id, formId))
-			.for('update')
-			.limit(1);
+		const [target] = await tx.select().from(form).where(eq(form.id, formId)).for('update').limit(1);
 		if (!target) return { ok: false, reason: 'not_found' } as const;
 		if (target.closedAt) return { ok: false, reason: 'already_closed' } as const;
 		// An edit gave the form a role after the read above, so its roster was not refreshed.

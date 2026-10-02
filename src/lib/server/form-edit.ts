@@ -14,7 +14,13 @@ import {
 import { formFields } from './drafts';
 import { FormInputError, loadQuestions, type ParsedForm } from './forms';
 import { draftPayload, type EditorState, type FormDraftPayload } from '../form-draft';
-import { AUDIENCE_LOCKED, CHANNEL_LOCKED, liveOptions, NO_TARGET_ROLE, TYPE_LOCKED } from '../forms';
+import {
+	AUDIENCE_LOCKED,
+	CHANNEL_LOCKED,
+	liveOptions,
+	NO_TARGET_ROLE,
+	TYPE_LOCKED
+} from '../forms';
 
 /**
  * Editing a published form. The edit is saved as the editor's draft, one per form and person, and
@@ -50,7 +56,8 @@ export async function editLocks(
 	};
 }
 
-const sameTime = (a: Date | null, b: Date | null) => (a?.getTime() ?? null) === (b?.getTime() ?? null);
+const sameTime = (a: Date | null, b: Date | null) =>
+	(a?.getTime() ?? null) === (b?.getTime() ?? null);
 
 export type EditDraft = {
 	id: string;
@@ -277,7 +284,10 @@ export async function publishFormEdit(
 
 		const removed = stored.filter((q) => !kept.has(q.id)).map((q) => q.id);
 		if (removed.length > 0) {
-			await tx.update(question).set({ deletedAt: sql`now()` }).where(inArray(question.id, removed));
+			await tx
+				.update(question)
+				.set({ deletedAt: sql`now()` })
+				.where(inArray(question.id, removed));
 		}
 
 		await tx

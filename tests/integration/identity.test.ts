@@ -116,7 +116,10 @@ describe('confirmMember (writes)', () => {
 		const me = await createUser(ME);
 		await seedGuild([member(ME, [TARGET_ROLE])]);
 
-		expect(await confirmMember(sessionLocals(me))).toEqual({ status: 'member', roleIds: [TARGET_ROLE] });
+		expect(await confirmMember(sessionLocals(me))).toEqual({
+			status: 'member',
+			roleIds: [TARGET_ROLE]
+		});
 		expect(discord.count('getMember')).toBe(1);
 		expect(discord.count('listMembers')).toBe(0);
 	});
@@ -162,7 +165,9 @@ describe('confirmMember (writes)', () => {
 });
 
 /** The HTTP status and message `run` refused with, or null when it did not throw. */
-async function refusal(run: () => Promise<unknown>): Promise<{ status: number; message: string } | null> {
+async function refusal(
+	run: () => Promise<unknown>
+): Promise<{ status: number; message: string } | null> {
 	try {
 		await run();
 		return null;

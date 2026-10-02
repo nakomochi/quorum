@@ -23,7 +23,11 @@
 	<RevisionList {revisions} {questions} headingTag="h3">
 		{#snippet actions(revision, index)}
 			{#if canEdit && index > 0}
-				<button type="button" class="btn-secondary btn-sm shrink-0" onclick={() => onload(revision)}>
+				<button
+					type="button"
+					class="btn-secondary btn-sm shrink-0"
+					onclick={() => onload(revision)}
+				>
 					この内容を読み込む
 				</button>
 			{/if}

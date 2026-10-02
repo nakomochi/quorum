@@ -48,7 +48,7 @@
 <section class="card flex flex-col gap-4 p-6">
 	<div class="action-row">
 		<div class="flex min-w-0 flex-1 items-start gap-3">
-			<span class="bg-success-badge text-success shrink-0 rounded-full p-1.5">
+			<span class="shrink-0 rounded-full bg-success-badge p-1.5 text-success">
 				<Icon name="check" />
 			</span>
 			<div class="min-w-0">
@@ -63,7 +63,9 @@
 				{#if closed}
 					<p class="mt-2 text-sm text-text-subtle">受付は終了しています。</p>
 				{:else if !editable}
-					<p class="mt-2 text-sm text-text-subtle">このフォームは回答の編集が許可されていません。</p>
+					<p class="mt-2 text-sm text-text-subtle">
+						このフォームは回答の編集が許可されていません。
+					</p>
 				{/if}
 			</div>
 		</div>

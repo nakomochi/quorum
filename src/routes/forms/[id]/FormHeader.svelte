@@ -16,7 +16,7 @@
 <!-- The accent bar is a clipped child, not a `border-t-4`: the rounded top corners would
      otherwise render the border as a thickening wedge. -->
 <header class="card overflow-hidden">
-	<div class="bg-accent h-1.5"></div>
+	<div class="h-1.5 bg-accent"></div>
 	<div class="p-6">
 		<ItemHeader title={form.title} tag="h1" titleClass="page-title text-2xl" wrap>
 			{#snippet badges()}

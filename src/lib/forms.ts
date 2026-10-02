@@ -27,7 +27,7 @@ export const VISIBILITY_LABELS: Record<Visibility, string> = {
  */
 export const NO_TARGET_ROLE = 'none';
 
-export const hasOptions =(type: QuestionType) => type === 'single' || type === 'multi';
+export const hasOptions = (type: QuestionType) => type === 'single' || type === 'multi';
 
 /**
  * The options a respondent may still choose. An option removed by an edit stays in the stored list

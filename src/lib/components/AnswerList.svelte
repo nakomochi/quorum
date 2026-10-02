@@ -58,7 +58,9 @@
 				{/if}
 			</dt>
 			<!-- On one line: the text keeps its own line breaks, and none may be added around it. -->
-			<dd class="{cards ? 'mt-2' : 'mt-1'} text-text-subtle text-sm whitespace-pre-wrap">{readable(q)}</dd>
+			<dd class="{cards ? 'mt-2' : 'mt-1'} text-sm whitespace-pre-wrap text-text-subtle">
+				{readable(q)}
+			</dd>
 		</div>
 	{/each}
 </dl>

@@ -4,7 +4,13 @@ import { and, eq, sql } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { responseDraft } from '$lib/server/db/schema';
 import { closeForm, reopenForm } from '$lib/server/forms';
-import { MAX_QUESTIONS, MAX_OPTIONS, MAX_RESPONSE_BYTES, utf8Bytes, type RevisionAnswers } from '$lib/forms';
+import {
+	MAX_QUESTIONS,
+	MAX_OPTIONS,
+	MAX_RESPONSE_BYTES,
+	utf8Bytes,
+	type RevisionAnswers
+} from '$lib/forms';
 import { MAX_RESPONSE_DRAFT_BYTES } from '$lib/response-draft';
 import { saveResponseDraft } from '$lib/server/response-drafts';
 import { DELETE, PUT } from '../../src/routes/forms/[id]/draft/+server';
@@ -41,7 +47,8 @@ async function call(
 	}
 ): Promise<Call> {
 	const method = handler === DELETE ? 'DELETE' : 'PUT';
-	const body = options.raw ?? (options.body === undefined ? undefined : JSON.stringify(options.body));
+	const body =
+		options.raw ?? (options.body === undefined ? undefined : JSON.stringify(options.body));
 	const request = new Request(`${ORIGIN}/forms/${options.formId}/draft`, {
 		method,
 		headers: { origin: ORIGIN, 'content-type': 'application/json', ...options.headers },
@@ -96,7 +103,9 @@ async function openForm(creator: TestUser, overrides: Parameters<typeof makeForm
 	return { ...made, key: String(made.questions[0].id) };
 }
 
-const textFor = (key: string, value: string): RevisionAnswers => ({ [key]: { type: 'text', text: value } });
+const textFor = (key: string, value: string): RevisionAnswers => ({
+	[key]: { type: 'text', text: value }
+});
 
 /** Stretches every write to response_draft, inside the writer's transaction. */
 async function withSlowDrafts<T>(seconds: number, fn: () => Promise<T>): Promise<T> {
@@ -134,7 +143,9 @@ describe('saving an answer draft', () => {
 		const row = await stored(id, who.id);
 		expect(row?.version).toBe(2);
 		expect(row?.answers).toEqual(textFor(key, '書きかけ、続き'));
-		expect(row!.updatedAt.getTime()).toBeGreaterThanOrEqual(new Date(String(first.body?.updatedAt)).getTime());
+		expect(row!.updatedAt.getTime()).toBeGreaterThanOrEqual(
+			new Date(String(first.body?.updatedAt)).getTime()
+		);
 		// Judged by the mirror: a draft never costs a Discord call.
 		expect(discord.count()).toBe(0);
 	});
@@ -190,7 +201,12 @@ describe('saving an answer draft', () => {
 		await save(who, id, 0, textFor(key, '一'));
 		const foreign = { origin: 'http://evil.test' };
 
-		const put = await call(PUT, { who, formId: id, body: { version: 1, answers: textFor(key, 'x') }, headers: foreign });
+		const put = await call(PUT, {
+			who,
+			formId: id,
+			body: { version: 1, answers: textFor(key, 'x') },
+			headers: foreign
+		});
 		const del = await call(DELETE, { who, formId: id, headers: foreign });
 		const missing = await call(PUT, {
 			who,
@@ -304,12 +320,16 @@ describe('saving an answer draft', () => {
 
 		const offTarget = await save(outsider, id, 0, textFor(key, 'x'));
 		const notMember = await save(stranger, id, 0, textFor(key, 'x'));
-		const anonymous = await call(PUT, { who: null, formId: id, body: { version: 0, answers: textFor(key, 'x') } });
+		const anonymous = await call(PUT, {
+			who: null,
+			formId: id,
+			body: { version: 0, answers: textFor(key, 'x') }
+		});
 		const discardOffTarget = await call(DELETE, { who: outsider, formId: id });
 
-		expect([offTarget.status, notMember.status, anonymous.status, discardOffTarget.status]).toEqual([
-			403, 403, 401, 403
-		]);
+		expect([offTarget.status, notMember.status, anonymous.status, discardOffTarget.status]).toEqual(
+			[403, 403, 401, 403]
+		);
 		expect(await draftCount(id)).toBe(0);
 	});
 
@@ -342,7 +362,12 @@ describe('sending and closing remove drafts', () => {
 		await save(who, elsewhere.id, 0, textFor(elsewhere.key, '別のフォーム'));
 		await save(other, target.id, 0, textFor(target.key, '他人'));
 
-		const result = await submit(target.id, who, [TARGET_ROLE], inputs(target.questions, { 0: '送った' }));
+		const result = await submit(
+			target.id,
+			who,
+			[TARGET_ROLE],
+			inputs(target.questions, { 0: '送った' })
+		);
 
 		expect(result).toMatchObject({ ok: true });
 		expect(await stored(target.id, who.id)).toBeNull();
@@ -374,11 +399,15 @@ describe('sending and closing remove drafts', () => {
 				begin raise exception 'test failure'; end $$`)
 		);
 		await db.execute(
-			sql.raw('create trigger test_fail_revision before insert on response_revision for each row execute function test_fail()')
+			sql.raw(
+				'create trigger test_fail_revision before insert on response_revision for each row execute function test_fail()'
+			)
 		);
 
 		try {
-			const result = await settle(submit(id, who, [TARGET_ROLE], inputs(questions, { 0: '失敗する' })));
+			const result = await settle(
+				submit(id, who, [TARGET_ROLE], inputs(questions, { 0: '失敗する' }))
+			);
 			expect(result.ok).toBe(false);
 		} finally {
 			await db.execute(sql.raw('drop trigger test_fail_revision on response_revision'));
@@ -391,7 +420,9 @@ describe('sending and closing remove drafts', () => {
 		const { creator, who } = await setup();
 		const { id, key, questions } = await openForm(creator, { allowEdit: false });
 		await submit(id, who, [TARGET_ROLE], inputs(questions, { 0: '一回目' }));
-		await db.insert(responseDraft).values({ formId: id, userId: who.id, answers: textFor(key, '残る') });
+		await db
+			.insert(responseDraft)
+			.values({ formId: id, userId: who.id, answers: textFor(key, '残る') });
 
 		const result = await submit(id, who, [TARGET_ROLE], inputs(questions, { 0: '二回目' }));
 
@@ -474,7 +505,8 @@ describe('concurrency', () => {
 		for (let round = 0; round < 8; round++) {
 			const { id, key, questions } = await openForm(creator);
 			// Every other round is an edit, which locks the response FOR UPDATE instead of inserting it.
-			if (round % 2 === 1) await submit(id, who, [TARGET_ROLE], inputs(questions, { 0: '提出済み' }));
+			if (round % 2 === 1)
+				await submit(id, who, [TARGET_ROLE], inputs(questions, { 0: '提出済み' }));
 			await saveResponseDraft(id, who.id, 0, textFor(key, '最初'));
 
 			const [saved, sent] = await withSlowDrafts(0.05, () =>
@@ -566,7 +598,9 @@ describe('opening the answer page', () => {
 		const { creator, who } = await setup();
 		const locked = await openForm(creator, { allowEdit: false });
 		await submit(locked.id, who, [TARGET_ROLE], inputs(locked.questions, { 0: '一' }));
-		await db.insert(responseDraft).values({ formId: locked.id, userId: who.id, answers: textFor(locked.key, '二') });
+		await db
+			.insert(responseDraft)
+			.values({ formId: locked.id, userId: who.id, answers: textFor(locked.key, '二') });
 		const expired = await openForm(creator);
 		await save(who, expired.id, 0, textFor(expired.key, '書きかけ'));
 		await patchForm(expired.id, { closesAt: new Date(Date.now() - 1000) });
@@ -622,7 +656,13 @@ describe('opening the answer page', () => {
 		expect(data.history).toEqual([]);
 		expect(data.answers).toEqual({});
 		const textOut = JSON.stringify(data);
-		for (const secret of ['他人の回答一', '他人の回答二', '他人の下書き', other.id, other.discordId]) {
+		for (const secret of [
+			'他人の回答一',
+			'他人の回答二',
+			'他人の下書き',
+			other.id,
+			other.discordId
+		]) {
 			expect(textOut).not.toContain(secret);
 		}
 		// Exactly what the page draws, and nothing more.

@@ -52,7 +52,7 @@
 		     on screen). A strut the badges outgrow, as with `text-sm`, leaves them centred as they
 		     were. Hidden while no badge's condition holds, so the gap goes with it. -->
 		<span class="flex shrink-0 items-center self-start not-has-[.badge]:hidden">
-			<span aria-hidden="true" class="h-lh -mt-[calc(1em/6)] {titleClass}"></span>
+			<span aria-hidden="true" class="-mt-[calc(1em/6)] h-lh {titleClass}"></span>
 			<span class="flex items-center gap-1.5">{@render badges()}</span>
 		</span>
 	{/if}

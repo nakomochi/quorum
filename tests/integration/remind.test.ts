@@ -6,7 +6,14 @@ import { closeForm } from '$lib/server/forms';
 import { announceForm, listReminders, sendReminder } from '$lib/server/notify';
 import { runTick } from '$lib/server/scheduler';
 import { actions as resultsActions } from '../../src/routes/forms/[id]/results/+page.server';
-import { CHANNEL_ID, discord, OTHER_ROLE, status, TARGET_ROLE, type Call } from '../helpers/discord';
+import {
+	CHANNEL_ID,
+	discord,
+	OTHER_ROLE,
+	status,
+	TARGET_ROLE,
+	type Call
+} from '../helpers/discord';
 import {
 	createUsers,
 	inputs,
@@ -30,7 +37,10 @@ async function reminders(formId: string) {
 async function guild(size: number) {
 	const ids = Array.from({ length: size + 1 }, (_, i) => snowflake(i + 1));
 	const [creator, ...users] = await createUsers(ids);
-	await seedGuild([member(creator.discordId, [OTHER_ROLE]), ...users.map((u) => member(u.discordId))]);
+	await seedGuild([
+		member(creator.discordId, [OTHER_ROLE]),
+		...users.map((u) => member(u.discordId))
+	]);
 	return { creator, users };
 }
 
@@ -76,7 +86,10 @@ describe('Discord posts', () => {
 describe('sendReminder', () => {
 	test('mentions only the non-submitters, replying to the announcement', async () => {
 		const { creator, users } = await guild(3);
-		const { id, questions } = await makeForm(creator, { announcementChannelId: CHANNEL_ID, deadline: soon() });
+		const { id, questions } = await makeForm(creator, {
+			announcementChannelId: CHANNEL_ID,
+			deadline: soon()
+		});
 		await patchForm(id, { announcementMessageId: '900000000000000001' });
 		await submit(id, users[0], [TARGET_ROLE], inputs(questions, { 0: 'x' }));
 
@@ -84,15 +97,27 @@ describe('sendReminder', () => {
 
 		expect(result).toEqual({ ok: true, targets: 2, messages: 1, continued: false });
 		const [post] = discord.posts();
-		const body = post.body as { content: string; allowed_mentions: { users: string[] }; message_reference: { message_id: string } };
+		const body = post.body as {
+			content: string;
+			allowed_mentions: { users: string[] };
+			message_reference: { message_id: string };
+		};
 		expect(post.url.pathname).toBe(`/api/v10/channels/${CHANNEL_ID}/messages`);
-		expect([...body.allowed_mentions.users].sort()).toEqual([users[1].discordId, users[2].discordId].sort());
+		expect([...body.allowed_mentions.users].sort()).toEqual(
+			[users[1].discordId, users[2].discordId].sort()
+		);
 		expect(body.content).not.toContain(users[0].discordId);
 		expect(body.message_reference.message_id).toBe('900000000000000001');
 
 		const [row] = await reminders(id);
-		expect(row).toMatchObject({ kind: 'manual', sentBy: creator.id, messageIds: [expect.any(String)] });
-		expect([...row.targetDiscordIds].sort()).toEqual([users[1].discordId, users[2].discordId].sort());
+		expect(row).toMatchObject({
+			kind: 'manual',
+			sentBy: creator.id,
+			messageIds: [expect.any(String)]
+		});
+		expect([...row.targetDiscordIds].sort()).toEqual(
+			[users[1].discordId, users[2].discordId].sort()
+		);
 	});
 
 	test('splits more than 50 mentions over several messages', async () => {
@@ -105,7 +130,13 @@ describe('sendReminder', () => {
 			messages: 3,
 			continued: false
 		});
-		expect(discord.posts().map((p) => (p.body as { allowed_mentions: { users: string[] } }).allowed_mentions.users.length)).toEqual([50, 50, 20]);
+		expect(
+			discord
+				.posts()
+				.map(
+					(p) => (p.body as { allowed_mentions: { users: string[] } }).allowed_mentions.users.length
+				)
+		).toEqual([50, 50, 20]);
 	});
 
 	test('a closed form is refused before anything is asked of Discord', async () => {
@@ -134,7 +165,10 @@ describe('sendReminder', () => {
 		const { creator } = await guild(0);
 		const { id } = await makeForm(creator, { announcementChannelId: CHANNEL_ID, deadline: soon() });
 
-		expect(await sendReminder(id, { kind: 'manual', sentBy: creator.id })).toEqual({ ok: false, reason: 'empty_roster' });
+		expect(await sendReminder(id, { kind: 'manual', sentBy: creator.id })).toEqual({
+			ok: false,
+			reason: 'empty_roster'
+		});
 		expect(await reminders(id)).toEqual([]);
 
 		expect(await sendReminder(id, AUTO)).toEqual({ ok: false, reason: 'empty_roster' });
@@ -148,7 +182,10 @@ describe('sendReminder', () => {
 		const { id, questions } = await makeForm(creator, { announcementChannelId: CHANNEL_ID });
 		for (const u of users) await submit(id, u, [TARGET_ROLE], inputs(questions, { 0: 'x' }));
 
-		expect(await sendReminder(id, { kind: 'manual', sentBy: creator.id })).toEqual({ ok: false, reason: 'no_targets' });
+		expect(await sendReminder(id, { kind: 'manual', sentBy: creator.id })).toEqual({
+			ok: false,
+			reason: 'no_targets'
+		});
 		expect(discord.posts()).toEqual([]);
 	});
 
@@ -198,7 +235,13 @@ describe('sendReminder', () => {
 		expect([...row.targetDiscordIds].sort()).toEqual([...first].sort());
 		expect(row.pendingDiscordIds).toHaveLength(70);
 		expect(await listReminders(id, CHANNEL_ID)).toMatchObject([
-			{ kind: 'manual', targetCount: 50, pendingCount: 70, messageCount: 1, url: expect.any(String) }
+			{
+				kind: 'manual',
+				targetCount: 50,
+				pendingCount: 70,
+				messageCount: 1,
+				url: expect.any(String)
+			}
 		]);
 
 		// Someone left pending answers in between and drops out of the rest.
@@ -206,7 +249,12 @@ describe('sendReminder', () => {
 		await submit(id, answered, [TARGET_ROLE], inputs(questions, { 0: 'x' }));
 		discord.calls = [];
 
-		expect(await sendReminder(id, manual)).toEqual({ ok: true, targets: 69, messages: 2, continued: true });
+		expect(await sendReminder(id, manual)).toEqual({
+			ok: true,
+			targets: 69,
+			messages: 2,
+			continued: true
+		});
 		const rest = discord.posts().flatMap(mentioned);
 		expect(rest).toHaveLength(69);
 		expect(rest.filter((discordId) => first.includes(discordId))).toEqual([]);
@@ -221,7 +269,12 @@ describe('sendReminder', () => {
 
 		// Once finished, a manual reminder goes to every non-submitter again.
 		discord.calls = [];
-		expect(await sendReminder(id, manual)).toEqual({ ok: true, targets: 119, messages: 3, continued: false });
+		expect(await sendReminder(id, manual)).toEqual({
+			ok: true,
+			targets: 119,
+			messages: 3,
+			continued: false
+		});
 		expect(await reminders(id)).toHaveLength(2);
 	});
 
@@ -267,7 +320,12 @@ describe('runTick', () => {
 		const expired = await makeForm(creator, { closesAt: new Date(Date.now() - 1000) });
 
 		const first = await runTick();
-		expect(first).toEqual({ reminded: [due.id], closed: [expired.id], closePosted: [], failed: [] });
+		expect(first).toEqual({
+			reminded: [due.id],
+			closed: [expired.id],
+			closePosted: [],
+			failed: []
+		});
 
 		const second = await runTick();
 		expect(second).toEqual({ reminded: [], closed: [], closePosted: [], failed: [] });
@@ -310,7 +368,10 @@ describe('runTick', () => {
 
 	test('an automatic send whose rest have all answered is done without a post', async () => {
 		const { creator, users } = await guild(60);
-		const { id, questions } = await makeForm(creator, { announcementChannelId: CHANNEL_ID, deadline: soon() });
+		const { id, questions } = await makeForm(creator, {
+			announcementChannelId: CHANNEL_ID,
+			deadline: soon()
+		});
 		failNthPost(2);
 		await quietly(() => runTick());
 		const [row] = await reminders(id);
@@ -344,10 +405,14 @@ describe('an unfinished reminder is continued by the next send of either kind', 
 		expect(auto.pendingDiscordIds).toHaveLength(70);
 		discord.calls = [];
 
-		const result = await resultsActions.remind({ locals: sessionLocals(creator), params: { id } } as never);
+		const result = await resultsActions.remind({
+			locals: sessionLocals(creator),
+			params: { id }
+		} as never);
 
 		expect(result).toEqual({
-			notice: '途中で止まっていた前回の送信の続きとして、未提出者 70名にリマインドを送信しました。（2通に分けて送信）'
+			notice:
+				'途中で止まっていた前回の送信の続きとして、未提出者 70名にリマインドを送信しました。（2通に分けて送信）'
 		});
 		const rest = discord.posts().flatMap(mentioned);
 		expect(sorted(rest)).toEqual(sorted(auto.pendingDiscordIds));
@@ -400,21 +465,50 @@ describe('an unfinished reminder is continued by the next send of either kind', 
 		const [a, b, c, d] = users.map((u) => u.discordId);
 		// Left by a manual send and then by an automatic one, both failed partway.
 		await db.insert(reminder).values([
-			{ formId: id, kind: 'manual', sentBy: creator.id, targetDiscordIds: [a], pendingDiscordIds: [b], targetDeadline: deadline },
-			{ formId: id, kind: 'auto', sentBy: null, targetDiscordIds: [c], pendingDiscordIds: [d], targetDeadline: deadline }
+			{
+				formId: id,
+				kind: 'manual',
+				sentBy: creator.id,
+				targetDiscordIds: [a],
+				pendingDiscordIds: [b],
+				targetDeadline: deadline
+			},
+			{
+				formId: id,
+				kind: 'auto',
+				sentBy: null,
+				targetDiscordIds: [c],
+				pendingDiscordIds: [d],
+				targetDeadline: deadline
+			}
 		]);
 		const manual = { kind: 'manual', sentBy: creator.id } as const;
 
-		expect(await sendReminder(id, manual)).toEqual({ ok: true, targets: 1, messages: 1, continued: true });
+		expect(await sendReminder(id, manual)).toEqual({
+			ok: true,
+			targets: 1,
+			messages: 1,
+			continued: true
+		});
 		expect(discord.posts().flatMap(mentioned)).toEqual([b]);
 		discord.calls = [];
 
-		expect(await sendReminder(id, AUTO)).toEqual({ ok: true, targets: 1, messages: 1, continued: true });
+		expect(await sendReminder(id, AUTO)).toEqual({
+			ok: true,
+			targets: 1,
+			messages: 1,
+			continued: true
+		});
 		expect(discord.posts().flatMap(mentioned)).toEqual([d]);
 		discord.calls = [];
 
 		// Nothing is left unfinished, so the next one is a new send to every non-submitter.
-		expect(await sendReminder(id, manual)).toEqual({ ok: true, targets: 4, messages: 1, continued: false });
+		expect(await sendReminder(id, manual)).toEqual({
+			ok: true,
+			targets: 4,
+			messages: 1,
+			continued: false
+		});
 		expect(await reminders(id)).toHaveLength(3);
 	});
 });

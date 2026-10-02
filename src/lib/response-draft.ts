@@ -57,7 +57,9 @@ export function answersFromFields(
 		switch (q.type) {
 			case 'single':
 				value =
-					first === OTHER_OPTION_ID ? { type: 'single', other } : { type: 'single', optionId: first };
+					first === OTHER_OPTION_ID
+						? { type: 'single', other }
+						: { type: 'single', optionId: first };
 				break;
 			case 'multi': {
 				const optionIds = [...new Set(values)].filter((id) => id !== OTHER_OPTION_ID);

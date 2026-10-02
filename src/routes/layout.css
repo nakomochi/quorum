@@ -189,18 +189,18 @@ main {
    would be silently dropped. Inside the layer a utility on the element wins, as expected. */
 @layer components {
 	.card {
-		@apply border-border bg-surface rounded-xl border;
+		@apply rounded-xl border border-border bg-surface;
 	}
 
 	/* Controls that only the form's creator and admins see. The tinted fill and dashed frame set
 	   them apart from everything a member sees on the same page. */
 	.panel-admin {
-		@apply border-border-strong bg-surface-alt rounded-xl border border-dashed;
+		@apply rounded-xl border border-dashed border-border-strong bg-surface-alt;
 	}
 
 	/* The panel's "管理（作成者・管理者のみ）" label. */
 	.panel-admin-title {
-		@apply text-text-muted flex items-center gap-1.5 text-xs font-medium;
+		@apply flex items-center gap-1.5 text-xs font-medium text-text-muted;
 	}
 
 	/* Text with its controls: stacked on phones, side by side from `sm`. The children keep their
@@ -211,18 +211,18 @@ main {
 
 	/* The transparent border keeps it the same height as `.btn-secondary` beside it. */
 	.btn-primary {
-		@apply bg-accent hover:bg-accent-hover text-accent-fg rounded-lg border border-transparent text-sm font-semibold transition;
+		@apply rounded-lg border border-transparent bg-accent text-sm font-semibold text-accent-fg transition hover:bg-accent-hover;
 		@apply disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-accent;
 	}
 
 	.btn-secondary {
-		@apply border-border-strong text-text-subtle hover:bg-surface-raised rounded-lg border text-sm font-semibold transition;
+		@apply rounded-lg border border-border-strong text-sm font-semibold text-text-subtle transition hover:bg-surface-raised;
 		@apply disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
 	}
 
 	/* Something changed that the reader has to know about, but nothing they did was wrong. */
 	.alert-warning {
-		@apply border-warning-line bg-warning-surface text-warning rounded-lg border px-4 py-3 text-sm;
+		@apply rounded-lg border border-warning-line bg-warning-surface px-4 py-3 text-sm text-warning;
 	}
 
 	/* Where toasts stack: across the bottom on a phone, in the bottom-right corner from `sm`. The
@@ -256,13 +256,13 @@ main {
 
 	/* A disabled field reads as fixed: the edit page locks settings a response depends on. */
 	.field {
-		@apply border-input-border bg-input w-full rounded-lg border px-3 py-2 text-sm;
-		@apply focus:border-accent focus:ring-accent/40 outline-none focus:ring-2;
-		@apply disabled:border-border disabled:bg-surface-alt disabled:text-text-muted disabled:cursor-not-allowed;
+		@apply w-full rounded-lg border border-input-border bg-input px-3 py-2 text-sm;
+		@apply outline-none focus:border-accent focus:ring-2 focus:ring-accent/40;
+		@apply disabled:cursor-not-allowed disabled:border-border disabled:bg-surface-alt disabled:text-text-muted;
 	}
 
 	.chip {
-		@apply border-border-strong text-text-subtle hover:bg-surface-raised rounded border px-2 py-1 text-xs;
+		@apply rounded border border-border-strong px-2 py-1 text-xs text-text-subtle hover:bg-surface-raised;
 		@apply disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent;
 	}
 
@@ -285,7 +285,7 @@ main {
 	}
 
 	.section-title {
-		@apply text-text-subtle text-sm font-medium;
+		@apply text-sm font-medium text-text-subtle;
 	}
 
 	/* A status mark. It goes at the right end of a title row, never ahead of a line of details,
@@ -312,7 +312,7 @@ main {
 
 	/* Scrolls sideways on its own, so a wide table never widens the page. */
 	.table-wrap {
-		@apply border-border overflow-x-auto rounded-xl border;
+		@apply overflow-x-auto rounded-xl border border-border;
 	}
 
 	/* Not `.table`: that is Tailwind's `display: table` utility. */
@@ -320,7 +320,7 @@ main {
 		@apply w-max min-w-full text-left text-sm;
 
 		& thead {
-			@apply bg-surface-alt text-text-muted text-xs;
+			@apply bg-surface-alt text-xs text-text-muted;
 		}
 
 		& th {
@@ -332,7 +332,7 @@ main {
 		}
 
 		& tbody tr {
-			@apply border-border border-t;
+			@apply border-t border-border;
 		}
 	}
 }

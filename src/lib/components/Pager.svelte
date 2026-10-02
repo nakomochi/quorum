@@ -12,14 +12,18 @@
 {#if newer !== null || older !== null}
 	<nav aria-label="ページ送り" class="flex items-center justify-between gap-4">
 		{#if newer !== null}
-			<a href="{page.url.pathname}?after={newer}" class={BUTTON}><Icon name="arrow-left" />新しい方へ</a>
+			<a href="{page.url.pathname}?after={newer}" class={BUTTON}
+				><Icon name="arrow-left" />新しい方へ</a
+			>
 		{:else}
 			<span aria-disabled="true" class="{BUTTON} pointer-events-none opacity-40">
 				<Icon name="arrow-left" />新しい方へ
 			</span>
 		{/if}
 		{#if older !== null}
-			<a href="{page.url.pathname}?before={older}" class={BUTTON}>古い方へ<Icon name="arrow-right" /></a>
+			<a href="{page.url.pathname}?before={older}" class={BUTTON}
+				>古い方へ<Icon name="arrow-right" /></a
+			>
 		{:else}
 			<span aria-disabled="true" class="{BUTTON} pointer-events-none opacity-40">
 				古い方へ<Icon name="arrow-right" />

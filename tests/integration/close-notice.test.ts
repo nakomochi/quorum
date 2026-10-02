@@ -39,7 +39,10 @@ const bodyOf = (post: Call) => post.body as PostBody;
 /** A creator without the target role and one target member, mirrored. */
 async function guild(): Promise<TestUser> {
 	const [creator, target] = await createUsers([snowflake(1), snowflake(2)]);
-	await seedGuild([member(creator.discordId, [OTHER_ROLE]), member(target.discordId, [TARGET_ROLE])]);
+	await seedGuild([
+		member(creator.discordId, [OTHER_ROLE]),
+		member(target.discordId, [TARGET_ROLE])
+	]);
 	return creator;
 }
 
@@ -85,7 +88,9 @@ describe('posting a close to Discord', () => {
 
 		const posts = discord.posts();
 		expect(posts).toHaveLength(1);
-		expect(bodyOf(posts[0]).content).toBe(`<@&${TARGET_ROLE}> 「テストフォーム」を締め切りました。`);
+		expect(bodyOf(posts[0]).content).toBe(
+			`<@&${TARGET_ROLE}> 「テストフォーム」を締め切りました。`
+		);
 		expect(bodyOf(posts[0])).not.toHaveProperty('message_reference');
 
 		expect(await runTick()).toEqual(IDLE_TICK);
@@ -95,7 +100,10 @@ describe('posting a close to Discord', () => {
 	test('nothing is posted for a form without a channel, or with the setting off', async () => {
 		const creator = await guild();
 		const silent = await makeForm(creator);
-		const optedOut = await makeForm(creator, { announcementChannelId: CHANNEL_ID, announceClose: false });
+		const optedOut = await makeForm(creator, {
+			announcementChannelId: CHANNEL_ID,
+			announceClose: false
+		});
 
 		expect(await closeByHand(creator, silent.id)).toEqual(CLOSED_ONE);
 		expect(await closeByHand(creator, optedOut.id)).toEqual(CLOSED_ONE);

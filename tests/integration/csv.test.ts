@@ -20,10 +20,16 @@ import {
 const DATE = '\\d{4}/\\d{2}/\\d{2} \\d{2}:\\d{2}';
 
 const event = (who: TestUser, id: string) =>
-	({ locals: sessionLocals(who), params: { id }, url: new URL(`http://forms.test/forms/${id}/results`) }) as never;
+	({
+		locals: sessionLocals(who),
+		params: { id },
+		url: new URL(`http://forms.test/forms/${id}/results`)
+	}) as never;
 
 /** The status and message a request was refused with, or 'ok'. */
-async function outcome(run: () => Promise<unknown>): Promise<'ok' | { status: number; message: string }> {
+async function outcome(
+	run: () => Promise<unknown>
+): Promise<'ok' | { status: number; message: string }> {
 	try {
 		await run();
 		return 'ok';
@@ -39,7 +45,9 @@ async function outcome(run: () => Promise<unknown>): Promise<'ok' | { status: nu
  * answers, and someone not in the guild at all.
  */
 async function guild() {
-	const [creator, answerer, viewer, outsider, stranger] = await createUsers([1, 2, 3, 4, 5].map(snowflake));
+	const [creator, answerer, viewer, outsider, stranger] = await createUsers(
+		[1, 2, 3, 4, 5].map(snowflake)
+	);
 	await seedGuild([
 		member(creator.discordId, [OTHER_ROLE], { nick: '作成者' }),
 		member(answerer.discordId, [TARGET_ROLE], { nick: '答える人' }),
@@ -55,10 +63,20 @@ type Guild = Awaited<ReturnType<typeof guild>>;
  * The outsider answers first. The question's label and the answers need quoting, and one answer
  * starts like a formula.
  */
-async function answeredForm({ creator, answerer, outsider }: Guild, overrides: Partial<CreateFormInput> = {}) {
+async function answeredForm(
+	{ creator, answerer, outsider }: Guild,
+	overrides: Partial<CreateFormInput> = {}
+) {
 	const { id, questions } = await makeForm(creator, {
 		questions: [
-			{ type: 'text', label: '名前, ふりがな', helpText: null, required: false, options: null, allowOther: false },
+			{
+				type: 'text',
+				label: '名前, ふりがな',
+				helpText: null,
+				required: false,
+				options: null,
+				allowOther: false
+			},
 			{
 				type: 'single',
 				label: '参加',

@@ -82,7 +82,8 @@
 		targetRoleId !== '' && !roleOptions.some((option) => option.value === targetRoleId)
 	);
 	const channelUnlisted = $derived(
-		announcementChannelId !== '' && !channels.some((channel) => channel.id === announcementChannelId)
+		announcementChannelId !== '' &&
+			!channels.some((channel) => channel.id === announcementChannelId)
 	);
 	// A locked setting keeps its stored id whatever Discord lists, so there is nothing to choose again.
 	const roleMissing = $derived(roleUnlisted && !locks.audience);
@@ -108,9 +109,7 @@
 
 	/** Spread onto a field: marks it invalid and ties it to its message while it has one. */
 	const described = (name: FormField) =>
-		errorOf(name)
-			? { 'aria-invalid': true, 'aria-describedby': errorId(name) }
-			: {};
+		errorOf(name) ? { 'aria-invalid': true, 'aria-describedby': errorId(name) } : {};
 </script>
 
 <!-- Under the field it names, outside the label so that it is not read as part of the field's name. -->
@@ -150,8 +149,7 @@
 				rows="3"
 				maxlength={MAX_DESCRIPTION}
 				{...described('description')}
-				class="field mt-1"
-			></textarea>
+				class="field mt-1"></textarea>
 		</label>
 		{@render error('description')}
 	</div>
@@ -180,7 +178,9 @@
 		</div>
 
 		<div>
-			<label for="announcementChannelId-input" class="block text-sm font-medium">告知チャンネル</label>
+			<label for="announcementChannelId-input" class="block text-sm font-medium"
+				>告知チャンネル</label
+			>
 			<!-- An empty value means no announcement, so a missing channel cannot fall back to it. -->
 			<SearchSelect
 				id="announcementChannelId-input"

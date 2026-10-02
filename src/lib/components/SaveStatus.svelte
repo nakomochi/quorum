@@ -17,7 +17,8 @@
 		children: Snippet;
 	};
 
-	let { status, savedLabel, failedLabel, tooLargeHint, conflictMessage, children }: Props = $props();
+	let { status, savedLabel, failedLabel, tooLargeHint, conflictMessage, children }: Props =
+		$props();
 </script>
 
 <!-- No wrapper: the notice and the row are spaced by the form they sit in. Inline rather than a
@@ -37,7 +38,7 @@
 
 <div class="flex flex-wrap items-center gap-x-4 gap-y-3">
 	{@render children()}
-	<p role="status" class="text-text-muted text-xs">
+	<p role="status" class="text-xs text-text-muted">
 		{#if status.kind === 'saving'}
 			保存中…
 		{:else if status.kind === 'saved'}

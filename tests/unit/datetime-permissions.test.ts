@@ -57,7 +57,9 @@ describe('formatJstWithYear', () => {
 	test('keeps the year for this year too, judged in JST', () => {
 		const thisYear = new Date();
 		expect(formatJstWithYear(new Date('2026-10-13T19:00:00Z'))).toBe('2026/10/14 04:00');
-		expect(formatJstWithYear(thisYear)).toBe(formatJst(thisYear, '—', new Date('1999-06-01T00:00:00Z')));
+		expect(formatJstWithYear(thisYear)).toBe(
+			formatJst(thisYear, '—', new Date('1999-06-01T00:00:00Z'))
+		);
 		// 2027 in JST while UTC is still in 2026.
 		expect(formatJstWithYear(new Date('2026-12-31T15:30:00Z'))).toBe('2027/01/01 00:30');
 	});
@@ -84,7 +86,14 @@ describe('parseJstLocal', () => {
 	});
 
 	test('rejects anything but the datetime-local shape', () => {
-		for (const value of ['', '2026-09-29', '2026-09-29 10:00', '2026-09-29T10:00Z', '2026-09-29T10:00+09:00', 'tomorrow']) {
+		for (const value of [
+			'',
+			'2026-09-29',
+			'2026-09-29 10:00',
+			'2026-09-29T10:00Z',
+			'2026-09-29T10:00+09:00',
+			'tomorrow'
+		]) {
 			expect(parseJstLocal(value)).toBeNull();
 		}
 	});

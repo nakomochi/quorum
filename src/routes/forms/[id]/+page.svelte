@@ -229,9 +229,7 @@
 			// close, a form-wide input error and a passing fault are told in a toast, over the
 			// fields where the reader already is.
 			const at =
-				result.type === 'failure'
-					? (result.data?.inputError as InputError | undefined)?.at
-					: null;
+				result.type === 'failure' ? (result.data?.inputError as InputError | undefined)?.at : null;
 			if (at && 'questionId' in at) {
 				document.getElementById(questionAnchor(at.questionId))?.scrollIntoView({ block: 'center' });
 			} else if (result.type === 'success' || (reason && reason !== 'closed')) {
@@ -259,7 +257,7 @@
 			<div class="card action-row px-4 py-3">
 				<p class="min-w-0 flex-1 text-sm text-text-subtle">
 					下書きを復元しました
-					<span class="whitespace-nowrap text-xs text-text-muted">
+					<span class="text-xs whitespace-nowrap text-text-muted">
 						（{displayJst(restoredAt)} に保存）
 					</span>
 				</p>

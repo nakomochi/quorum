@@ -123,7 +123,7 @@
 			value={optionId}
 			bind:group={choice}
 			required={question.required}
-			class="accent-accent size-4"
+			class="size-4 accent-accent"
 		/>
 	{:else}
 		<input
@@ -132,7 +132,7 @@
 			name="q_{question.id}"
 			value={optionId}
 			bind:group={choices}
-			class="accent-accent size-4"
+			class="size-4 accent-accent"
 		/>
 	{/if}
 {/snippet}
@@ -190,8 +190,7 @@
 				required={question.required}
 				maxlength={MAX_TEXT_ANSWER}
 				bind:value={text}
-				class="field"
-			></textarea>
+				class="field"></textarea>
 		{:else}
 			<input
 				type="date"

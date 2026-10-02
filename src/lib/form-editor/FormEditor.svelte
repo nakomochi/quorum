@@ -192,7 +192,11 @@
 	);
 
 	const autosave = new DraftAutosave({
-		draft: restored && { id: restored.id, version: restored.version, updatedAt: restored.updatedAt },
+		draft: restored && {
+			id: restored.id,
+			version: restored.version,
+			updatedAt: restored.updatedAt
+		},
 		read: readEditor,
 		transport: fetchTransport,
 		onStatus: (status) => (saveStatus = status),

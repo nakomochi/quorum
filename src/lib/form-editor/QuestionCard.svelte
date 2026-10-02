@@ -45,7 +45,7 @@
 <div
 	use:dragHandle
 	aria-label="質問 {index + 1} をドラッグして並び替え"
-	class="outline-accent -mx-5 -mt-5 flex touch-none justify-center rounded-t-xl py-2 text-text-muted hover:text-text-subtle focus-visible:-outline-offset-2 focus-visible:outline-2"
+	class="-mx-5 -mt-5 flex touch-none justify-center rounded-t-xl py-2 text-text-muted outline-accent hover:text-text-subtle focus-visible:outline-2 focus-visible:-outline-offset-2"
 >
 	<Icon name="grip-horizontal" />
 </div>

@@ -68,7 +68,14 @@ describe('submitResponse: versions', () => {
 		const { creator, who } = await setup();
 		const { id, questions } = await makeForm(creator, {
 			questions: [
-				{ type: 'text', label: 't', helpText: null, required: true, options: null, allowOther: false },
+				{
+					type: 'text',
+					label: 't',
+					helpText: null,
+					required: true,
+					options: null,
+					allowOther: false
+				},
 				{
 					type: 'multi',
 					label: 'm',
@@ -82,14 +89,22 @@ describe('submitResponse: versions', () => {
 				}
 			]
 		});
-		await submit(id, who, [TARGET_ROLE], inputs(questions, { 0: 'hello', 1: { values: ['a', 'b', OTHER_OPTION_ID], other: '他' } }));
+		await submit(
+			id,
+			who,
+			[TARGET_ROLE],
+			inputs(questions, { 0: 'hello', 1: { values: ['a', 'b', OTHER_OPTION_ID], other: '他' } })
+		);
 		const [before] = await db.select().from(response).where(eq(response.formId, id));
 
 		const again = await submit(
 			id,
 			who,
 			[TARGET_ROLE],
-			inputs(questions, { 0: '  hello  ', 1: { values: [OTHER_OPTION_ID, 'b', 'a', 'b'], other: ' 他 ' } })
+			inputs(questions, {
+				0: '  hello  ',
+				1: { values: [OTHER_OPTION_ID, 'b', 'a', 'b'], other: ' 他 ' }
+			})
 		);
 
 		expect(again).toMatchObject({ ok: true, created: false });
@@ -114,24 +129,31 @@ describe('submitResponse: versions', () => {
 describe('submitResponse: gates', () => {
 	test('unknown form', async () => {
 		const { who } = await setup();
-		expect(await submit('missing', who, [TARGET_ROLE], new Map())).toEqual({ ok: false, reason: 'not_found' });
+		expect(await submit('missing', who, [TARGET_ROLE], new Map())).toEqual({
+			ok: false,
+			reason: 'not_found'
+		});
 	});
 
 	test('a closed form refuses, whether closed by hand or by closes_at', async () => {
 		const { creator, who } = await setup();
 		const manual = await makeForm(creator);
 		expect((await closeForm(manual.id)).ok).toBe(true);
-		expect(await submit(manual.id, who, [TARGET_ROLE], inputs(manual.questions, { 0: 'a' }))).toEqual({
+		expect(
+			await submit(manual.id, who, [TARGET_ROLE], inputs(manual.questions, { 0: 'a' }))
+		).toEqual({
 			ok: false,
 			reason: 'closed'
 		});
 
 		const timed = await makeForm(creator);
 		await patchForm(timed.id, { closesAt: new Date(Date.now() - 1000) });
-		expect(await submit(timed.id, who, [TARGET_ROLE], inputs(timed.questions, { 0: 'a' }))).toEqual({
-			ok: false,
-			reason: 'closed'
-		});
+		expect(await submit(timed.id, who, [TARGET_ROLE], inputs(timed.questions, { 0: 'a' }))).toEqual(
+			{
+				ok: false,
+				reason: 'closed'
+			}
+		);
 		expect(await counts(manual.id)).toMatchObject({ responses: 0 });
 		expect(await counts(timed.id)).toMatchObject({ responses: 0 });
 	});
@@ -147,11 +169,15 @@ describe('submitResponse: gates', () => {
 		]);
 		const { id, questions } = await makeForm(creator, { submitScope: 'target_role' });
 
-		expect(await submit(id, mirroredWithRole, [OTHER_ROLE], inputs(questions, { 0: 'a' }))).toEqual({
-			ok: false,
-			reason: 'forbidden'
-		});
-		expect(await submit(id, mirroredWithout, [TARGET_ROLE], inputs(questions, { 0: 'a' }))).toMatchObject({
+		expect(await submit(id, mirroredWithRole, [OTHER_ROLE], inputs(questions, { 0: 'a' }))).toEqual(
+			{
+				ok: false,
+				reason: 'forbidden'
+			}
+		);
+		expect(
+			await submit(id, mirroredWithout, [TARGET_ROLE], inputs(questions, { 0: 'a' }))
+		).toMatchObject({
 			ok: true,
 			created: true
 		});
@@ -207,7 +233,11 @@ describe('submitResponse: building answers', () => {
 
 	test('a required question left blank, or only whitespace, is refused', async () => {
 		const { id, questions, who } = await formWith([text(true)]);
-		await refusedAt(submit(id, who, [], inputs(questions, {})), 'この質問は必須です', questions[0].id);
+		await refusedAt(
+			submit(id, who, [], inputs(questions, {})),
+			'この質問は必須です',
+			questions[0].id
+		);
 		await refusedAt(
 			submit(id, who, [], inputs(questions, { 0: '   ' })),
 			'この質問は必須です',
@@ -255,14 +285,24 @@ describe('submitResponse: building answers', () => {
 			questions[0].id
 		);
 		await refusedAt(
-			submit(id, who, [], inputs(questions, { 0: { values: [OTHER_OPTION_ID], other: 'x'.repeat(MAX_OTHER_ANSWER + 1) } })),
+			submit(
+				id,
+				who,
+				[],
+				inputs(questions, {
+					0: { values: [OTHER_OPTION_ID], other: 'x'.repeat(MAX_OTHER_ANSWER + 1) }
+				})
+			),
 			`「その他」は${MAX_OTHER_ANSWER}文字以内で入力してください`,
 			questions[0].id
 		);
 	});
 
 	test('"その他" sent to a question that does not offer it is refused', async () => {
-		const { id, questions, who } = await formWith([choice('single', false), choice('multi', false)]);
+		const { id, questions, who } = await formWith([
+			choice('single', false),
+			choice('multi', false)
+		]);
 		await refusedAt(
 			submit(id, who, [], inputs(questions, { 0: { values: [OTHER_OPTION_ID], other: 'x' } })),
 			'選択肢が不正です',
@@ -277,8 +317,15 @@ describe('submitResponse: building answers', () => {
 	});
 
 	test('an option id the question does not have is refused', async () => {
-		const { id, questions, who } = await formWith([choice('single', false), choice('multi', false)]);
-		await refusedAt(submit(id, who, [], inputs(questions, { 0: 'zzz' })), '選択肢が不正です', questions[0].id);
+		const { id, questions, who } = await formWith([
+			choice('single', false),
+			choice('multi', false)
+		]);
+		await refusedAt(
+			submit(id, who, [], inputs(questions, { 0: 'zzz' })),
+			'選択肢が不正です',
+			questions[0].id
+		);
 		await refusedAt(
 			submit(id, who, [], inputs(questions, { 1: ['a', 'zzz'] })),
 			'選択肢が不正です',
@@ -293,7 +340,9 @@ describe('submitResponse: building answers', () => {
 			`${MAX_TEXT_ANSWER}文字以内で入力してください`,
 			questions[0].id
 		);
-		expect(await submit(id, who, [], inputs(questions, { 0: 'x'.repeat(MAX_TEXT_ANSWER) }))).toMatchObject({ ok: true });
+		expect(
+			await submit(id, who, [], inputs(questions, { 0: 'x'.repeat(MAX_TEXT_ANSWER) }))
+		).toMatchObject({ ok: true });
 	});
 
 	test('a response of exactly MAX_RESPONSE_BYTES is taken, and one byte more is refused', async () => {
@@ -307,9 +356,18 @@ describe('submitResponse: building answers', () => {
 		const other = 'x'.repeat(MAX_OTHER_ANSWER);
 		const rest = MAX_RESPONSE_BYTES - 4 * 3 * MAX_TEXT_ANSWER - 1 - MAX_OTHER_ANSWER;
 		const answers = (last: string) =>
-			inputs(questions, { 0: full, 1: full, 2: full, 3: full, 4: last, 5: { values: ['a'], other } });
+			inputs(questions, {
+				0: full,
+				1: full,
+				2: full,
+				3: full,
+				4: last,
+				5: { values: ['a'], other }
+			});
 
-		const tooLarge = await submit(id, who, [], answers('x'.repeat(rest + 1))).catch((e: unknown) => e);
+		const tooLarge = await submit(id, who, [], answers('x'.repeat(rest + 1))).catch(
+			(e: unknown) => e
+		);
 		expect(tooLarge).toBeInstanceOf(FormInputError);
 		// Nothing to point at but the form as a whole.
 		expect((tooLarge as FormInputError).detail).toEqual({
@@ -322,11 +380,28 @@ describe('submitResponse: building answers', () => {
 
 	test('dates must be real calendar dates', async () => {
 		const { id, questions, who } = await formWith([
-			{ type: 'date', label: '日付', helpText: null, required: false, options: null, allowOther: false }
+			{
+				type: 'date',
+				label: '日付',
+				helpText: null,
+				required: false,
+				options: null,
+				allowOther: false
+			}
 		]);
-		await refusedAt(submit(id, who, [], inputs(questions, { 0: '2026/09/29' })), '日付が不正です', questions[0].id);
-		await refusedAt(submit(id, who, [], inputs(questions, { 0: '2026-13-01' })), '日付が不正です', questions[0].id);
-		expect(await submit(id, who, [], inputs(questions, { 0: '2026-09-29' }))).toMatchObject({ ok: true });
+		await refusedAt(
+			submit(id, who, [], inputs(questions, { 0: '2026/09/29' })),
+			'日付が不正です',
+			questions[0].id
+		);
+		await refusedAt(
+			submit(id, who, [], inputs(questions, { 0: '2026-13-01' })),
+			'日付が不正です',
+			questions[0].id
+		);
+		expect(await submit(id, who, [], inputs(questions, { 0: '2026-09-29' }))).toMatchObject({
+			ok: true
+		});
 		expect(await stored(id)).toEqual([{ type: 'date', date: '2026-09-29' }]);
 	});
 

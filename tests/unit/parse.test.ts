@@ -47,9 +47,13 @@ describe('parseQuestions', () => {
 	});
 
 	test('rejects an unknown type and a blank or overlong label', () => {
-		rejects(() => parseQuestions(JSON.stringify([{ type: 'file', label: 'q' }])), /^種類が不正です$/, {
-			question: 0
-		});
+		rejects(
+			() => parseQuestions(JSON.stringify([{ type: 'file', label: 'q' }])),
+			/^種類が不正です$/,
+			{
+				question: 0
+			}
+		);
 		rejects(
 			() => parseQuestions(JSON.stringify([{ type: 'text', label: '  ' }])),
 			/^質問文を入力してください$/,
@@ -65,8 +69,19 @@ describe('parseQuestions', () => {
 	test('trims text, and takes required and allowOther only when literally true', () => {
 		const [text, choice] = parseQuestions(
 			JSON.stringify([
-				{ type: 'text', label: '  名前  ', helpText: '  ', required: 'yes', allowOther: true, options: [{ id: 'a', label: 'A' }] },
-				single([{ id: ' a ', label: ' A ' }], { helpText: ' 補足 ', required: true, allowOther: true })
+				{
+					type: 'text',
+					label: '  名前  ',
+					helpText: '  ',
+					required: 'yes',
+					allowOther: true,
+					options: [{ id: 'a', label: 'A' }]
+				},
+				single([{ id: ' a ', label: ' A ' }], {
+					helpText: ' 補足 ',
+					required: true,
+					allowOther: true
+				})
 			])
 		);
 		expect(text).toEqual({
@@ -91,11 +106,15 @@ describe('parseQuestions', () => {
 
 	test('takes a published question’s id as its source, once each, and nothing else', () => {
 		const text = (sourceId: unknown) => ({ type: 'text', label: 'q', sourceId });
-		const parsed = parseQuestions(JSON.stringify([text(12), text(null), { type: 'text', label: 'q' }]));
+		const parsed = parseQuestions(
+			JSON.stringify([text(12), text(null), { type: 'text', label: 'q' }])
+		);
 		expect(parsed.map((q) => q.sourceId)).toEqual([12, null, null]);
 
 		for (const bad of [0, -3, 1.5, '12', true]) {
-			rejects(() => parseQuestions(JSON.stringify([text(bad)])), /^質問データが不正です$/, { question: 0 });
+			rejects(() => parseQuestions(JSON.stringify([text(bad)])), /^質問データが不正です$/, {
+				question: 0
+			});
 		}
 		rejects(() => parseQuestions(JSON.stringify([text(5), text(5)])), /^質問データが不正です$/, {
 			question: 1
@@ -114,18 +133,45 @@ describe('parseQuestions', () => {
 	});
 
 	test('validates choice options', () => {
-		rejects(() => parseQuestions(JSON.stringify([single([])])), /^選択肢を1つ以上追加してください$/, {
-			question: 0
-		});
-		rejects(() => parseQuestions(JSON.stringify([single(undefined)])), '選択肢を1つ以上追加してください');
 		rejects(
-			() => parseQuestions(JSON.stringify([single([{ id: 'a', label: 'A' }, { id: 'a', label: 'B' }])])),
+			() => parseQuestions(JSON.stringify([single([])])),
+			/^選択肢を1つ以上追加してください$/,
+			{
+				question: 0
+			}
+		);
+		rejects(
+			() => parseQuestions(JSON.stringify([single(undefined)])),
+			'選択肢を1つ以上追加してください'
+		);
+		rejects(
+			() =>
+				parseQuestions(
+					JSON.stringify([
+						single([
+							{ id: 'a', label: 'A' },
+							{ id: 'a', label: 'B' }
+						])
+					])
+				),
 			'選択肢の id が重複しています'
 		);
-		rejects(() => parseQuestions(JSON.stringify([single([{ id: '', label: 'A' }])])), '選択肢の id がありません');
-		rejects(() => parseQuestions(JSON.stringify([single([{ id: 'a', label: ' ' }])])), '選択肢のラベルを入力してください');
-		const tooMany = Array.from({ length: MAX_OPTIONS + 1 }, (_, i) => ({ id: `o${i}`, label: `O${i}` }));
-		rejects(() => parseQuestions(JSON.stringify([single(tooMany)])), `選択肢は${MAX_OPTIONS}個までです`);
+		rejects(
+			() => parseQuestions(JSON.stringify([single([{ id: '', label: 'A' }])])),
+			'選択肢の id がありません'
+		);
+		rejects(
+			() => parseQuestions(JSON.stringify([single([{ id: 'a', label: ' ' }])])),
+			'選択肢のラベルを入力してください'
+		);
+		const tooMany = Array.from({ length: MAX_OPTIONS + 1 }, (_, i) => ({
+			id: `o${i}`,
+			label: `O${i}`
+		}));
+		rejects(
+			() => parseQuestions(JSON.stringify([single(tooMany)])),
+			`選択肢は${MAX_OPTIONS}個までです`
+		);
 	});
 
 	test('locates the failing question by its place in the list', () => {
@@ -140,7 +186,10 @@ describe('parseQuestions', () => {
 					JSON.stringify([
 						{ type: 'text', label: 'ok' },
 						single([{ id: 'a', label: 'A' }]),
-						single([{ id: 'a', label: 'A' }, { id: 'a', label: 'B' }])
+						single([
+							{ id: 'a', label: 'A' },
+							{ id: 'a', label: 'B' }
+						])
 					])
 				),
 			'選択肢の id が重複しています',
@@ -154,7 +203,12 @@ describe('parseCreateFormPayload', () => {
 
 	const payload = (fields: Record<string, string>) => {
 		const data = new FormData();
-		for (const [key, value] of Object.entries({ title: 'タイトル', targetRoleId: '123', questions: QUESTIONS, ...fields })) {
+		for (const [key, value] of Object.entries({
+			title: 'タイトル',
+			targetRoleId: '123',
+			questions: QUESTIONS,
+			...fields
+		})) {
 			data.set(key, value);
 		}
 		return data;
@@ -197,18 +251,28 @@ describe('parseCreateFormPayload', () => {
 	});
 
 	test('no role is stored as null, and lets everyone submit whatever was sent', () => {
-		const parsed = parseCreateFormPayload(payload({ targetRoleId: NO_TARGET_ROLE, submitScope: 'target_role' }));
+		const parsed = parseCreateFormPayload(
+			payload({ targetRoleId: NO_TARGET_ROLE, submitScope: 'target_role' })
+		);
 		expect(parsed.targetRoleId).toBeNull();
 		expect(parsed.submitScope).toBe('everyone');
 	});
 
 	test('rejects values outside the enums, at their fields', () => {
-		rejects(() => parseCreateFormPayload(payload({ visibility: 'everyone' })), '結果の公開範囲の値が不正です', {
-			field: 'visibility'
-		});
-		rejects(() => parseCreateFormPayload(payload({ submitScope: 'admins' })), '提出できる人の値が不正です', {
-			field: 'submitScope'
-		});
+		rejects(
+			() => parseCreateFormPayload(payload({ visibility: 'everyone' })),
+			'結果の公開範囲の値が不正です',
+			{
+				field: 'visibility'
+			}
+		);
+		rejects(
+			() => parseCreateFormPayload(payload({ submitScope: 'admins' })),
+			'提出できる人の値が不正です',
+			{
+				field: 'submitScope'
+			}
+		);
 	});
 
 	test('requires a title and a target role within their limits', () => {
@@ -220,9 +284,13 @@ describe('parseCreateFormPayload', () => {
 			`タイトルは${MAX_TITLE}文字以内で入力してください`,
 			{ field: 'title' }
 		);
-		rejects(() => parseCreateFormPayload(payload({ targetRoleId: '' })), '対象ロールを入力してください', {
-			field: 'targetRoleId'
-		});
+		rejects(
+			() => parseCreateFormPayload(payload({ targetRoleId: '' })),
+			'対象ロールを入力してください',
+			{
+				field: 'targetRoleId'
+			}
+		);
 		rejects(
 			() => parseCreateFormPayload(payload({ description: 'x'.repeat(MAX_DESCRIPTION + 1) })),
 			`説明は${MAX_DESCRIPTION}文字以内で入力してください`,
@@ -231,9 +299,13 @@ describe('parseCreateFormPayload', () => {
 	});
 
 	test('rejects malformed dates and a closes_at that has already passed', () => {
-		rejects(() => parseCreateFormPayload(payload({ deadline: '2099-02-30T10:00' })), '締切の日時が不正です', {
-			field: 'deadline'
-		});
+		rejects(
+			() => parseCreateFormPayload(payload({ deadline: '2099-02-30T10:00' })),
+			'締切の日時が不正です',
+			{
+				field: 'deadline'
+			}
+		);
 		rejects(
 			() => parseCreateFormPayload(payload({ closesAt: '2000-01-01T00:00' })),
 			'受付終了は現在より後の日時を指定してください',

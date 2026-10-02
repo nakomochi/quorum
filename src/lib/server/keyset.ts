@@ -43,7 +43,10 @@ export function decodeCursor(raw: string, isId: (id: string) => boolean): Cursor
 }
 
 /** `?before=` wins over `?after=`; an unreadable cursor is the first page rather than an error. */
-export function readPageRequest(params: URLSearchParams, isId: (id: string) => boolean): PageRequest {
+export function readPageRequest(
+	params: URLSearchParams,
+	isId: (id: string) => boolean
+): PageRequest {
 	for (const kind of ['before', 'after'] as const) {
 		const raw = params.get(kind);
 		if (raw === null) continue;
@@ -81,8 +84,14 @@ export function keyset(
 	const { at, id } = request.cursor;
 	const bound = sql`(${timestampOf(at)}::timestamptz, ${id}::${sql.raw(idColumn.getSQLType())})`;
 	return request.kind === 'before'
-		? { where: sql`(${sortColumn}, ${idColumn}) < ${bound}`, orderBy: [desc(sortColumn), desc(idColumn)] }
-		: { where: sql`(${sortColumn}, ${idColumn}) > ${bound}`, orderBy: [asc(sortColumn), asc(idColumn)] };
+		? {
+				where: sql`(${sortColumn}, ${idColumn}) < ${bound}`,
+				orderBy: [desc(sortColumn), desc(idColumn)]
+			}
+		: {
+				where: sql`(${sortColumn}, ${idColumn}) > ${bound}`,
+				orderBy: [asc(sortColumn), asc(idColumn)]
+			};
 }
 
 /** What a fetched row must carry for its cursor: `sortKey`'s value and the tie-breaking id. */

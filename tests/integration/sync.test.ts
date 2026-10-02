@@ -3,7 +3,14 @@ import { asc } from 'drizzle-orm';
 import { db } from '$lib/server/db';
 import { guildMember, guildSync } from '$lib/server/db/schema';
 import { lastSyncedAt, syncAllMembers, syncedGuildRoles } from '$lib/server/guild-sync';
-import { discord, OTHER_ROLE, OWNER_ID, status, TARGET_ROLE, type StubMember } from '../helpers/discord';
+import {
+	discord,
+	OTHER_ROLE,
+	OWNER_ID,
+	status,
+	TARGET_ROLE,
+	type StubMember
+} from '../helpers/discord';
 import { member, settle, sleep, snowflake, withSlowWrites } from '../helpers/fixtures';
 
 async function mirror() {
@@ -31,7 +38,11 @@ async function untilListed(count: number) {
 describe('syncAllMembers', () => {
 	test('mirrors every member, with names, roles and bot flags', async () => {
 		discord.members = [
-			member(snowflake(1), [TARGET_ROLE], { username: 'alice', globalName: 'Alice', nick: 'アリス' }),
+			member(snowflake(1), [TARGET_ROLE], {
+				username: 'alice',
+				globalName: 'Alice',
+				nick: 'アリス'
+			}),
 			member(snowflake(2), [], { bot: true, username: 'robot' })
 		];
 
@@ -39,7 +50,17 @@ describe('syncAllMembers', () => {
 
 		expect(result).toMatchObject({ present: 2, markedLeft: 0 });
 		const rows = await mirror();
-		expect(rows.map((r) => [r.discordId, r.username, r.globalName, r.nickname, r.roleIds, r.isBot, r.leftAt])).toEqual([
+		expect(
+			rows.map((r) => [
+				r.discordId,
+				r.username,
+				r.globalName,
+				r.nickname,
+				r.roleIds,
+				r.isBot,
+				r.leftAt
+			])
+		).toEqual([
 			[snowflake(1), 'alice', 'Alice', 'アリス', [TARGET_ROLE], false, null],
 			[snowflake(2), 'robot', null, null, [], true, null]
 		]);
@@ -75,7 +96,9 @@ describe('syncAllMembers', () => {
 		expect((await lastSyncedAt())?.getTime()).toBe(result.syncedAt.getTime());
 		const snapshot = await syncedGuildRoles();
 		expect(snapshot?.ownerId).toBe(OWNER_ID);
-		expect(snapshot?.roles).toEqual(discord.roles.map(({ id, permissions }) => ({ id, permissions })));
+		expect(snapshot?.roles).toEqual(
+			discord.roles.map(({ id, permissions }) => ({ id, permissions }))
+		);
 
 		discord.ownerId = snowflake(1);
 		discord.roles = discord.roles.slice(0, 2);

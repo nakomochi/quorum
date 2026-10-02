@@ -134,7 +134,11 @@ export const load: PageServerLoad = async ({ locals, params }) => {
 			options: q.options,
 			allowOther: q.allowOther
 		})),
-		deletedQuestions: deletedQuestions.map((q) => ({ id: q.id, label: q.label, options: q.options })),
+		deletedQuestions: deletedQuestions.map((q) => ({
+			id: q.id,
+			label: q.label,
+			options: q.options
+		})),
 		closed,
 		editable,
 		submittedAt: own?.response.submittedAt ?? null,

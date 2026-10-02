@@ -66,23 +66,25 @@ export async function listPendingForms(
 	userId: string,
 	now = new Date()
 ): Promise<PendingFormSummary[]> {
-	return db
-		.select({ id: form.id, title: form.title, deadline: form.deadline })
-		.from(form)
-		.where(
-			and(
-				canSubmitSql(member),
-				isOpenSql(now),
-				notExists(
-					db
-						.select({ answered: sql`1` })
-						.from(response)
-						.where(and(eq(response.formId, form.id), eq(response.userId, userId)))
+	return (
+		db
+			.select({ id: form.id, title: form.title, deadline: form.deadline })
+			.from(form)
+			.where(
+				and(
+					canSubmitSql(member),
+					isOpenSql(now),
+					notExists(
+						db
+							.select({ answered: sql`1` })
+							.from(response)
+							.where(and(eq(response.formId, form.id), eq(response.userId, userId)))
+					)
 				)
 			)
-		)
-		// Nearest deadline first, then the newest.
-		.orderBy(sql`${form.deadline} ASC NULLS LAST`, desc(form.createdAt), desc(form.id));
+			// Nearest deadline first, then the newest.
+			.orderBy(sql`${form.deadline} ASC NULLS LAST`, desc(form.createdAt), desc(form.id))
+	);
 }
 
 /**
@@ -115,7 +117,11 @@ export async function pageSubmittedForms(
 				.orderBy(...orderBy)
 				.limit(limit);
 		}),
-		db.select({ total: count() }).from(response).innerJoin(form, eq(form.id, response.formId)).where(mine)
+		db
+			.select({ total: count() })
+			.from(response)
+			.innerJoin(form, eq(form.id, response.formId))
+			.where(mine)
 	]);
 
 	return {

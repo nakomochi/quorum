@@ -65,7 +65,8 @@
 
 	function insert(index: number, question: EditorQuestion) {
 		history.step(
-			() => (questions = [...questions.slice(0, index + 1), question, ...questions.slice(index + 1)])
+			() =>
+				(questions = [...questions.slice(0, index + 1), question, ...questions.slice(index + 1)])
 		);
 		open(question.id, 'focus');
 	}

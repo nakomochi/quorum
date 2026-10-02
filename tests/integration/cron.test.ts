@@ -7,7 +7,10 @@ const SECRET = 'cron-secret-for-tests';
 function call(job: string, authorization?: string) {
 	const headers = new Headers();
 	if (authorization !== undefined) headers.set('authorization', authorization);
-	const request = new Request(`http://forms.test/internal/cron/${job}`, { method: 'POST', headers });
+	const request = new Request(`http://forms.test/internal/cron/${job}`, {
+		method: 'POST',
+		headers
+	});
 	return POST({ params: { job }, request } as never);
 }
 

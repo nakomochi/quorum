@@ -12,13 +12,15 @@
 		<ContextLink href={resolve('/')} label="トップへ戻る" direction="back" />
 		<header>
 			<h1 class="page-title">作成したフォーム</h1>
-			<p class="text-text-muted mt-1 text-sm">全{data.total}件</p>
+			<p class="mt-1 text-sm text-text-muted">全{data.total}件</p>
 		</header>
 	</div>
 
 	{#if data.rows.length === 0}
-		<p class="card text-text-muted p-6 text-sm">
-			{data.total === 0 ? 'まだ作成したフォームはありません。' : 'このページにはフォームがありません。'}
+		<p class="card p-6 text-sm text-text-muted">
+			{data.total === 0
+				? 'まだ作成したフォームはありません。'
+				: 'このページにはフォームがありません。'}
 		</p>
 	{:else}
 		<ul class="flex flex-col gap-2">

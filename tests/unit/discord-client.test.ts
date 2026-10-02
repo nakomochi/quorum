@@ -55,7 +55,10 @@ describe('Discord REST client (against the stub)', () => {
 
 		discord.fail('edit', 404, 1);
 		await expect(
-			editMessage(CHANNEL_ID, '900000000000000001', { content: 'x', allowed_mentions: { parse: [] } })
+			editMessage(CHANNEL_ID, '900000000000000001', {
+				content: 'x',
+				allowed_mentions: { parse: [] }
+			})
 		).rejects.toBeInstanceOf(DiscordApiError);
 	});
 

@@ -178,12 +178,12 @@
 	<div
 		bind:this={popup}
 		hidden={!open}
-		class="bg-bg absolute top-full right-0 z-20 mt-1 w-max max-w-[min(20rem,calc(100vw_-_1rem))] min-w-40 rounded-lg shadow-lg
+		class="absolute top-full right-0 z-20 mt-1 w-max max-w-[min(20rem,calc(100vw_-_1rem))] min-w-40 rounded-lg bg-bg shadow-lg
 			data-[side=above]:top-auto data-[side=above]:bottom-full data-[side=above]:mt-0 data-[side=above]:mb-1"
 	>
-		<div class="bg-surface border-border overflow-hidden rounded-lg border">
+		<div class="overflow-hidden rounded-lg border border-border bg-surface">
 			{#if header}
-				<div class="border-border text-text-muted truncate border-b px-3 py-2 text-xs">
+				<div class="truncate border-b border-border px-3 py-2 text-xs text-text-muted">
 					{@render header()}
 				</div>
 			{/if}

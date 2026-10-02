@@ -139,10 +139,10 @@
 {#snippet tallyRow(label: string, count: number)}
 	<li class="flex items-center gap-3 text-sm">
 		<span class="w-28 shrink-0 truncate text-text-subtle sm:w-40">{label}</span>
-		<span class="bg-surface-raised h-2 flex-1 overflow-hidden rounded">
-			<span class="bg-accent block h-full" style="width: {percent(count, answerTotal)}%"></span>
+		<span class="h-2 flex-1 overflow-hidden rounded bg-surface-raised">
+			<span class="block h-full bg-accent" style="width: {percent(count, answerTotal)}%"></span>
 		</span>
-		<span class="w-10 shrink-0 text-right tabular-nums text-text-muted">{count}</span>
+		<span class="w-10 shrink-0 text-right text-text-muted tabular-nums">{count}</span>
 	</li>
 {/snippet}
 
@@ -186,7 +186,9 @@
 								<div
 									class="line-clamp-3 max-w-64 wrap-break-word whitespace-pre-wrap"
 									title={answer ?? undefined}
-								>{answer ?? '—'}</div>
+								>
+									{answer ?? '—'}
+								</div>
 							</td>
 						{/each}
 						<td class="text-xs whitespace-nowrap text-text-muted tabular-nums">
@@ -265,7 +267,7 @@
 	{#if data.manage && data.announcement}
 		<AdminPanel collapsible bind:open={panelOpen} {attention}>
 			<div
-				class="divide-border flex flex-col divide-y border-t border-border pt-4 *:py-4 *:first:pt-0 *:last:pb-0"
+				class="flex flex-col divide-y divide-border border-t border-border pt-4 *:py-4 *:first:pt-0 *:last:pb-0"
 			>
 				<!-- A closed form is reopened before it is edited, so the row goes with the close. -->
 				{#if !data.form.closedAt}
@@ -294,7 +296,8 @@
 							{#if data.form.closedAt}
 								<span class="whitespace-nowrap">{displayJst(data.form.closedAt)}</span> に締め切りました。
 							{:else if roster}
-								締め切ると、Discord から最新のメンバー一覧を取得して未提出者を確定し、以後の提出を受け付けません。受付はあとから再開できます。
+								締め切ると、Discord
+								から最新のメンバー一覧を取得して未提出者を確定し、以後の提出を受け付けません。受付はあとから再開できます。
 							{:else}
 								締め切ると、以後の提出を受け付けません。受付はあとから再開できます。
 							{/if}
@@ -428,7 +431,8 @@
 						<div>
 							<h3 class="section-title">未提出者の名簿</h3>
 							<p class="mt-1 text-text-muted">
-								未提出者は、Discord のメンバー一覧を写した名簿から数えています。ロールを付け外ししたあとは更新してください。
+								未提出者は、Discord
+								のメンバー一覧を写した名簿から数えています。ロールを付け外ししたあとは更新してください。
 							</p>
 							<MetaLine class="mt-2" items={[rosterItem]} />
 						</div>
@@ -522,7 +526,7 @@
 			{:else}
 				<ul class="card flex flex-wrap gap-2 p-4">
 					{#each data.nonSubmitters as name, index (index)}
-						<li class="border-border-strong rounded border px-2 py-1 text-xs text-text-subtle">
+						<li class="rounded border border-border-strong px-2 py-1 text-xs text-text-subtle">
 							{name}
 						</li>
 					{/each}
@@ -536,7 +540,9 @@
 			<h2 class="section-title">
 				対象外からの回答（{data.outsiders.length}名）
 			</h2>
-			<p class="text-xs text-text-muted">対象ロールを持たない人の回答です。未提出者には含みません。</p>
+			<p class="text-xs text-text-muted">
+				対象ロールを持たない人の回答です。未提出者には含みません。
+			</p>
 			{@render answerTable(data.outsiders)}
 		</section>
 	{/if}

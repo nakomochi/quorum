@@ -29,10 +29,5 @@
 		</header>
 	</div>
 
-	<RevisionList
-		revisions={data.revisions}
-		questions={data.questions}
-		headingTag="h2"
-		showChanges
-	/>
+	<RevisionList revisions={data.revisions} questions={data.questions} headingTag="h2" showChanges />
 </main>

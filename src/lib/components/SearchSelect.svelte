@@ -146,19 +146,21 @@
 		<Combobox.Content
 			sideOffset={4}
 			collisionPadding={8}
-			class="bg-bg z-30 w-(--bits-combobox-anchor-width) max-w-[calc(100vw_-_1rem)] rounded-lg shadow-lg"
+			class="z-30 w-(--bits-combobox-anchor-width) max-w-[calc(100vw_-_1rem)] rounded-lg bg-bg shadow-lg"
 		>
-			<div class="bg-surface border-border overflow-hidden rounded-lg border">
+			<div class="overflow-hidden rounded-lg border border-border bg-surface">
 				<Combobox.Viewport class="max-h-72 overflow-y-auto py-1">
 					{#each shown as option (option.value)}
 						<Combobox.Item
 							value={toKey(option.value)}
 							label={option.label}
-							class="data-highlighted:bg-surface-raised flex cursor-pointer items-baseline gap-2 px-3 py-2 text-sm text-text-subtle data-selected:font-medium data-selected:text-text"
+							class="flex cursor-pointer items-baseline gap-2 px-3 py-2 text-sm text-text-subtle data-highlighted:bg-surface-raised data-selected:font-medium data-selected:text-text"
 						>
 							<span class="min-w-0 flex-1 truncate">{option.label}</span>
 							{#if option.hint}
-								<span class="max-w-[45%] shrink-0 truncate text-xs text-text-muted">{option.hint}</span>
+								<span class="max-w-[45%] shrink-0 truncate text-xs text-text-muted"
+									>{option.hint}</span
+								>
 							{/if}
 						</Combobox.Item>
 					{:else}

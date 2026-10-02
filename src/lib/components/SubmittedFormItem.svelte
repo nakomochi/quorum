@@ -17,7 +17,7 @@
 	<a href={resolve('/forms/[id]', { id: row.id })} class="flex flex-col gap-1 px-5 py-4">
 		<ItemHeader title={row.title} titleClass="text-text-subtle">
 			{#snippet icon()}
-				<Icon name="check" class="text-success size-4 shrink-0" />
+				<Icon name="check" class="size-4 shrink-0 text-success" />
 			{/snippet}
 			{#snippet badges()}
 				{#if row.revisionCount > 1}

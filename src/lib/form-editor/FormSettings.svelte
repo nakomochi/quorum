@@ -2,6 +2,7 @@
 	import { untrack, type Snippet } from 'svelte';
 	import FieldError from '$lib/components/FieldError.svelte';
 	import SearchSelect, { type SearchOption } from '$lib/components/SearchSelect.svelte';
+	import SelectField from '$lib/components/SelectField.svelte';
 	import type { EditorState } from '$lib/form-draft';
 	import {
 		AUDIENCE_LOCKED,
@@ -206,16 +207,16 @@
 			<div>
 				<label class="block">
 					<span class="text-sm font-medium">提出できる人</span>
-					<select
+					<SelectField
 						name={locks.audience ? undefined : 'submitScope'}
 						disabled={locks.audience}
 						bind:value={submitScope}
 						{...described('submitScope')}
-						class="field mt-1"
+						class="mt-1"
 					>
 						<option value="everyone">サーバーのメンバー全員</option>
 						<option value="target_role">対象ロールの人のみ</option>
-					</select>
+					</SelectField>
 					{#if locks.audience}
 						{@render locked('submitScope', submitScope, AUDIENCE_LOCKED)}
 					{/if}
@@ -227,16 +228,16 @@
 		<div>
 			<label class="block">
 				<span class="text-sm font-medium">結果の公開範囲</span>
-				<select
+				<SelectField
 					name="visibility"
 					bind:value={visibility}
 					{...described('visibility')}
-					class="field mt-1"
+					class="mt-1"
 				>
 					<option value="public">公開</option>
 					<option value="admin_only">管理者のみ</option>
 					<option value="after_deadline">締切後または確定後に公開</option>
-				</select>
+				</SelectField>
 			</label>
 			{@render error('visibility')}
 		</div>

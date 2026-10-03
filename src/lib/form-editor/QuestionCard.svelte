@@ -10,6 +10,7 @@
 		type QuestionType
 	} from '$lib/forms';
 	import FieldError from '$lib/components/FieldError.svelte';
+	import SelectField from '$lib/components/SelectField.svelte';
 	import Icon from '$lib/icons/Icon.svelte';
 	import { newOption, type EditorQuestion } from './editor';
 	import type { HistoryControls } from './history.svelte';
@@ -68,18 +69,17 @@
 		class="field self-start"
 	/>
 	<div>
-		<select
+		<SelectField
 			value={question.type}
 			aria-label="質問 {index + 1} の種類"
 			disabled={typeLocked}
 			aria-describedby={typeLocked ? typeNoteId : undefined}
 			onchange={(event) => onTypeChange(event.currentTarget.value as QuestionType)}
-			class="field"
 		>
 			{#each QUESTION_TYPES as type (type)}
 				<option value={type}>{QUESTION_TYPE_LABELS[type]}</option>
 			{/each}
-		</select>
+		</SelectField>
 		{#if typeLocked}
 			<span id={typeNoteId} class="mt-1 block text-xs text-text-muted">{TYPE_LOCKED}</span>
 		{/if}
